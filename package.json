@@ -1,0 +1,63 @@
+{
+  "name": "vscode-docu-extension",
+  "displayName": "Docu - AI Documentation Assistant",
+  "description": "A VS Code extension that provides AI-powered documentation assistance through GitHub Copilot Chat with specialized agents for requirements gathering, design, and implementation planning.",
+  "version": "0.1.0",
+  "publisher": "docu",
+  "repository": "https://github.com/docu/vscode-docu-extension",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "Other",
+    "Documentation",
+    "AI"
+  ],
+  "keywords": [
+    "vscode",
+    "extension",
+    "documentation",
+    "ai",
+    "copilot",
+    "chat",
+    "requirements",
+    "design"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "docu",
+        "name": "docu",
+        "description": "AI-powered documentation assistant for requirements gathering, design, and implementation planning",
+        "isSticky": true
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.97.0",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.2.2",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3"
+  }
+}
