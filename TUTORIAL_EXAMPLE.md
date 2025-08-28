@@ -46,6 +46,17 @@ If you see responses to these commands, you're ready to proceed!
 I'll help you think strategically about your product vision, objectives, and market positioning.
 ```
 
+### Step 2: Create the Project Directory Structure
+
+First, let's create the directory structure for our project:
+
+```bash
+# Create the main docs directory and subdirectories
+mkdir -p docs/01-prd docs/02-requirements docs/03-architecture docs/04-implementation
+```
+
+Alternatively, you can create directories one at a time as needed, or let Docu create them automatically by omitting the path parameter.
+
 ### Step 2: Create the PRD Document
 
 ```bash
@@ -54,11 +65,18 @@ I'll help you think strategically about your product vision, objectives, and mar
 
 **What Happens:**
 - Creates `docs/01-prd/cardcraft-online-store-prd.md`
+- Automatically creates the directory structure if it doesn't exist
 - Opens the document in VS Code
 - Applies PRD template structure
 - Shows clickable file link in chat
 
-### Step 3: Engage with PRD Creator Agent
+**If Template Variables Are Missing:**
+If you see an error about missing required variables, Docu will provide helpful suggestions:
+- Use the basic template instead: `--template basic`
+- Check what variables are needed: `/templates show prd`
+- The error message will show exactly which variables are missing and how to fix it
+
+### Step 4: Engage with PRD Creator Agent
 
 Now interact with the agent to develop your product concept:
 
@@ -98,7 +116,7 @@ CardCraft will differentiate by offering:
 We'll start nationally in the US, focusing on competitive players and collectors.
 ```
 
-### Step 4: Complete PRD Sections
+### Step 5: Complete PRD Sections
 
 Continue working with the agent to fill out all PRD sections. The agent will guide you through:
 
@@ -113,7 +131,7 @@ Continue working with the agent to fill out all PRD sections. The agent will gui
 
 ## Phase 2: Ideation and Feature Exploration
 
-### Step 5: Switch to Brainstormer Agent
+### Step 6: Switch to Brainstormer Agent
 
 ```bash
 @docu /agent set brainstormer
@@ -126,7 +144,7 @@ Continue working with the agent to fill out all PRD sections. The agent will gui
 Let's think outside the box and discover innovative features for CardCraft!
 ```
 
-### Step 6: Brainstorm Innovative Features
+### Step 7: Brainstorm Innovative Features
 
 **Your Input:**
 ```
@@ -170,7 +188,7 @@ Continue this creative exploration to generate innovative feature ideas.
 
 ## Phase 3: Requirements Gathering
 
-### Step 7: Switch to Requirements Gatherer Agent
+### Step 8: Switch to Requirements Gatherer Agent
 
 ```bash
 @docu /agent set requirements-gatherer
@@ -188,6 +206,14 @@ I'll help you create structured user stories and detailed acceptance criteria.
 ```bash
 @docu /new "CardCraft Requirements Specification" --template requirements --path docs/02-requirements/
 ```
+
+**What Happens:**
+- Creates `docs/02-requirements/cardcraft-requirements-specification.md`
+- Automatically creates the directory structure
+- Applies requirements template structure
+- Opens the document in VS Code
+
+**Note:** If the template has required variables, Docu will show you exactly what's needed and suggest alternatives like using the basic template.
 
 ### Step 9: Define User Stories and Acceptance Criteria
 
@@ -214,7 +240,7 @@ Let's start with core user management:
 Should we continue with the product catalog requirements next?
 ```
 
-### Step 10: Complete All Requirement Categories
+### Step 11: Complete All Requirement Categories
 
 Work through systematic requirements for:
 
@@ -240,7 +266,7 @@ Work through systematic requirements for:
 
 ## Phase 4: Solution Architecture
 
-### Step 11: Switch to Solution Architect Agent
+### Step 12: Switch to Solution Architect Agent
 
 ```bash
 @docu /agent set solution-architect
@@ -253,13 +279,18 @@ Work through systematic requirements for:
 I'll help you design a scalable, secure system architecture for CardCraft.
 ```
 
-### Step 12: Create Architecture Document
+### Step 13: Create Architecture Document
 
 ```bash
 @docu /new "CardCraft System Architecture" --template basic --path docs/03-architecture/
 ```
 
-### Step 13: Design Technical Solution
+**Alternative if directory doesn't exist:**
+```bash
+@docu /new "CardCraft System Architecture" --template basic
+```
+
+### Step 14: Design Technical Solution
 
 **Your Input:**
 ```
@@ -314,7 +345,7 @@ Continue working with the agent to define:
 
 ## Phase 5: Implementation Planning
 
-### Step 14: Switch to Specification Writer Agent
+### Step 15: Switch to Specification Writer Agent
 
 ```bash
 @docu /agent set specification-writer
@@ -327,13 +358,18 @@ Continue working with the agent to define:
 I'll help you create detailed development tasks and technical specifications.
 ```
 
-### Step 15: Create Implementation Plan
+### Step 16: Create Implementation Plan
 
 ```bash
 @docu /new "CardCraft Implementation Plan" --template basic --path docs/04-implementation/
 ```
 
-### Step 16: Break Down Implementation Tasks
+**Alternative if directory doesn't exist:**
+```bash
+@docu /new "CardCraft Implementation Plan" --template basic
+```
+
+### Step 17: Break Down Implementation Tasks
 
 **Your Input:**
 ```
@@ -385,7 +421,7 @@ Perfect! Let's create a comprehensive implementation plan for your 4-month MVP t
 Would you like me to continue with the detailed breakdown for all phases?
 ```
 
-### Step 17: Complete Implementation Phases
+### Step 18: Complete Implementation Phases
 
 Continue working with the agent to define:
 
@@ -575,6 +611,10 @@ workspace/
 @docu /new "Document Title" --template prd --path docs/01-prd/
 @docu /new "Document Title" --template requirements --path docs/02-requirements/
 @docu /new "Document Title" --template basic --path docs/03-architecture/
+
+# Check template details if needed
+@docu /templates show prd
+@docu /templates show requirements
 ```
 
 ### Document Management Commands

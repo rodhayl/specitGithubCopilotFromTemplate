@@ -821,7 +821,7 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			logger.command.error('New command failed', undefined, { title, templateId, error: result.error });
 			telemetryManager.trackCommand('new', false, duration, result.error);
 			
-			// Enhanced workspace error handling
+			// Enhanced error handling for different error types
 			if (result.metadata?.workspaceRequired || result.error?.includes('workspace')) {
 				context.stream.markdown(`❌ **Error creating document:** ${result.error}\n\n`);
 				context.stream.markdown('**What to do:**\n');
@@ -832,6 +832,17 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				context.stream.markdown('- Create a new folder on your computer and open it in VS Code\n');
 				context.stream.markdown('- Use File → Open Recent to select a previously used workspace\n\n');
 				context.stream.markdown('💡 *For more help, try: `/help workspace`*\n');
+			} else if (result.metadata?.templateError && result.metadata?.missingVariables) {
+				context.stream.markdown(`❌ **Error creating document:** ${result.error}\n\n`);
+				context.stream.markdown('**What to do:**\n');
+				context.stream.markdown(`1. Use the basic template instead: \`/new "${title}" --template basic --path ${parsedCommand.flags.path || ''}\`\n`);
+				context.stream.markdown(`2. Check template requirements: \`/templates show ${templateId}\`\n`);
+				context.stream.markdown(`3. Provide the missing variables when creating the document\n\n`);
+				context.stream.markdown('**Missing variables:**\n');
+				for (const variable of result.metadata.missingVariables) {
+					context.stream.markdown(`- \`${variable}\`\n`);
+				}
+				context.stream.markdown('\n💡 *Tip: The basic template works great with all agents and doesn\'t require specific variables*\n');
 			} else {
 				context.stream.markdown(`❌ **Error creating document:** ${result.error}`);
 			}

@@ -102,8 +102,27 @@ export class ApplyTemplateTool extends BaseTool {
                 }
             };
 
-            // Render template
-            const result = this.templateManager.renderTemplate(params.templateId, renderContext);
+            // Try to render template, handle missing variables gracefully
+            let result;
+            try {
+                result = this.templateManager.renderTemplate(params.templateId, renderContext);
+            } catch (templateError) {
+                if (templateError instanceof Error && templateError.message.includes('Missing required variables')) {
+                    // Extract missing variables from error message
+                    const missingVars = templateError.message.replace('Missing required variables: ', '');
+                    return {
+                        success: false,
+                        error: `Missing required variables: ${missingVars}`,
+                        metadata: {
+                            templateError: true,
+                            missingVariables: missingVars.split(', '),
+                            suggestion: `Provide the missing variables or use a different template. Try: --template basic`
+                        }
+                    };
+                }
+                throw templateError;
+            }
+
             if (!result) {
                 return {
                     success: false,
@@ -122,6 +141,24 @@ export class ApplyTemplateTool extends BaseTool {
                         success: false,
                         error: 'Output path must be within the workspace'
                     };
+                }
+
+                // Create directory structure if it doesn't exist
+                const path = require('path');
+                const dirPath = path.dirname(params.outputPath);
+                const dirUri = vscode.Uri.file(dirPath);
+                
+                try {
+                    await vscode.workspace.fs.createDirectory(dirUri);
+                } catch (dirError) {
+                    // Directory might already exist, that's fine
+                    // Only fail if it's a real error (not FileExists)
+                    if (dirError instanceof Error && !dirError.message.includes('exists')) {
+                        return {
+                            success: false,
+                            error: `Failed to create directory: ${dirError.message}`
+                        };
+                    }
                 }
 
                 // Create front matter + content
