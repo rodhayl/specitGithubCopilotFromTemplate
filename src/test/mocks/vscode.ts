@@ -124,6 +124,23 @@ export const extensions = {
   getExtension: jest.fn()
 };
 
+export const env = {
+  isTelemetryEnabled: true,
+  sessionId: 'test-session-id',
+  machineId: 'test-machine-id',
+  language: 'en',
+  clipboard: {
+    readText: jest.fn(),
+    writeText: jest.fn()
+  }
+};
+
+export const ExtensionMode = {
+  Production: 1,
+  Development: 2,
+  Test: 3
+};
+
 // Event emitters
 export const EventEmitter = jest.fn().mockImplementation(() => ({
   event: jest.fn(),

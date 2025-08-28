@@ -4,6 +4,7 @@ import { ConversationManager } from '../../conversation/ConversationManager';
 import { ResponseProcessor } from '../../conversation/ResponseProcessor';
 import { ContentCapture } from '../../conversation/ContentCapture';
 import { QuestionEngine } from '../../conversation/QuestionEngine';
+import { WorkflowOrchestrator, ProgressTracker } from '../../conversation/types';
 import { TemplateManager } from '../../templates/TemplateManager';
 import { ToolManager } from '../../tools/ToolManager';
 import { ErrorHandler } from '../../error/ErrorHandler';
@@ -24,7 +25,19 @@ describe('Compilation Validation Tests', () => {
     describe('Core Module Instantiation', () => {
         it('should instantiate ConversationManager without errors', () => {
             expect(() => {
-                const manager = new ConversationManager();
+                const questionEngine = new QuestionEngine();
+                const responseProcessor = new ResponseProcessor();
+                const contentCapture = new ContentCapture();
+                const workflowOrchestrator = {} as WorkflowOrchestrator;
+                const progressTracker = {} as ProgressTracker;
+                const manager = new ConversationManager(
+                    questionEngine,
+                    responseProcessor,
+                    contentCapture,
+                    workflowOrchestrator,
+                    progressTracker,
+                    mockContext
+                );
                 expect(manager).toBeDefined();
                 expect(manager).toBeInstanceOf(ConversationManager);
             }).not.toThrow();
@@ -64,7 +77,8 @@ describe('Compilation Validation Tests', () => {
 
         it('should instantiate ToolManager without errors', () => {
             expect(() => {
-                const manager = new ToolManager(mockContext);
+                const templateManager = new TemplateManager(mockContext);
+                const manager = new ToolManager(templateManager);
                 expect(manager).toBeDefined();
                 expect(manager).toBeInstanceOf(ToolManager);
             }).not.toThrow();
@@ -87,7 +101,7 @@ describe('Compilation Validation Tests', () => {
                     get: jest.fn().mockImplementation((key: string, defaultValue: any) => defaultValue)
                 });
                 
-                Logger.initialize({ level: 1, enableConsole: true, enableFile: false });
+                Logger.initialize(mockContext);
                 const logger = Logger.getInstance();
                 expect(logger).toBeDefined();
                 expect(logger).toBeInstanceOf(Logger);
@@ -106,12 +120,12 @@ describe('Compilation Validation Tests', () => {
             expect(() => {
                 // Ensure Logger is initialized first (TelemetryManager depends on it)
                 try {
-                    Logger.initialize({ level: 1, enableConsole: true, enableFile: false });
+                    Logger.initialize(mockContext);
                 } catch (e) {
                     // Logger might already be initialized
                 }
                 
-                TelemetryManager.initialize({ enabled: true, collectUsageData: false, collectPerformanceData: false });
+                TelemetryManager.initialize(mockContext);
                 const manager = TelemetryManager.getInstance();
                 expect(manager).toBeDefined();
                 expect(manager).toBeInstanceOf(TelemetryManager);
@@ -216,10 +230,19 @@ describe('Compilation Validation Tests', () => {
 
     describe('Module Integration', () => {
         it('should allow modules to work together without type conflicts', async () => {
-            const conversationManager = new ConversationManager();
+            const questionEngine = new QuestionEngine();
             const responseProcessor = new ResponseProcessor();
             const contentCapture = new ContentCapture();
-            const questionEngine = new QuestionEngine();
+            const workflowOrchestrator = {} as WorkflowOrchestrator;
+            const progressTracker = {} as ProgressTracker;
+            const conversationManager = new ConversationManager(
+                questionEngine,
+                responseProcessor,
+                contentCapture,
+                workflowOrchestrator,
+                progressTracker,
+                mockContext
+            );
             
             // Test that modules can be used together
             expect(conversationManager).toBeDefined();
@@ -242,7 +265,7 @@ describe('Compilation Validation Tests', () => {
                 (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
                     get: jest.fn().mockImplementation((key: string, defaultValue: any) => defaultValue)
                 });
-                Logger.initialize({ level: 1, enableConsole: true, enableFile: false });
+                Logger.initialize(mockContext);
             } catch (e) {
                 // Logger might already be initialized
             }
@@ -257,7 +280,7 @@ describe('Compilation Validation Tests', () => {
             }).not.toThrow();
             
             expect(() => {
-                logger.info('Test log message');
+                logger.info('TEST', 'Test log message');
             }).not.toThrow();
         });
     });
