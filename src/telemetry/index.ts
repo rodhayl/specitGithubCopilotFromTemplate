@@ -1,2 +1,3 @@
 // Telemetry module exports
-export { TelemetryManager, TelemetryEvent, TelemetryConfig, PerformanceMetric } from './TelemetryManager';
+export { TelemetryManager } from './TelemetryManager';
+export type { TelemetryEvent, TelemetryConfig, PerformanceMetric } from './TelemetryManager';

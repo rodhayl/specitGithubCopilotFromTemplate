@@ -7,32 +7,16 @@ import { WorkflowOrchestrator } from '../WorkflowOrchestrator';
 import { ProgressTracker } from '../ProgressTracker';
 import { ConversationContext } from '../types';
 import * as vscode from 'vscode';
+import MockHelper from '../../test/utils/mockHelpers';
 
-// Mock vscode
-jest.mock('vscode', () => ({
-    workspace: {
-        openTextDocument: jest.fn(),
-        applyEdit: jest.fn(),
-        fs: {
-            createDirectory: jest.fn()
-        }
-    },
-    Uri: {
-        file: jest.fn()
-    },
-    WorkspaceEdit: jest.fn().mockImplementation(() => ({
-        createFile: jest.fn(),
-        replace: jest.fn()
-    })),
-    Range: jest.fn()
-}));
+// VSCode is mocked globally in setup.ts
 
 describe('Conversation System Integration', () => {
     let conversationManager: ConversationManager;
-    let mockExtensionContext: vscode.ExtensionContext;
+    let mockExtensionContext: any;
 
     beforeEach(() => {
-        mockExtensionContext = {} as vscode.ExtensionContext;
+        mockExtensionContext = {};
         
         const questionEngine = new QuestionEngine();
         const responseProcessor = new ResponseProcessor();

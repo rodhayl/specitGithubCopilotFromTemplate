@@ -1,7 +1,7 @@
 // ResponseProcessor unit tests
 import { ResponseProcessor } from '../ResponseProcessor';
 import { Question, ConversationContext, ValidationRule } from '../types';
-import * as vscode from 'vscode';
+import { ExtensionContext } from '../../test/mocks/vscode';
 
 describe('ResponseProcessor', () => {
     let responseProcessor: ResponseProcessor;
@@ -14,7 +14,7 @@ describe('ResponseProcessor', () => {
             documentPath: '/test/document.md',
             workflowPhase: 'prd',
             workspaceRoot: '/test',
-            extensionContext: {} as vscode.ExtensionContext
+            extensionContext: new ExtensionContext()
         };
     });
 

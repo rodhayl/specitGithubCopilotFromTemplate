@@ -249,11 +249,21 @@ async function handleChatRequest(
 				// Build agent context
 				const agentContext = agentManager.buildAgentContext(request);
 				
+				// Convert VSCode ChatRequest to Agent ChatRequest
+				const agentRequest: import('./agents/types').ChatRequest = {
+					command: request.command,
+					prompt: request.prompt,
+					parameters: {}, // Extract from request if needed
+					originalRequest: request
+				};
+				
 				// Handle request with current agent
-				const agentResponse = await currentAgent.handleRequest(request, agentContext);
+				const agentResponse = await currentAgent.handleRequest(agentRequest, agentContext);
 				
 				// Stream the agent response
-				stream.markdown(agentResponse.content);
+				if (agentResponse.content) {
+					stream.markdown(agentResponse.content);
+				}
 				
 				// Add follow-up suggestions if available
 				if (agentResponse.followupSuggestions && agentResponse.followupSuggestions.length > 0) {
@@ -791,91 +801,7 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 	}
 }
 
-/**
- * Handle the /agent command
- */
-async function handleAgentCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
-	const startTime = performance.now();
-	logger.command.info('Handling /agent command', { subcommand: parsedCommand.subcommand });
 
-	try {
-		const subcommand = parsedCommand.subcommand || 'list';
-
-		if (subcommand === 'list') {
-			const agents = agentManager.listAgents();
-			
-			context.stream.markdown('## 🤖 Available Agents\n\n');
-			
-			for (const agent of agents) {
-				const status = agent.active ? '✅ **Active**' : '⚪ Available';
-				context.stream.markdown(`### ${agent.name}\n`);
-				context.stream.markdown(`${agent.description}\n\n`);
-				context.stream.markdown(`**Phase:** ${agent.phase} | **Status:** ${status}\n\n`);
-			}
-			
-			context.stream.markdown(`\n💡 *Use \`/agent set <agent-name>\` to switch agents*\n`);
-			
-			return { success: true };
-
-		} else if (subcommand === 'set') {
-			const agentName = parsedCommand.arguments[0];
-			if (!agentName) {
-				context.stream.markdown('❌ **Error:** Agent name is required\n\n**Usage:** `/agent set <agent-name>`');
-				return { success: false, error: 'Agent name is required' };
-			}
-
-			const success = agentManager.setCurrentAgent(agentName);
-			if (success) {
-				const agent = agentManager.getAgent(agentName);
-				context.stream.markdown(`✅ **Agent switched to ${agentName}**\n\n`);
-				context.stream.markdown(`You're now working with the ${agent?.workflowPhase} phase agent.\n\n`);
-				context.stream.markdown(`💬 *Start chatting to begin your ${agent?.workflowPhase} workflow!*`);
-				
-				return { success: true, data: { agent: agentName } };
-			} else {
-				context.stream.markdown(`❌ **Error:** Agent '${agentName}' not found\n\n`);
-				context.stream.markdown('Available agents:\n');
-				
-				const agents = agentManager.listAgents();
-				agents.forEach(agent => {
-					context.stream.markdown(`- ${agent.name}\n`);
-				});
-				
-				return { success: false, error: 'Agent not found' };
-			}
-
-		} else if (subcommand === 'current') {
-			const currentAgent = agentManager.getCurrentAgent();
-			if (currentAgent) {
-				context.stream.markdown(`🤖 **Current Agent:** ${currentAgent.name}\n\n`);
-				context.stream.markdown(`**Phase:** ${currentAgent.workflowPhase}\n`);
-				context.stream.markdown(`**Description:** Working on ${currentAgent.workflowPhase} phase development\n\n`);
-				
-				const workflowState = agentManager.getWorkflowState();
-				if (workflowState) {
-					context.stream.markdown(`**Workflow Status:**\n`);
-					context.stream.markdown(`- Current Phase: ${workflowState.currentPhase}\n`);
-					context.stream.markdown(`- Documents: ${Object.keys(workflowState.documents).length} created\n`);
-				}
-			} else {
-				context.stream.markdown('❌ **No active agent**\n\nUse `/agent set <agent-name>` to select an agent.');
-			}
-			
-			return { success: true };
-
-		} else {
-			context.stream.markdown(`❌ **Error:** Unknown subcommand '${subcommand}'\n\n**Available subcommands:**\n- list\n- set <agent-name>\n- current`);
-			return { success: false, error: 'Unknown subcommand' };
-		}
-
-	} catch (error) {
-		const duration = performance.now() - startTime;
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-		logger.command.error('Agent command exception', error instanceof Error ? error : new Error(errorMessage));
-		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
-	}
-}
 
 /**
  * Handle the /templates command
@@ -1491,8 +1417,9 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
 		return { success: false, error: errorMessage };
 	}
-}/*
-*
+}
+
+/**
  * Handle the /summarize command
  */
 async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {

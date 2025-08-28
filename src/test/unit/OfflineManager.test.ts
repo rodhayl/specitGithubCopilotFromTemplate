@@ -2,10 +2,10 @@
 import * as assert from 'assert';
 import { OfflineManager } from '../../offline/OfflineManager';
 
-suite('OfflineManager Unit Tests', () => {
+describe('OfflineManager Unit Tests', () => {
     let offlineManager: OfflineManager;
 
-    setup(() => {
+    beforeAll(() => {
         offlineManager = OfflineManager.getInstance();
     });
 

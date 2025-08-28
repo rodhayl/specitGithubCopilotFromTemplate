@@ -13,6 +13,7 @@ import {
     QuestionEngine,
     ResponseProcessor,
     ContentCapture,
+    WorkflowSuggestion,
     WorkflowOrchestrator,
     ProgressTracker
 } from './types';
@@ -149,7 +150,7 @@ export class ConversationManager implements IConversationManager {
             // Determine next question or completion
             let nextQuestions: Question[] = [];
             let agentMessage = '';
-            let workflowSuggestions = [];
+            let workflowSuggestions: WorkflowSuggestion[] = [];
 
             if (analysis.needsClarification) {
                 // Ask for clarification

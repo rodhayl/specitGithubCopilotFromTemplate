@@ -8,13 +8,13 @@ import { TestUtilities } from '../utils/TestUtilities';
 import { TestTimeoutManager } from '../utils/TestTimeoutManager';
 import { VSCodeAPIMocks } from '../mocks/VSCodeAPIMocks';
 
-suite('ToolManager Integration Tests', () => {
+describe('ToolManager Integration Tests', () => {
     let toolManager: ToolManager;
     let templateManager: TemplateManager;
     let mockContext: ToolContext;
     let mockExtensionContext: vscode.ExtensionContext;
 
-    setup(TestUtilities.createSuiteSetup(async () => {
+    beforeAll(async () => {
         mockExtensionContext = VSCodeAPIMocks.createMockExtensionContext();
         templateManager = new TemplateManager(mockExtensionContext);
         
@@ -28,9 +28,11 @@ suite('ToolManager Integration Tests', () => {
         
         toolManager = new ToolManager(templateManager);
         mockContext = VSCodeAPIMocks.createMockToolContext();
-    }));
+    });
 
-    teardown(TestUtilities.createSuiteTeardown());
+    afterAll(() => {
+        // Cleanup after tests
+    });
 
     test('Should register all built-in tools', () => {
         const tools = toolManager.listTools();

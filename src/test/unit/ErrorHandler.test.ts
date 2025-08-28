@@ -4,15 +4,17 @@ import { ErrorHandler, ErrorContext } from '../../error/ErrorHandler';
 import { TestUtilities } from '../utils/TestUtilities';
 import { TestTimeoutManager } from '../utils/TestTimeoutManager';
 
-suite('ErrorHandler Unit Tests', () => {
+describe('ErrorHandler Unit Tests', () => {
     let errorHandler: ErrorHandler;
 
-    setup(TestUtilities.createSuiteSetup(() => {
+    beforeAll(() => {
         errorHandler = ErrorHandler.getInstance();
         errorHandler.clearHistory(); // Clear history before each test
-    }));
+    });
 
-    teardown(TestUtilities.createSuiteTeardown());
+    afterAll(() => {
+        // Cleanup after tests
+    });
 
     test('Should be singleton', () => {
         const instance1 = ErrorHandler.getInstance();

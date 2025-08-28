@@ -10,7 +10,7 @@ import { TestUtilities } from '../utils/TestUtilities';
 import { TestTimeoutManager } from '../utils/TestTimeoutManager';
 import { VSCodeAPIMocks } from '../mocks/VSCodeAPIMocks';
 
-suite('End-to-End Workflow Tests', () => {
+describe('End-to-End Workflow Tests', () => {
     let templateManager: TemplateManager;
     let toolManager: ToolManager;
     let agentManager: AgentManager;
@@ -18,7 +18,7 @@ suite('End-to-End Workflow Tests', () => {
     let mockExtensionContext: vscode.ExtensionContext;
     let mockCommandContext: CommandContext;
 
-    setup(TestUtilities.createSuiteSetup(async () => {
+    beforeAll(async () => {
         // Create mock extension context
         mockExtensionContext = VSCodeAPIMocks.createMockExtensionContext();
 
@@ -44,9 +44,11 @@ suite('End-to-End Workflow Tests', () => {
         }
 
         mockCommandContext = VSCodeAPIMocks.createMockCommandContext();
-    }));
+    });
 
-    teardown(TestUtilities.createSuiteTeardown());
+    afterAll(() => {
+        // Cleanup after tests
+    });
 
     test('Complete PRD Creation Workflow', async () => {
         const toolContext = VSCodeAPIMocks.createMockToolContext();

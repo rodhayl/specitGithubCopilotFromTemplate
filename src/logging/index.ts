@@ -1,2 +1,3 @@
 // Logging module exports
-export { Logger, LogLevel, LogEntry, LoggerConfig } from './Logger';
+export { Logger } from './Logger';
+export type { LogLevel, LogEntry, LoggerConfig } from './Logger';

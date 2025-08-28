@@ -1,5 +1,5 @@
 import { BaseAgent } from './BaseAgent';
-import { AgentContext, AgentResponse } from './types';
+import { AgentContext, AgentResponse, ChatRequest } from './types';
 
 export class SolutionArchitectAgent extends BaseAgent {
     name = 'solution-architect';
@@ -39,6 +39,10 @@ Focus on creating comprehensive design.md documents that bridge the gap between 
 
     allowedTools = ['readFile', 'writeFile', 'insertSection', 'applyTemplate'];
     workflowPhase = 'design' as const;
+
+    async handleLegacyRequest(request: any, context: AgentContext): Promise<AgentResponse> {
+        return await this.handleRequest(request, context);
+    }
 
     async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {

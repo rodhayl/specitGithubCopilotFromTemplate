@@ -1,2 +1,3 @@
 // Debugging module exports
-export { DebugManager, DebugInfo, SystemDiagnostics } from './DebugManager';
+export { DebugManager } from './DebugManager';
+export type { DebugInfo, SystemDiagnostics } from './DebugManager';

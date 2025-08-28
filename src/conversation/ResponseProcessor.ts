@@ -325,7 +325,13 @@ export class ResponseProcessor implements IResponseProcessor {
     }
 
     private extractAcceptanceCriteria(response: string): Record<string, any> {
-        const criteria: string[] = [];
+        interface AcceptanceCriteria {
+            condition: string;
+            action: string;
+            format: 'EARS' | 'list';
+        }
+        
+        const criteria: AcceptanceCriteria[] = [];
         const earsPattern = /(when|if|while|where)\s+([^,]+),?\s*(then|the system shall|system shall)\s+(.+)/gi;
         
         let match;

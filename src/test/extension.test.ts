@@ -11,7 +11,7 @@ import './integration/CommandRouter.test';
 import './integration/ToolManager.test';
 import './e2e/WorkflowTests.test';
 
-suite('Docu Extension Test Suite', () => {
+describe('Docu Extension Test Suite', () => {
 
 	vscode.window.showInformationMessage('Starting Docu extension tests...');
 

@@ -356,7 +356,7 @@ ${contextInfo ? `## Context\n\n${contextInfo}` : ''}
             
             if (questions[0].examples && questions[0].examples.length > 0) {
                 message += `📝 *Here are some examples of well-structured requirements:*\n`;
-                questions[0].examples.slice(0, 3).forEach(example => {
+                questions[0].examples.slice(0, 3).forEach((example: string) => {
                     message += `• ${example}\n`;
                 });
                 message += `\n`;

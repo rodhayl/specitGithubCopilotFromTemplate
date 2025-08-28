@@ -6,16 +6,18 @@ import { TestUtilities } from '../utils/TestUtilities';
 import { TestTimeoutManager } from '../utils/TestTimeoutManager';
 import { VSCodeAPIMocks } from '../mocks/VSCodeAPIMocks';
 
-suite('CommandRouter Integration Tests', () => {
+describe('CommandRouter Integration Tests', () => {
     let commandRouter: CommandRouter;
     let mockContext: CommandContext;
 
-    setup(TestUtilities.createSuiteSetup(() => {
+    beforeAll(() => {
         commandRouter = new CommandRouter();
         mockContext = VSCodeAPIMocks.createMockCommandContext();
-    }));
+    });
 
-    teardown(TestUtilities.createSuiteTeardown());
+    afterAll(() => {
+        // Cleanup after tests
+    });
 
     test('Should identify commands correctly', () => {
         const commands = [

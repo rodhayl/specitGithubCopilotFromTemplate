@@ -3,11 +3,11 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { TemplateManager } from '../../templates/TemplateManager';
 
-suite('TemplateManager Unit Tests', () => {
+describe('TemplateManager Unit Tests', () => {
     let templateManager: TemplateManager;
     let mockContext: vscode.ExtensionContext;
 
-    setup(() => {
+    beforeAll(() => {
         // Create mock extension context
         mockContext = {
             subscriptions: [],

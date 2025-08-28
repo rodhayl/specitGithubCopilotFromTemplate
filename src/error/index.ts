@@ -1,2 +1,3 @@
 // Error handling module exports
-export { ErrorHandler, ErrorContext, ErrorRecoveryOption, ErrorReport } from './ErrorHandler';
+export { ErrorHandler } from './ErrorHandler';
+export type { ErrorContext, ErrorRecoveryOption, ErrorReport } from './ErrorHandler';

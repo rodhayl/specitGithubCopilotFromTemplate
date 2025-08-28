@@ -2,48 +2,17 @@
 import { ContentCapture } from '../ContentCapture';
 import { DocumentUpdate, ConversationData } from '../types';
 import * as vscode from 'vscode';
+import MockHelper from '../../test/utils/mockHelpers';
 
-// Mock vscode workspace
-const mockWorkspace = {
-    openTextDocument: jest.fn(),
-    applyEdit: jest.fn(),
-    fs: {
-        createDirectory: jest.fn()
-    }
-};
-
-const mockTextDocument = {
-    getText: jest.fn(),
-    positionAt: jest.fn()
-};
-
-const mockUri = {
-    file: jest.fn()
-};
-
-// Mock vscode modules
-jest.mock('vscode', () => ({
-    workspace: mockWorkspace,
-    Uri: mockUri,
-    WorkspaceEdit: jest.fn().mockImplementation(() => ({
-        createFile: jest.fn(),
-        replace: jest.fn()
-    })),
-    Range: jest.fn().mockImplementation((start, end) => ({ start, end }))
-}));
+// VSCode is mocked globally in setup.ts
 
 describe('ContentCapture', () => {
     let contentCapture: ContentCapture;
 
     beforeEach(() => {
         contentCapture = new ContentCapture();
-        jest.clearAllMocks();
-        
-        // Setup default mocks
-        mockUri.file.mockReturnValue({ fsPath: '/test/path' });
-        mockWorkspace.openTextDocument.mockResolvedValue(mockTextDocument);
-        mockWorkspace.applyEdit.mockResolvedValue(true);
-        mockTextDocument.positionAt.mockReturnValue({ line: 0, character: 0 });
+        MockHelper.resetAllMocks();
+        MockHelper.setupCommonMocks();
     });
 
     describe('updateDocument', () => {
@@ -57,7 +26,7 @@ This is the introduction.
 Existing requirements content.
 `;
 
-            mockTextDocument.getText.mockReturnValue(existingContent);
+            MockHelper.mockDocumentContent('/test/document.md', existingContent);
 
             const updates: DocumentUpdate[] = [
                 {
@@ -74,7 +43,7 @@ Existing requirements content.
             expect(result.success).toBe(true);
             expect(result.updatedSections).toContain('Requirements');
             expect(result.errors).toHaveLength(0);
-            expect(mockWorkspace.applyEdit).toHaveBeenCalled();
+            expect(vscode.workspace.applyEdit).toHaveBeenCalled();
         });
 
         it('should append content to existing sections', async () => {
@@ -84,7 +53,7 @@ Existing requirements content.
 Existing requirements.
 `;
 
-            mockTextDocument.getText.mockReturnValue(existingContent);
+            MockHelper.mockDocumentContent('/test/document.md', existingContent);
 
             const updates: DocumentUpdate[] = [
                 {
@@ -109,7 +78,7 @@ Existing requirements.
 This is the introduction.
 `;
 
-            mockTextDocument.getText.mockReturnValue(existingContent);
+            MockHelper.mockDocumentContent('/test/document.md', existingContent);
 
             const updates: DocumentUpdate[] = [
                 {
@@ -128,11 +97,11 @@ This is the introduction.
         });
 
         it('should handle document creation when file doesn\'t exist', async () => {
-            mockWorkspace.openTextDocument
+            (vscode.workspace.openTextDocument as jest.Mock)
                 .mockRejectedValueOnce(new Error('File not found'))
-                .mockResolvedValueOnce(mockTextDocument);
+                .mockResolvedValueOnce(MockHelper.createMockTextDocument(''));
             
-            mockTextDocument.getText.mockReturnValue('');
+            (vscode.workspace.fs.createDirectory as jest.Mock).mockResolvedValue(undefined);
 
             const updates: DocumentUpdate[] = [
                 {
@@ -147,7 +116,7 @@ This is the introduction.
             const result = await contentCapture.updateDocument('/test/new-document.md', updates);
 
             expect(result.success).toBe(true);
-            expect(mockWorkspace.fs.createDirectory).toHaveBeenCalled();
+            expect(vscode.workspace.fs.createDirectory).toHaveBeenCalled();
         });
 
         it('should handle multiple updates in sequence', async () => {
@@ -160,7 +129,7 @@ Content 1.
 Content 2.
 `;
 
-            mockTextDocument.getText.mockReturnValue(existingContent);
+            MockHelper.mockDocumentContent('/test/document.md', existingContent);
 
             const updates: DocumentUpdate[] = [
                 {
@@ -194,7 +163,7 @@ Content 2.
 Old content.
 `;
 
-            mockTextDocument.getText.mockReturnValue(existingContent);
+            MockHelper.mockDocumentContent('/test/document.md', existingContent);
 
             const updates: DocumentUpdate[] = [
                 {
@@ -299,7 +268,7 @@ Requirements content.
 Final thoughts.
 `;
 
-            mockTextDocument.getText.mockReturnValue(content);
+            MockHelper.mockDocumentContent('/test/document.md', content);
 
             const sections = await contentCapture.getDocumentSections('/test/document.md');
 
@@ -311,7 +280,7 @@ Final thoughts.
 
         it('should handle documents without sections', async () => {
             const content = 'This is a document without any headers.';
-            mockTextDocument.getText.mockReturnValue(content);
+            MockHelper.mockDocumentContent('/test/document.md', content);
 
             const sections = await contentCapture.getDocumentSections('/test/document.md');
 
@@ -319,7 +288,7 @@ Final thoughts.
         });
 
         it('should handle file read errors', async () => {
-            mockWorkspace.openTextDocument.mockRejectedValue(new Error('File not found'));
+            (vscode.workspace.openTextDocument as jest.Mock).mockRejectedValue(new Error('File not found'));
 
             const sections = await contentCapture.getDocumentSections('/test/nonexistent.md');
 
@@ -339,7 +308,7 @@ It has multiple lines.
 This is requirements content.
 `;
 
-            mockTextDocument.getText.mockReturnValue(content);
+            MockHelper.mockDocumentContent('/test/document.md', content);
 
             const sectionContent = await contentCapture.extractExistingContent('/test/document.md', 'Introduction');
 
@@ -355,7 +324,7 @@ This is requirements content.
 Content here.
 `;
 
-            mockTextDocument.getText.mockReturnValue(content);
+            MockHelper.mockDocumentContent('/test/document.md', content);
 
             const sectionContent = await contentCapture.extractExistingContent('/test/document.md', 'Non-existent');
 
@@ -363,7 +332,7 @@ Content here.
         });
 
         it('should handle file read errors', async () => {
-            mockWorkspace.openTextDocument.mockRejectedValue(new Error('File not found'));
+            (vscode.workspace.openTextDocument as jest.Mock).mockRejectedValue(new Error('File not found'));
 
             const sectionContent = await contentCapture.extractExistingContent('/test/nonexistent.md', 'Introduction');
 

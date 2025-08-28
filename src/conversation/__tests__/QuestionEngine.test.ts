@@ -1,7 +1,9 @@
 // QuestionEngine unit tests
 import { QuestionEngine } from '../QuestionEngine';
 import { ConversationContext, ConversationTurn, Question } from '../types';
-import * as vscode from 'vscode';
+import { ExtensionContext } from '../../test/mocks/vscode';
+
+// VSCode is mocked globally in setup.ts
 
 describe('QuestionEngine', () => {
     let questionEngine: QuestionEngine;
@@ -14,7 +16,7 @@ describe('QuestionEngine', () => {
             documentPath: '/test/document.md',
             workflowPhase: 'prd',
             workspaceRoot: '/test',
-            extensionContext: {} as vscode.ExtensionContext
+            extensionContext: new ExtensionContext()
         };
     });
 

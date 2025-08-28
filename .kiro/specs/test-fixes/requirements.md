@@ -2,116 +2,61 @@
 
 ## Introduction
 
-This specification defines the requirements for fixing critical test failures in the VSCode documentation extension. The extension currently has 22 failing tests across security, error handling, command routing, tool management, and end-to-end workflow areas. These failures prevent reliable deployment and indicate potential runtime issues that could affect user experience.
-
-The fixes must maintain backward compatibility while ensuring all tests pass and the extension functions correctly in production environments.
+The project currently has critical compilation errors preventing successful builds, packaging, and testing. The errors span across missing test framework dependencies, TypeScript type mismatches, and duplicate function implementations. This feature will systematically resolve all compilation issues to restore the project to a working state.
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a developer, I want the SecurityManager to properly sanitize user input, so that XSS attacks and malicious content are prevented.
+**User Story:** As a developer, I want the test suite to compile and run successfully, so that I can validate code changes and maintain code quality.
 
 #### Acceptance Criteria
 
-1. WHEN the SecurityManager receives input containing script tags THEN it SHALL remove the script tags while preserving the inner content
-2. WHEN sanitizing `<script>alert("xss")</script>` THEN the system SHALL return `alert("xss")`
-3. WHEN the sanitization method is called THEN it SHALL handle HTML entities and special characters correctly
-4. WHEN malicious input is detected THEN the system SHALL log the sanitization action for security auditing
+1. WHEN running `npm run test` THEN the system SHALL execute all tests without compilation errors
+2. WHEN test files reference `expect` or `jest` functions THEN the system SHALL recognize these as valid testing framework functions
+3. WHEN tests use Jest mocking capabilities THEN the system SHALL properly type and execute mock functions
+4. WHEN running tests THEN the system SHALL provide clear test results and coverage information
 
 ### Requirement 2
 
-**User Story:** As a developer, I want ErrorHandler tests to complete without timeouts, so that the test suite runs reliably and error categorization works correctly.
+**User Story:** As a developer, I want TypeScript compilation to succeed without type errors, so that I can build and package the extension reliably.
 
 #### Acceptance Criteria
 
-1. WHEN ErrorHandler tests run THEN they SHALL complete within the 2000ms timeout limit
-2. WHEN testing file not found errors THEN the system SHALL properly categorize them as FileError type
-3. WHEN testing permission errors THEN the system SHALL properly categorize them as PermissionError type
-4. WHEN testing network errors THEN the system SHALL properly categorize them as NetworkError type
-5. WHEN testing model errors THEN the system SHALL properly categorize them as ModelError type
-6. WHEN testing workspace errors THEN the system SHALL handle VS Code dialog service interactions without blocking
-7. WHEN testing template errors THEN the system SHALL properly categorize them as TemplateError type
-8. WHEN testing generic errors THEN the system SHALL provide appropriate fallback categorization
-9. WHEN maintaining error history THEN the system SHALL store and retrieve error records correctly
-10. WHEN providing error statistics THEN the system SHALL calculate accurate counts and percentages
-11. WHEN limiting error history size THEN the system SHALL maintain the configured maximum number of entries
-12. WHEN providing technical details THEN the system SHALL include relevant file paths and context information
+1. WHEN running `npm run compile` THEN the system SHALL complete compilation without TypeScript errors
+2. WHEN TypeScript encounters type mismatches THEN the system SHALL have proper type definitions and interfaces
+3. WHEN arrays and objects are used THEN the system SHALL have explicit typing to avoid implicit 'any' types
+4. WHEN function parameters are passed THEN the system SHALL match expected interface signatures
 
 ### Requirement 3
 
-**User Story:** As a developer, I want CommandRouter to correctly identify valid commands while rejecting invalid ones, so that the chat participant responds appropriately to user input.
+**User Story:** As a developer, I want to package the extension successfully, so that I can distribute and deploy the VSCode extension.
 
 #### Acceptance Criteria
 
-1. WHEN the CommandRouter receives a comment like "// this is a comment" THEN it SHALL NOT identify it as a command
-2. WHEN the CommandRouter receives an empty command like "/" THEN it SHALL NOT identify it as a valid command
-3. WHEN the CommandRouter receives valid slash commands THEN it SHALL identify them correctly
-4. WHEN command identification fails THEN the system SHALL provide clear feedback about why the input was rejected
+1. WHEN running `npm run package` THEN the system SHALL create a valid .vsix package file
+2. WHEN packaging occurs THEN the system SHALL include all necessary compiled assets
+3. WHEN the package is created THEN the system SHALL validate the extension manifest and dependencies
+4. WHEN packaging completes THEN the system SHALL produce no compilation or bundling errors
 
 ### Requirement 4
 
-**User Story:** As a developer, I want ToolManager to execute tools successfully, so that file operations and template management work correctly in the extension.
+**User Story:** As a developer, I want duplicate function implementations resolved, so that the codebase maintains clean architecture without conflicts.
 
 #### Acceptance Criteria
 
-1. WHEN executing the listTemplates tool THEN it SHALL return success status and template data
-2. WHEN executing listTemplates with agent filter THEN it SHALL return filtered results successfully
-3. WHEN executing validateTemplate tool THEN it SHALL return validation results successfully
-4. WHEN tool execution encounters errors THEN it SHALL provide descriptive error messages containing relevant context
-5. WHEN executing openTemplate tool for built-in templates THEN it SHALL return success status and template content
+1. WHEN the system encounters duplicate function names THEN the system SHALL have only one implementation per function
+2. WHEN functions are refactored THEN the system SHALL maintain all required functionality
+3. WHEN duplicate code is removed THEN the system SHALL preserve the most complete and correct implementation
+4. WHEN functions are consolidated THEN the system SHALL maintain proper TypeScript typing
 
 ### Requirement 5
 
-**User Story:** As a developer, I want end-to-end workflow tests to pass, so that the complete PRD creation, template management, and validation workflows function correctly.
+**User Story:** As a developer, I want proper Jest and testing framework configuration, so that the testing environment works seamlessly with TypeScript and VSCode extension development.
 
 #### Acceptance Criteria
 
-1. WHEN running the complete PRD creation workflow THEN it SHALL execute all steps successfully without errors
-2. WHEN running the template management workflow THEN it SHALL create, list, and validate templates successfully
-3. WHEN running the template creation and validation workflow THEN it SHALL handle the complete lifecycle without failures
-4. WHEN workflow tests fail THEN they SHALL provide specific error information to aid debugging
-
-### Requirement 6
-
-**User Story:** As a developer, I want proper async/await handling in tests, so that asynchronous operations complete correctly and don't cause timeouts.
-
-#### Acceptance Criteria
-
-1. WHEN tests involve asynchronous operations THEN they SHALL use proper async/await patterns
-2. WHEN tests use promises THEN they SHALL ensure all promises resolve or reject appropriately
-3. WHEN tests have callbacks THEN they SHALL call done() appropriately or return promises
-4. WHEN async operations might take time THEN tests SHALL have appropriate timeout values
-
-### Requirement 7
-
-**User Story:** As a developer, I want proper mocking and test isolation, so that tests don't interfere with each other and external dependencies are controlled.
-
-#### Acceptance Criteria
-
-1. WHEN tests require VS Code APIs THEN they SHALL use appropriate mocks or test doubles
-2. WHEN tests involve file system operations THEN they SHALL use isolated test environments
-3. WHEN tests require external services THEN they SHALL mock those dependencies appropriately
-4. WHEN tests complete THEN they SHALL clean up any created resources or state changes
-
-### Requirement 8
-
-**User Story:** As a developer, I want comprehensive error handling in the test suite, so that test failures provide actionable debugging information.
-
-#### Acceptance Criteria
-
-1. WHEN tests fail THEN they SHALL provide clear error messages indicating what went wrong
-2. WHEN assertions fail THEN they SHALL show expected vs actual values clearly
-3. WHEN setup or teardown fails THEN the system SHALL report the specific failure point
-4. WHEN tests encounter unexpected errors THEN they SHALL capture and report the full error context
-
-### Requirement 9
-
-**User Story:** As a developer, I want the test suite to run consistently across different environments, so that CI/CD pipelines and local development produce reliable results.
-
-#### Acceptance Criteria
-
-1. WHEN tests run in different environments THEN they SHALL produce consistent results
-2. WHEN tests depend on timing THEN they SHALL account for environment performance differences
-3. WHEN tests use file paths THEN they SHALL work correctly on different operating systems
-4. WHEN tests require specific VS Code versions THEN they SHALL verify compatibility appropriately
+1. WHEN Jest is configured THEN the system SHALL support TypeScript test files
+2. WHEN tests import VSCode APIs THEN the system SHALL provide proper mocks and type definitions
+3. WHEN running tests THEN the system SHALL use appropriate Jest presets for TypeScript compilation
+4. WHEN test files are executed THEN the system SHALL have access to all necessary testing utilities and matchers

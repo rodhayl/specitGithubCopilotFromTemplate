@@ -1,5 +1,5 @@
 import { BaseAgent } from './BaseAgent';
-import { AgentContext, AgentResponse } from './types';
+import { AgentContext, AgentResponse, ChatRequest } from './types';
 
 export class SpecificationWriterAgent extends BaseAgent {
     name = 'specification-writer';
@@ -40,6 +40,10 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
 
     allowedTools = ['readFile', 'writeFile', 'insertSection', 'listFiles'];
     workflowPhase = 'implementation' as const;
+
+    async handleLegacyRequest(request: any, context: AgentContext): Promise<AgentResponse> {
+        return await this.handleRequest(request, context);
+    }
 
     async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {

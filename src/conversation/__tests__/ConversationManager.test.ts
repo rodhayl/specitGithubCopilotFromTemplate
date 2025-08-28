@@ -9,7 +9,10 @@ import {
     ConversationContext,
     Question
 } from '../types';
-import * as vscode from 'vscode';
+// VSCode is mocked globally in setup.ts
+import MockHelper from '../../test/utils/mockHelpers';
+
+// VSCode is mocked globally in setup.ts
 
 // Mock implementations
 class MockQuestionEngine implements QuestionEngine {
@@ -226,10 +229,10 @@ class MockProgressTracker implements ProgressTracker {
 
 describe('ConversationManager', () => {
     let conversationManager: ConversationManager;
-    let mockExtensionContext: vscode.ExtensionContext;
+    let mockExtensionContext: any;
 
     beforeEach(() => {
-        mockExtensionContext = {} as vscode.ExtensionContext;
+        mockExtensionContext = {};
         
         conversationManager = new ConversationManager(
             new MockQuestionEngine(),

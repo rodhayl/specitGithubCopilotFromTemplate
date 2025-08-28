@@ -4,15 +4,17 @@ import * as path from 'path';
 import { SecurityManager } from '../../security/SecurityManager';
 import { TestUtilities } from '../utils/TestUtilities';
 
-suite('SecurityManager Unit Tests', () => {
+describe('SecurityManager Unit Tests', () => {
     let securityManager: SecurityManager;
     const mockData = TestUtilities.createMockData();
 
-    setup(TestUtilities.createSuiteSetup(() => {
+    beforeAll(() => {
         securityManager = new SecurityManager(mockData.workspaceRoot);
-    }));
+    });
 
-    teardown(TestUtilities.createSuiteTeardown());
+    afterAll(() => {
+        // Cleanup after tests
+    });
 
     test('Should validate paths within workspace', () => {
         const validPaths = [

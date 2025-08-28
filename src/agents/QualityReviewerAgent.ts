@@ -1,5 +1,5 @@
 import { BaseAgent } from './BaseAgent';
-import { AgentContext, AgentResponse } from './types';
+import { AgentContext, AgentResponse, ChatRequest } from './types';
 
 export class QualityReviewerAgent extends BaseAgent {
     name = 'quality-reviewer';
@@ -54,6 +54,10 @@ Focus on providing actionable, specific feedback that improves document quality 
 
     allowedTools = ['readFile', 'writeFile', 'insertSection', 'listFiles'];
     workflowPhase = 'implementation' as const;
+
+    async handleLegacyRequest(request: any, context: AgentContext): Promise<AgentResponse> {
+        return await this.handleRequest(request, context);
+    }
 
     async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {

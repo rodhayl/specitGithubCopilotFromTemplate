@@ -280,7 +280,7 @@ Use: \`/agent set requirements-gatherer\` to make the transition.`;
             
             if (questions[0].examples && questions[0].examples.length > 0) {
                 message += `🌟 *Here are some thought starters:*\n`;
-                questions[0].examples.slice(0, 3).forEach(example => {
+                questions[0].examples.slice(0, 3).forEach((example: string) => {
                     message += `• ${example}\n`;
                 });
                 message += `\n`;

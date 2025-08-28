@@ -1,7 +1,7 @@
 import { CommandParser } from './CommandParser';
 import { CommandDefinition, CommandContext, CommandResult, ParsedCommand } from './types';
 
-export { CommandContext } from './types';
+export type { CommandContext } from './types';
 
 export class CommandRouter {
     private parser: CommandParser;
