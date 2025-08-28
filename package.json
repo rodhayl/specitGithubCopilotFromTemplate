@@ -36,7 +36,209 @@
         "description": "AI-powered documentation assistant for requirements gathering, design, and implementation planning",
         "isSticky": true
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "docu.showDiagnostics",
+        "title": "Show Diagnostics",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.exportDiagnostics",
+        "title": "Export Diagnostics",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.showOutput",
+        "title": "Show Output Channel",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.clearLogs",
+        "title": "Clear Logs",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.toggleDebug",
+        "title": "Toggle Debug Mode",
+        "category": "Docu"
+      }
+    ],
+    "configuration": {
+      "title": "Docu - AI Documentation Assistant",
+      "properties": {
+        "docu.defaultDirectory": {
+          "type": "string",
+          "default": "docs",
+          "description": "Default directory for creating new documents",
+          "scope": "workspace"
+        },
+        "docu.defaultAgent": {
+          "type": "string",
+          "default": "prd-creator",
+          "enum": [
+            "prd-creator",
+            "brainstormer",
+            "requirements-gatherer",
+            "solution-architect",
+            "specification-writer",
+            "quality-reviewer"
+          ],
+          "description": "Default agent to use when the extension starts",
+          "scope": "workspace"
+        },
+        "docu.templateDirectory": {
+          "type": "string",
+          "default": ".vscode/docu/templates",
+          "description": "Directory containing user-defined templates (relative to workspace root)",
+          "scope": "workspace"
+        },
+        "docu.agentConfigDirectory": {
+          "type": "string",
+          "default": ".vscode/docu",
+          "description": "Directory containing agent configuration files",
+          "scope": "workspace"
+        },
+        "docu.autoSaveDocuments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save documents when they are created or updated",
+          "scope": "workspace"
+        },
+        "docu.showWorkflowProgress": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show workflow progress and phase transitions in chat responses",
+          "scope": "workspace"
+        },
+        "docu.enableHotReload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reload agent configurations and templates when files change",
+          "scope": "workspace"
+        },
+        "docu.reviewLevel": {
+          "type": "string",
+          "default": "normal",
+          "enum": [
+            "light",
+            "normal",
+            "strict"
+          ],
+          "description": "Default review level for document quality checks",
+          "scope": "workspace"
+        },
+        "docu.maxFilesInSummary": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Maximum number of files to process in summary and catalog operations",
+          "scope": "workspace"
+        },
+        "docu.enableDebugLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging for troubleshooting",
+          "scope": "workspace"
+        },
+        "docu.logging.level": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "none"
+          ],
+          "description": "Logging level for the extension",
+          "scope": "workspace"
+        },
+        "docu.logging.enableConsole": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable console logging",
+          "scope": "workspace"
+        },
+        "docu.logging.enableOutputChannel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable output channel logging",
+          "scope": "workspace"
+        },
+        "docu.logging.enableFile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable file logging",
+          "scope": "workspace"
+        },
+        "docu.logging.maxLogEntries": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Maximum number of log entries to keep in memory",
+          "scope": "workspace"
+        },
+        "docu.logging.categories": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "enum": [
+              "extension",
+              "agent",
+              "tool",
+              "template",
+              "command",
+              "error",
+              "security"
+            ]
+          },
+          "description": "Log categories to include (empty array means all categories)",
+          "scope": "workspace"
+        },
+        "docu.telemetry.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable telemetry collection (respects VS Code telemetry settings)",
+          "scope": "workspace"
+        },
+        "docu.telemetry.collectUsageData": {
+          "type": "boolean",
+          "default": true,
+          "description": "Collect usage data for improving the extension",
+          "scope": "workspace"
+        },
+        "docu.telemetry.collectPerformanceData": {
+          "type": "boolean",
+          "default": true,
+          "description": "Collect performance data for optimization",
+          "scope": "workspace"
+        },
+        "docu.telemetry.collectErrorData": {
+          "type": "boolean",
+          "default": true,
+          "description": "Collect error data for debugging",
+          "scope": "workspace"
+        },
+        "docu.telemetry.anonymizeData": {
+          "type": "boolean",
+          "default": true,
+          "description": "Anonymize collected telemetry data",
+          "scope": "workspace"
+        },
+        "docu.telemetry.maxEvents": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 5000,
+          "description": "Maximum number of telemetry events to keep in memory",
+          "scope": "workspace"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -49,6 +251,7 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.97.0",
@@ -59,5 +262,8 @@
     "@vscode/vsce": "^3.2.2",
     "eslint": "^9.19.0",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
   }
 }
