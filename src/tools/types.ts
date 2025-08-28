@@ -30,6 +30,27 @@ export interface ToolResult {
     metadata?: Record<string, any>;
 }
 
+export interface ToolRequirements {
+    requiresWorkspace: boolean;
+    requiresFileSystem: boolean;
+    workspaceOptional?: boolean;
+    gracefulDegradation?: {
+        withoutWorkspace: string[];
+        withWorkspace: string[];
+    };
+}
+
+export interface WorkspaceErrorResult extends ToolResult {
+    success: false;
+    error: string;
+    errorType: 'workspace-required' | 'workspace-permissions' | 'workspace-invalid';
+    guidance: {
+        action: string;
+        alternatives?: string[];
+        helpCommand?: string;
+    };
+}
+
 export interface FileMetadata {
     path: string;
     size: number;

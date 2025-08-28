@@ -20,6 +20,14 @@ export class InsertSectionTool extends BaseTool {
     name = 'insertSection';
     description = 'Update specific sections in Markdown documents';
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: true,
+            requiresFileSystem: true,
+            workspaceOptional: false
+        };
+    }
+
     async execute(params: InsertSectionParams): Promise<ToolResult> {
         try {
             const { path, header, mode, content } = params;

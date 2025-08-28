@@ -20,6 +20,9 @@ import {
     WorkflowOrchestrator, 
     ProgressTracker 
 } from './conversation';
+import { LLMService } from './llm/LLMService';
+import { SettingsWebviewProvider } from './config/SettingsWebviewProvider';
+import { SettingsCommand } from './commands/SettingsCommand';
 
 let templateManager: TemplateManager;
 let toolManager: ToolManager;
@@ -33,6 +36,8 @@ let logger: Logger;
 let telemetryManager: TelemetryManager;
 let debugManager: DebugManager;
 let conversationManager: ConversationManager;
+let llmService: LLMService;
+let settingsProvider: SettingsWebviewProvider;
 
 export async function activate(context: vscode.ExtensionContext) {
 	// Initialize logging system first
@@ -117,6 +122,30 @@ export async function activate(context: vscode.ExtensionContext) {
 	agentManager = new AgentManager(context);
 	await agentManager.loadConfigurations();
 
+	// Initialize LLM service
+	const preferredModel = configManager.get('preferredModel') as string;
+	llmService = new LLMService({ preferredModel: preferredModel || undefined });
+	try {
+		await llmService.initialize();
+		logger.extension.info('LLM Service initialized successfully');
+	} catch (error) {
+		logger.extension.error('Failed to initialize LLM Service', error instanceof Error ? error : new Error(String(error)));
+		vscode.window.showWarningMessage(
+			'GitHub Copilot is not available. Some features may be limited.',
+			'Learn More'
+		).then(selection => {
+			if (selection === 'Learn More') {
+				vscode.env.openExternal(vscode.Uri.parse('https://github.com/features/copilot'));
+			}
+		});
+	}
+
+	// Initialize settings webview provider
+	settingsProvider = new SettingsWebviewProvider(context.extensionUri, agentManager, llmService);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(SettingsWebviewProvider.viewType, settingsProvider)
+	);
+
 	// Set conversation manager for all agents
 	const agents = agentManager.listAgents();
 	for (const agentInfo of agents) {
@@ -176,6 +205,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register debug commands
 	registerDebugCommands(context);
+
+	// Register settings command
+	context.subscriptions.push(
+		SettingsCommand.register(context, settingsProvider)
+	);
 }
 
 async function handleChatRequest(
@@ -786,7 +820,21 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			const duration = performance.now() - startTime;
 			logger.command.error('New command failed', undefined, { title, templateId, error: result.error });
 			telemetryManager.trackCommand('new', false, duration, result.error);
-			context.stream.markdown(`❌ **Error creating document:** ${result.error}`);
+			
+			// Enhanced workspace error handling
+			if (result.metadata?.workspaceRequired || result.error?.includes('workspace')) {
+				context.stream.markdown(`❌ **Error creating document:** ${result.error}\n\n`);
+				context.stream.markdown('**What to do:**\n');
+				context.stream.markdown('1. Open a folder or workspace in VS Code\n');
+				context.stream.markdown('2. Use File → Open Folder to select a project directory\n');
+				context.stream.markdown('3. Try the `/new` command again once a workspace is open\n\n');
+				context.stream.markdown('**Alternative options:**\n');
+				context.stream.markdown('- Create a new folder on your computer and open it in VS Code\n');
+				context.stream.markdown('- Use File → Open Recent to select a previously used workspace\n\n');
+				context.stream.markdown('💡 *For more help, try: `/help workspace`*\n');
+			} else {
+				context.stream.markdown(`❌ **Error creating document:** ${result.error}`);
+			}
 			return { success: false, error: result.error };
 		}
 
@@ -827,6 +875,16 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 
 			if (result.success && result.data) {
 				context.stream.markdown('## 📋 Available Templates\n\n');
+				
+				// Show workspace status
+				if (result.data.hasWorkspace) {
+					context.stream.markdown(`📁 **Workspace:** Available (${result.data.builtInCount} built-in, ${result.data.userCount} user templates)\n\n`);
+				} else {
+					context.stream.markdown(`📁 **Workspace:** Not available (showing ${result.data.builtInCount} built-in templates only)\n\n`);
+					if (result.data.userCount === 0) {
+						context.stream.markdown('💡 *Open a folder or workspace to access user-defined templates*\n\n');
+					}
+				}
 				
 				if (agentFilter) {
 					context.stream.markdown(`*Filtered by agent: **${agentFilter}***\n\n`);

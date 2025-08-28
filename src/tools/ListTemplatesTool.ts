@@ -29,8 +29,33 @@ export class ListTemplatesTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: false,
+            requiresFileSystem: false,
+            workspaceOptional: true,
+            gracefulDegradation: {
+                withoutWorkspace: ['Built-in templates only'],
+                withWorkspace: ['Built-in and user templates']
+            }
+        };
+    }
+
     async execute(params: ListTemplatesParams, context: ToolContext): Promise<ToolResult> {
         try {
+            // Check if workspace is available for user templates
+            const hasWorkspace = !!(context.workspaceRoot && context.workspaceRoot.trim() !== '');
+            
+            // Load user templates if workspace is available
+            if (hasWorkspace) {
+                try {
+                    await this.templateManager.loadUserTemplates();
+                } catch (error) {
+                    // Log warning but continue with built-in templates
+                    this.log(`Warning: Could not load user templates: ${error instanceof Error ? error.message : 'Unknown error'}`, 'warn');
+                }
+            }
+
             let templates;
             
             if (params.agentName) {
@@ -60,12 +85,24 @@ export class ListTemplatesTool extends BaseTool {
                 return data;
             });
 
+            // Add workspace status information
+            const builtInCount = templateData.filter(t => t.builtIn).length;
+            const userCount = templateData.filter(t => !t.builtIn).length;
+
             return {
                 success: true,
                 data: {
                     templates: templateData,
                     count: templateData.length,
+                    builtInCount,
+                    userCount,
+                    hasWorkspace,
+                    workspaceStatus: hasWorkspace ? 'available' : 'not-available',
                     filteredBy: params.agentName ? `agent: ${params.agentName}` : 'none'
+                },
+                metadata: {
+                    workspaceOptional: true,
+                    gracefulDegradation: !hasWorkspace
                 }
             };
 

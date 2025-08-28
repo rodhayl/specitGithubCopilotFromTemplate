@@ -47,6 +47,18 @@ export class ValidateTemplateTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: false,
+            requiresFileSystem: true,
+            workspaceOptional: true,
+            gracefulDegradation: {
+                withoutWorkspace: ['Built-in templates only'],
+                withWorkspace: ['Built-in and user templates']
+            }
+        };
+    }
+
     async execute(params: ValidateTemplateParams, context: ToolContext): Promise<ToolResult> {
         this.log('Validating template');
 

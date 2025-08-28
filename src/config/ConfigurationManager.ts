@@ -13,6 +13,7 @@ export interface DocuConfiguration {
     reviewLevel: 'light' | 'normal' | 'strict';
     maxFilesInSummary: number;
     enableDebugLogging: boolean;
+    preferredModel: string;
 }
 
 export class ConfigurationManager {
@@ -205,7 +206,8 @@ export class ConfigurationManager {
             enableHotReload: vsCodeConfig.get('enableHotReload', true),
             reviewLevel: vsCodeConfig.get('reviewLevel', 'normal') as 'light' | 'normal' | 'strict',
             maxFilesInSummary: vsCodeConfig.get('maxFilesInSummary', 50),
-            enableDebugLogging: vsCodeConfig.get('enableDebugLogging', false)
+            enableDebugLogging: vsCodeConfig.get('enableDebugLogging', false),
+            preferredModel: vsCodeConfig.get('preferredModel', '')
         };
     }
 
@@ -220,7 +222,8 @@ export class ConfigurationManager {
             enableHotReload: true,
             reviewLevel: 'normal',
             maxFilesInSummary: 50,
-            enableDebugLogging: false
+            enableDebugLogging: false,
+            preferredModel: ''
         };
     }
 

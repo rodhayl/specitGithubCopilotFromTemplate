@@ -74,6 +74,14 @@ export class CreateTemplateTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: true,
+            requiresFileSystem: true,
+            workspaceOptional: false
+        };
+    }
+
     async execute(params: CreateTemplateParams, context: ToolContext): Promise<ToolResult> {
         this.log(`Creating template: ${params.id}`);
 

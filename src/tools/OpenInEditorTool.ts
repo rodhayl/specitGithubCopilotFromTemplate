@@ -34,6 +34,14 @@ export class OpenInEditorTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: true,
+            requiresFileSystem: true,
+            workspaceOptional: false
+        };
+    }
+
     async execute(params: any, context: ToolContext): Promise<ToolResult> {
         this.log(`Opening file in editor: ${params.path}`);
 

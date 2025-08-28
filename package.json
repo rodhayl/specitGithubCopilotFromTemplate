@@ -39,6 +39,12 @@
     ],
     "commands": [
       {
+        "command": "docu.openSettings",
+        "title": "Open Settings",
+        "category": "Docu",
+        "icon": "$(gear)"
+      },
+      {
         "command": "docu.showDiagnostics",
         "title": "Show Diagnostics",
         "category": "Docu"
@@ -64,6 +70,31 @@
         "category": "Docu"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "docu.settingsView",
+          "name": "Docu Settings",
+          "type": "webview",
+          "contextualTitle": "Docu Configuration"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "docu.openSettings",
+          "when": "view == docu.settingsView",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "docu.openSettings",
+          "title": "Docu: Open Settings"
+        }
+      ]
+    },
     "configuration": {
       "title": "Docu - AI Documentation Assistant",
       "properties": {
@@ -85,6 +116,12 @@
             "quality-reviewer"
           ],
           "description": "Default agent to use when the extension starts",
+          "scope": "workspace"
+        },
+        "docu.preferredModel": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred language model to use for AI requests (leave empty for automatic selection)",
           "scope": "workspace"
         },
         "docu.templateDirectory": {

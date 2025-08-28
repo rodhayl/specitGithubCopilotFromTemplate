@@ -33,6 +33,18 @@ export class OpenTemplateTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: false,
+            requiresFileSystem: true,
+            workspaceOptional: true,
+            gracefulDegradation: {
+                withoutWorkspace: ['Built-in templates only'],
+                withWorkspace: ['Built-in and user templates']
+            }
+        };
+    }
+
     async execute(params: OpenTemplateParams, context: ToolContext): Promise<ToolResult> {
         this.log(`Opening template: ${params.templateId}`);
 

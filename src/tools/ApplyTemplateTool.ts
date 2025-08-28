@@ -37,8 +37,36 @@ export class ApplyTemplateTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: true,
+            requiresFileSystem: true,
+            workspaceOptional: false
+        };
+    }
+
     async execute(params: ApplyTemplateParams, context: ToolContext): Promise<ToolResult> {
         try {
+            // Additional workspace validation with specific guidance for document creation
+            if (!context.workspaceRoot || context.workspaceRoot.trim() === '') {
+                return {
+                    success: false,
+                    error: 'Document creation requires a workspace folder to be open',
+                    metadata: {
+                        workspaceRequired: true,
+                        guidance: {
+                            action: 'Open a folder or workspace in VS Code to create documents',
+                            alternatives: [
+                                'Use File → Open Folder to open a project directory',
+                                'Use File → Open Workspace to open a saved workspace file',
+                                'Create a new folder and open it as a workspace'
+                            ],
+                            helpCommand: '/help workspace'
+                        }
+                    }
+                };
+            }
+
             // Validate template exists
             const template = this.templateManager.getTemplate(params.templateId);
             if (!template) {

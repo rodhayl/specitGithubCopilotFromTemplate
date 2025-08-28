@@ -16,6 +16,17 @@ export interface FileConflictInfo {
     hasChanges?: boolean;
 }
 
+export interface WorkspaceDetectionResult {
+    hasWorkspace: boolean;
+    workspaceFolders: readonly vscode.WorkspaceFolder[];
+    primaryWorkspace?: vscode.WorkspaceFolder;
+    isMultiRoot: boolean;
+    permissions?: {
+        canRead: boolean;
+        canWrite: boolean;
+    };
+}
+
 export class SecurityManager {
     private readonly workspaceRoot: string;
     private readonly maxFileSize = 10 * 1024 * 1024; // 10MB limit
@@ -191,6 +202,59 @@ export class SecurityManager {
             console.warn(`Failed to create backup for ${filePath}:`, error);
             return null;
         }
+    }
+
+    /**
+     * Detect workspace state with enhanced information
+     */
+    async detectWorkspaceState(): Promise<WorkspaceDetectionResult> {
+        const workspaceFolders = vscode.workspace.workspaceFolders || [];
+        const hasWorkspace = workspaceFolders.length > 0;
+        const isMultiRoot = workspaceFolders.length > 1;
+        const primaryWorkspace = workspaceFolders[0];
+
+        let permissions: { canRead: boolean; canWrite: boolean } | undefined;
+
+        if (hasWorkspace && primaryWorkspace) {
+            try {
+                // Test read permissions
+                const testReadPath = path.join(primaryWorkspace.uri.fsPath, 'package.json');
+                let canRead = true;
+                try {
+                    await vscode.workspace.fs.stat(vscode.Uri.file(testReadPath));
+                } catch {
+                    // Try reading the directory itself
+                    try {
+                        await vscode.workspace.fs.readDirectory(primaryWorkspace.uri);
+                    } catch {
+                        canRead = false;
+                    }
+                }
+
+                // Test write permissions
+                let canWrite = true;
+                try {
+                    const testPath = path.join(primaryWorkspace.uri.fsPath, '.docu-test-' + Date.now());
+                    const testUri = vscode.Uri.file(testPath);
+                    await vscode.workspace.fs.writeFile(testUri, Buffer.from('test'));
+                    await vscode.workspace.fs.delete(testUri);
+                } catch {
+                    canWrite = false;
+                }
+
+                permissions = { canRead, canWrite };
+            } catch (error) {
+                permissions = { canRead: false, canWrite: false };
+            }
+        }
+
+        return {
+            hasWorkspace,
+            workspaceFolders,
+            primaryWorkspace,
+            isMultiRoot,
+            permissions
+        };
     }
 
     /**

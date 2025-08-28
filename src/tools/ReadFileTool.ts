@@ -20,6 +20,14 @@ export class ReadFileTool extends BaseTool {
         );
     }
 
+    protected getRequirements() {
+        return {
+            requiresWorkspace: true,
+            requiresFileSystem: true,
+            workspaceOptional: false
+        };
+    }
+
     async execute(params: any, context: ToolContext): Promise<ToolResult> {
         this.log(`Reading file: ${params.path}`);
 

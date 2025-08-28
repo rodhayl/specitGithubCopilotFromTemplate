@@ -1,8 +1,9 @@
 // Base tool implementation
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { Tool, ToolParameter, ToolContext, ToolResult } from './types';
-import { SecurityManager } from '../security/SecurityManager';
+import { Tool, ToolParameter, ToolContext, ToolResult, ToolRequirements, WorkspaceErrorResult } from './types';
+import { SecurityManager, WorkspaceDetectionResult } from '../security/SecurityManager';
+import { WorkspaceErrorHandler } from '../security/WorkspaceErrorHandler';
 import { ErrorHandler, ErrorContext } from '../error/ErrorHandler';
 import { OfflineManager } from '../offline/OfflineManager';
 
@@ -35,6 +36,11 @@ export abstract class BaseTool implements Tool {
      * Execute the tool - must be implemented by subclasses
      */
     abstract execute(params: any, context: ToolContext): Promise<ToolResult>;
+
+    /**
+     * Get tool requirements - must be implemented by subclasses
+     */
+    protected abstract getRequirements(): ToolRequirements;
 
     /**
      * Validate parameters before execution
@@ -96,10 +102,33 @@ export abstract class BaseTool implements Tool {
                 );
             }
 
-            // Validate workspace state
-            const workspaceValidation = await this.securityManager.validateWorkspaceState();
-            if (!workspaceValidation.valid) {
-                return this.createErrorResult(workspaceValidation.error!);
+            // Get tool requirements
+            const requirements = this.getRequirements();
+
+            // Validate workspace state based on requirements
+            if (requirements.requiresWorkspace) {
+                const workspaceState = await this.securityManager.detectWorkspaceState();
+                if (!workspaceState.hasWorkspace) {
+                    return this.createEnhancedWorkspaceErrorResult(workspaceState);
+                }
+                
+                // Additional validation for permissions if workspace exists
+                const workspaceValidation = await this.securityManager.validateWorkspaceState();
+                if (!workspaceValidation.valid) {
+                    return this.createEnhancedWorkspaceErrorResult(workspaceState);
+                }
+            } else if (requirements.workspaceOptional) {
+                // For workspace-optional tools, detect workspace state but don't fail if missing
+                const workspaceState = await this.securityManager.detectWorkspaceState();
+                
+                // If workspace exists, validate permissions
+                if (workspaceState.hasWorkspace) {
+                    const workspaceValidation = await this.securityManager.validateWorkspaceState();
+                    if (!workspaceValidation.valid) {
+                        // For optional workspace tools, log warning but continue
+                        this.log(`Workspace validation warning: ${workspaceValidation.error}`, 'warn');
+                    }
+                }
             }
 
             // Execute the actual tool operation
@@ -140,6 +169,89 @@ export abstract class BaseTool implements Tool {
             error,
             metadata
         };
+    }
+
+    /**
+     * Create a workspace-specific error result with guidance
+     */
+    protected createWorkspaceErrorResult(
+        error: string, 
+        errorType: 'workspace-required' | 'workspace-permissions' | 'workspace-invalid'
+    ): WorkspaceErrorResult {
+        const guidance = this.getWorkspaceGuidance(errorType);
+        return {
+            success: false,
+            error,
+            errorType,
+            guidance
+        };
+    }
+
+    /**
+     * Create enhanced workspace error result using WorkspaceErrorHandler
+     */
+    protected createEnhancedWorkspaceErrorResult(workspaceState: WorkspaceDetectionResult): WorkspaceErrorResult {
+        const errorInfo = WorkspaceErrorHandler.createUserFriendlyError(this.name, workspaceState);
+        
+        // Map WorkspaceErrorHandler types to ToolResult types
+        let errorType: 'workspace-required' | 'workspace-permissions' | 'workspace-invalid';
+        switch (errorInfo.type) {
+            case 'permissions':
+                errorType = 'workspace-permissions';
+                break;
+            case 'invalid-workspace':
+                errorType = 'workspace-invalid';
+                break;
+            case 'no-workspace':
+            case 'multi-root-complexity':
+            default:
+                errorType = 'workspace-required';
+                break;
+        }
+
+        return {
+            success: false,
+            error: errorInfo.message,
+            errorType,
+            guidance: errorInfo.guidance
+        };
+    }
+
+    /**
+     * Get workspace guidance based on error type (legacy method for backward compatibility)
+     */
+    private getWorkspaceGuidance(errorType: string): { action: string; alternatives?: string[]; helpCommand?: string } {
+        switch (errorType) {
+            case 'workspace-required':
+                return {
+                    action: 'Open a folder or workspace in VS Code',
+                    alternatives: [
+                        'Use File → Open Folder to open a project',
+                        'Use File → Open Workspace to open a saved workspace'
+                    ],
+                    helpCommand: '/help workspace'
+                };
+            case 'workspace-permissions':
+                return {
+                    action: 'Check folder permissions and try again',
+                    alternatives: [
+                        'Run VS Code as administrator (if needed)',
+                        'Choose a different folder with write permissions'
+                    ]
+                };
+            case 'workspace-invalid':
+                return {
+                    action: 'Ensure the workspace folder exists and is accessible',
+                    alternatives: [
+                        'Refresh the workspace folder',
+                        'Reopen VS Code with a valid folder'
+                    ]
+                };
+            default:
+                return {
+                    action: 'Please check your workspace configuration'
+                };
+        }
     }
 
     /**
