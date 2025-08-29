@@ -118,6 +118,29 @@ export class ConversationManager implements IConversationManager {
             // Get current question
             const currentQuestion = session.currentQuestionSet[session.state.currentQuestionIndex];
             if (!currentQuestion) {
+                // Try to recover by resetting to first question
+                if (session.currentQuestionSet.length > 0) {
+                    session.state.currentQuestionIndex = 0;
+                    const recoveredQuestion = session.currentQuestionSet[0];
+                    if (recoveredQuestion) {
+                        // Continue with the first question
+                        session.state.answeredQuestions.set(recoveredQuestion.id, userResponse);
+                        
+                        // Generate a simple response and move to next question
+                        const agentMessage = `Thank you for that information. Let me ask you another question: ${recoveredQuestion.text}`;
+                        
+                        await this.addConversationTurn(sessionId, 'question', agentMessage);
+                        
+                        return {
+                            agentMessage,
+                            followupQuestions: [recoveredQuestion],
+                            documentUpdates: [],
+                            workflowSuggestions: [],
+                            progressUpdate: this.progressTracker.calculateProgress(sessionId),
+                            conversationComplete: false
+                        };
+                    }
+                }
                 throw new ConversationError('No current question found', 'NO_CURRENT_QUESTION', sessionId);
             }
 
@@ -160,7 +183,6 @@ export class ConversationManager implements IConversationManager {
                 // Ask follow-up questions
                 agentMessage = this.generateFollowupMessage(userResponse, followupQuestions);
                 nextQuestions = followupQuestions;
-                session.state.currentQuestionIndex++;
             } else if (session.state.currentQuestionIndex < session.currentQuestionSet.length - 1) {
                 // Move to next primary question
                 session.state.currentQuestionIndex++;
@@ -184,7 +206,11 @@ export class ConversationManager implements IConversationManager {
             }
 
             // Update session
-            session.currentQuestionSet = nextQuestions;
+            if (nextQuestions.length > 0) {
+                session.currentQuestionSet = nextQuestions;
+                // Reset index when we have new questions
+                session.state.currentQuestionIndex = 0;
+            }
             session.state.lastUpdated = new Date();
             session.lastActivity = new Date();
 

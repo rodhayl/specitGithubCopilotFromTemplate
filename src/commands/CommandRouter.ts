@@ -249,11 +249,12 @@ export class CommandRouter {
         this.registerCommand({
             name: 'new',
             description: 'Create a new document',
-            usage: '/new <title> [--template <template-id>] [--path <output-path>]',
+            usage: '/new <title> [--template <template-id>] [--path <output-path>] [--with-placeholders]',
             examples: [
                 '/new "My Product Requirements"',
                 '/new "API Design" --template basic',
-                '/new "User Guide" --template basic --path docs/user-guide.md'
+                '/new "User Guide" --template basic --path docs/user-guide.md',
+                '/new "PRD Document" --template prd --with-placeholders'
             ],
             flags: [
                 {
@@ -268,6 +269,13 @@ export class CommandRouter {
                     shortName: 'p',
                     description: 'Output path for the document',
                     type: 'string'
+                },
+                {
+                    name: 'with-placeholders',
+                    shortName: 'wp',
+                    description: 'Create document with placeholder values for missing required variables',
+                    type: 'boolean',
+                    defaultValue: false
                 }
             ],
             handler: async (parsedCommand: ParsedCommand, context: CommandContext) => {

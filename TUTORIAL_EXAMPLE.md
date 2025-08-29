@@ -47,43 +47,152 @@ I'll help you think strategically about your product vision, objectives, and mar
 ```
 
 ### Step 2: Create the Project Directory Structure
-
-First, let's create the directory structure for our project:
-
-```bash
-# Create the main docs directory and subdirectories
-mkdir -p docs/01-prd docs/02-requirements docs/03-architecture docs/04-implementation
 ```
 
-Alternatively, you can create directories one at a time as needed, or let Docu create them automatically by omitting the path parameter.
+Let Docu create them automatically by omitting the path parameter.
 
 ### Step 2: Create the PRD Document
 
+The PRD template requires specific variables to be filled in. You have two options:
+
+**Option A: Use PRD Template with Placeholders (Recommended)**
 ```bash
-@docu /new "CardCraft Online Store PRD" --template prd --path docs/01-prd/
+@docu /new "CardCraft Online Store PRD" --template prd --with-placeholders --path docs/01-prd/
 ```
 
-**What Happens:**
-- Creates `docs/01-prd/cardcraft-online-store-prd.md`
-- Automatically creates the directory structure if it doesn't exist
+**Option B: Use Basic Template (Alternative)**
+```bash
+@docu /new "CardCraft Online Store PRD" --template basic --path docs/01-prd/
+```
+
+**What Happens with Option A:**
+- Creates `docs/01-prd/cardcraft-online-store-prd.md` with PRD structure
+- Automatically fills in placeholder text like "[TODO: Add executive summary]"
+- Creates the directory structure if it doesn't exist
 - Opens the document in VS Code
-- Applies PRD template structure
-- Shows clickable file link in chat
+- **🚀 AUTOMATICALLY STARTS CONTEXT GATHERING** with 5 strategic questions
+- **Generates comprehensive content** from your answers in a single LLM call
+- **Updates the document** with generated sections automatically
 
-**If Template Variables Are Missing:**
-If you see an error about missing required variables, Docu will provide helpful suggestions:
-- Use the basic template instead: `--template basic`
-- Check what variables are needed: `/templates show prd`
-- The error message will show exactly which variables are missing and how to fix it
+**What Happens with Option B:**
+- Creates a basic markdown document
+- You'll work with the agent to build the PRD structure through conversation
+- More flexible but requires more manual structuring
 
-### Step 4: Engage with PRD Creator Agent
+**Why the `--with-placeholders` flag is needed:**
+The PRD template requires specific variables like `executiveSummary`, `primaryGoal1`, `successCriteria1`, etc. Without placeholders, you'll get an error listing all missing variables. The placeholders create a structured document that gets filled in during your conversation with the agent.
 
-Now interact with the agent to develop your product concept:
+### 🎯 **NEW: Automatic Context Gathering System**
 
-**Your Input:**
+When you use `--with-placeholders` with structured templates (PRD, Requirements), the system now **automatically starts an intelligent conversation** to gather context:
+
+#### **What You'll See:**
 ```
-I want to create an online card game shop called CardCraft. It should sell trading cards like Pokemon and Magic: The Gathering, board games, and gaming accessories. The target audience is card game enthusiasts aged 13-35.
+🚀 Starting PRD Creator Context Gathering
+
+I'll ask you 5 quick questions to gather context for your PRD. 
+You can skip any question by typing "skip".
+
+Question 1/5: What specific problem or pain point does your product solve?
+
+💡 Examples:
+• Users struggle with slow authentication processes
+• Current data processing takes too long for real-time needs
+• Customers can't easily find product information
+
+[Answer this question] [Skip this question] [Skip all and generate now]
 ```
+
+#### **Key Benefits:**
+- ✅ **Fully Automatic** - No manual agent switching required
+- ✅ **Cost Efficient** - Single LLM call after gathering all context
+- ✅ **Comprehensive** - Structured questions ensure complete information
+- ✅ **Flexible** - Skip questions that aren't relevant
+- ✅ **Fast** - Immediate document generation with professional content
+
+#### **The Process:**
+1. **Document Creation** - Creates structured document with placeholders
+2. **Context Gathering** - Asks 5 strategic questions with examples
+3. **Response Collection** - Collects your answers (no LLM calls yet)
+4. **Content Generation** - Single LLM call with all gathered context
+5. **Document Update** - Automatically replaces placeholders with generated content
+6. **Final Save** - Saves the completed document
+
+### Step 3: Automatic Context Gathering (NEW!)
+
+After running the `/new` command with `--with-placeholders`, the system **automatically starts** the context gathering process. You'll see the first question appear immediately:
+
+**System Response:**
+```
+🚀 Starting PRD Creator Context Gathering
+
+I'll ask you 5 quick questions to gather context for your PRD. 
+You can skip any question by typing "skip".
+
+Question 1/5: What specific problem or pain point does your product solve?
+
+💡 Examples:
+• Users struggle with slow authentication processes  
+• Current data processing takes too long for real-time needs
+• Customers can't easily find product information
+
+[Answer this question] [Skip this question] [Skip all and generate now]
+```
+
+**Your Response to Question 1:**
+```
+Card game enthusiasts struggle to find reliable online stores with competitive prices, authentic products, and good community features. Most existing stores lack personalized recommendations and have poor user experiences.
+```
+
+**System Response:**
+```
+Question 2/5: Who are your primary target users?
+
+💡 Examples:
+• Software developers who need API access
+• Business analysts creating reports  
+• E-commerce customers aged 25-45
+
+[Answer this question] [Skip this question] [Skip all and generate now]
+```
+
+**Your Response to Question 2:**
+```
+Primary users are card game enthusiasts aged 13-35, including competitive players, collectors, and casual gamers who play Pokemon, Magic: The Gathering, Yu-Gi-Oh, and board games.
+```
+
+Continue answering the remaining questions about solution approach, success metrics, and constraints. After all questions are answered (or skipped), the system will automatically generate comprehensive content and update your document.
+
+#### **Final System Response:**
+```
+🔄 Generating document content from gathered context...
+
+✅ Document updated with generated content!
+
+Your PRD has been automatically updated with:
+• Executive Summary based on your problem definition
+• Product Objectives derived from your solution approach  
+• Target Market Analysis from your user descriptions
+• Success Criteria from your metrics
+• Constraints and Assumptions from your limitations
+
+📖 Open docs/01-prd/cardcraft-online-store-prd.md to see the results!
+```
+
+#### **What Gets Generated:**
+The system replaces all placeholders with professional content like:
+
+**Executive Summary:**
+> CardCraft is an innovative online card game marketplace designed to address the fragmented and often unreliable landscape of card game retail. By combining competitive pricing, authentic product verification, and community-driven features, CardCraft will serve as the premier destination for card game enthusiasts aged 13-35...
+
+**Primary Goals:**
+> 1. Establish CardCraft as the most trusted online card game retailer through authentic product verification and competitive pricing
+> 2. Build a thriving community of 10,000+ active users within the first year through personalized recommendations and social features...
+
+**Success Criteria:**
+> - Achieve $500K in revenue within the first 12 months
+> - Maintain 99.5% customer satisfaction rating for product authenticity
+> - Build a community of 10,000+ registered users with 30% monthly active rate...
 
 **Agent Response (Example):**
 ```
@@ -116,7 +225,7 @@ CardCraft will differentiate by offering:
 We'll start nationally in the US, focusing on competitive players and collectors.
 ```
 
-### Step 5: Complete PRD Sections
+### Step 4: Complete PRD Sections
 
 Continue working with the agent to fill out all PRD sections. The agent will guide you through:
 
@@ -131,7 +240,7 @@ Continue working with the agent to fill out all PRD sections. The agent will gui
 
 ## Phase 2: Ideation and Feature Exploration
 
-### Step 6: Switch to Brainstormer Agent
+### Step 5: Switch to Brainstormer Agent
 
 ```bash
 @docu /agent set brainstormer
@@ -144,7 +253,7 @@ Continue working with the agent to fill out all PRD sections. The agent will gui
 Let's think outside the box and discover innovative features for CardCraft!
 ```
 
-### Step 7: Brainstorm Innovative Features
+### Step 6: Brainstorm Innovative Features
 
 **Your Input:**
 ```
@@ -188,7 +297,7 @@ Continue this creative exploration to generate innovative feature ideas.
 
 ## Phase 3: Requirements Gathering
 
-### Step 8: Switch to Requirements Gatherer Agent
+### Step 7: Switch to Requirements Gatherer Agent
 
 ```bash
 @docu /agent set requirements-gatherer

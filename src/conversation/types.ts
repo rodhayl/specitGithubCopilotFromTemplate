@@ -7,8 +7,9 @@ export interface ConversationContext {
     existingContent?: string;
     workflowPhase: string;
     previousConversations?: ConversationSummary[];
-    workspaceRoot: string;
-    extensionContext: vscode.ExtensionContext;
+    workspaceRoot?: string;
+    extensionContext?: vscode.ExtensionContext;
+    title?: string;
 }
 
 export interface ConversationSession {
@@ -26,7 +27,8 @@ export interface ConversationResponse {
     documentUpdates?: DocumentUpdate[];
     workflowSuggestions?: WorkflowSuggestion[];
     progressUpdate?: ProgressStatus;
-    sessionId: string;
+    sessionId?: string;
+    conversationComplete?: boolean;
 }
 
 export interface ConversationSummary {

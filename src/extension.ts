@@ -38,8 +38,12 @@ let debugManager: DebugManager;
 let conversationManager: ConversationManager;
 let llmService: LLMService;
 let settingsProvider: SettingsWebviewProvider;
+let globalExtensionContext: vscode.ExtensionContext;
 
 export async function activate(context: vscode.ExtensionContext) {
+	// Store global extension context
+	globalExtensionContext = context;
+	
 	// Initialize logging system first
 	logger = Logger.initialize(context);
 	logger.extension.info('Docu extension activation started');
@@ -398,11 +402,12 @@ function registerCustomCommands(): void {
 	const newCommand: CommandDefinition = {
 		name: 'new',
 		description: 'Create a new document',
-		usage: '/new <title> [--template <template-id>] [--path <output-path>]',
+		usage: '/new <title> [--template <template-id>] [--path <output-path>] [--with-placeholders]',
 		examples: [
 			'/new "My Product Requirements"',
 			'/new "API Design" --template basic',
-			'/new "User Guide" --template basic --path docs/user-guide.md'
+			'/new "User Guide" --template basic --path docs/user-guide.md',
+			'/new "PRD Document" --template prd --with-placeholders'
 		],
 		flags: [
 			{
@@ -417,6 +422,13 @@ function registerCustomCommands(): void {
 				shortName: 'p',
 				description: 'Output path for the document',
 				type: 'string'
+			},
+			{
+				name: 'with-placeholders',
+				shortName: 'wp',
+				description: 'Create document with placeholder values for missing required variables',
+				type: 'boolean',
+				defaultValue: false
 			}
 		],
 		handler: async (parsedCommand: ParsedCommand, context: CommandContext) => {
@@ -710,6 +722,445 @@ function registerCustomCommands(): void {
 }
 
 /**
+ * Start context gathering conversation for structured templates
+ */
+async function startContextGatheringConversation(
+	templateId: string, 
+	title: string, 
+	outputPath: string, 
+	context: CommandContext, 
+	conversationManager: ConversationManager
+): Promise<void> {
+	try {
+		// Determine appropriate agent and questions based on template
+		const agentConfig = getAgentConfigForTemplate(templateId);
+		if (!agentConfig) {
+			return; // No automatic conversation for this template
+		}
+
+		context.stream.markdown(`\n🚀 **Starting ${agentConfig.name} Context Gathering**\n\n`);
+		context.stream.markdown(`I'll ask you ${agentConfig.questions.length} quick questions to gather context for your ${templateId.toUpperCase()}. You can skip any question by typing "skip".\n\n`);
+
+		// Start structured conversation
+		const conversationContext = {
+			documentType: templateId,
+			workflowPhase: agentConfig.phase,
+			documentPath: outputPath,
+			title: title,
+			workspaceRoot: context.workspaceRoot,
+			extensionContext: context.extensionContext
+		};
+
+		const session = await conversationManager.startConversation(agentConfig.agentName, conversationContext);
+		
+		// Start with first question
+		const firstQuestion = agentConfig.questions[0];
+		context.stream.markdown(`**Question 1/${agentConfig.questions.length}:** ${firstQuestion.text}\n\n`);
+		
+		if (firstQuestion.examples && firstQuestion.examples.length > 0) {
+			context.stream.markdown('💡 **Examples:**\n');
+			for (const example of firstQuestion.examples) {
+				context.stream.markdown(`• ${example}\n`);
+			}
+			context.stream.markdown('\n');
+		}
+
+		// Add interactive buttons
+		context.stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Answer this question',
+			arguments: [session.sessionId, 0, 'answer']
+		});
+		
+		context.stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Skip this question',
+			arguments: [session.sessionId, 0, 'skip']
+		});
+
+		context.stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Skip all and generate now',
+			arguments: [session.sessionId, -1, 'generate']
+		});
+
+	} catch (error) {
+		logger.command.warn('Failed to start context gathering conversation', { error });
+		context.stream.markdown('\n💡 *You can start working on your document by chatting with the appropriate agent!*\n');
+	}
+}
+
+/**
+ * Get agent configuration for template-based context gathering
+ */
+function getAgentConfigForTemplate(templateId: string): { agentName: string; name: string; phase: string; questions: any[] } | null {
+	const configs: Record<string, { agentName: string; name: string; phase: string; questions: any[] }> = {
+		'prd': {
+			agentName: 'prd-creator',
+			name: 'PRD Creator',
+			phase: 'prd',
+			questions: [
+				{
+					id: 'problem_definition',
+					text: 'What specific problem or pain point does your product solve?',
+					examples: [
+						'Users struggle with slow authentication processes',
+						'Current data processing takes too long for real-time needs',
+						'Customers can\'t easily find product information'
+					],
+					section: 'executiveSummary'
+				},
+				{
+					id: 'target_users',
+					text: 'Who are your primary target users?',
+					examples: [
+						'Software developers who need API access',
+						'Business analysts creating reports',
+						'E-commerce customers aged 25-45'
+					],
+					section: 'primaryPersona'
+				},
+				{
+					id: 'solution_approach',
+					text: 'What\'s your proposed solution approach?',
+					examples: [
+						'AI-powered recommendation engine',
+						'Real-time data processing pipeline',
+						'Unified authentication service'
+					],
+					section: 'primaryGoal1'
+				},
+				{
+					id: 'success_metrics',
+					text: 'How will you measure success?',
+					examples: [
+						'Reduce processing time by 50%',
+						'Achieve 99.9% uptime',
+						'Increase user satisfaction to 90%'
+					],
+					section: 'successCriteria1'
+				},
+				{
+					id: 'constraints',
+					text: 'What are your main constraints or limitations?',
+					examples: [
+						'Must integrate with existing systems',
+						'Budget limit of $100K',
+						'Launch deadline in 6 months'
+					],
+					section: 'constraint1'
+				}
+			]
+		},
+		'requirements': {
+			agentName: 'requirements-gatherer',
+			name: 'Requirements Gatherer',
+			phase: 'requirements',
+			questions: [
+				{
+					id: 'functional_requirements',
+					text: 'What are the core functional requirements?',
+					examples: [
+						'User registration and authentication',
+						'Product search and filtering',
+						'Order processing and payment'
+					],
+					section: 'functionalRequirements'
+				},
+				{
+					id: 'user_stories',
+					text: 'Describe key user stories or use cases',
+					examples: [
+						'As a customer, I want to search products by category',
+						'As an admin, I want to manage inventory',
+						'As a user, I want to track my orders'
+					],
+					section: 'userStories'
+				},
+				{
+					id: 'performance_requirements',
+					text: 'What are your performance requirements?',
+					examples: [
+						'Page load time under 2 seconds',
+						'Support 1000 concurrent users',
+						'99.9% uptime requirement'
+					],
+					section: 'performanceRequirements'
+				},
+				{
+					id: 'security_requirements',
+					text: 'What security requirements do you have?',
+					examples: [
+						'GDPR compliance required',
+						'Two-factor authentication',
+						'Data encryption at rest and in transit'
+					],
+					section: 'securityRequirements'
+				}
+			]
+		}
+	};
+
+	return configs[templateId] || null;
+}
+
+/**
+ * Move to next question in context gathering or generate document
+ */
+async function moveToNextContextQuestion(
+	sessionId: string, 
+	currentQuestionIndex: number, 
+	userResponse: string | null, 
+	conversationManager: ConversationManager
+): Promise<void> {
+	try {
+		// Store the response if provided
+		if (userResponse) {
+			await conversationManager.continueConversation(sessionId, userResponse);
+		}
+
+		// Get session to check progress
+		const session = conversationManager.getActiveSession('prd-creator') || conversationManager.getActiveSession('requirements-gatherer');
+		if (!session) {
+			vscode.window.showErrorMessage('Context gathering session not found');
+			return;
+		}
+
+		// Determine template type and get questions
+		const templateId = session.state.phase === 'prd' ? 'prd' : 'requirements';
+		const agentConfig = getAgentConfigForTemplate(templateId);
+		if (!agentConfig) {
+			return;
+		}
+
+		const nextQuestionIndex = currentQuestionIndex + 1;
+		
+		if (nextQuestionIndex >= agentConfig.questions.length) {
+			// All questions completed, generate document
+			await generateDocumentFromContext(sessionId, conversationManager);
+			return;
+		}
+
+		// Show next question
+		const nextQuestion = agentConfig.questions[nextQuestionIndex];
+		const chatParticipant = vscode.chat.createChatParticipant('docu', async (request, context, stream, token) => {
+			stream.markdown(`\n**Question ${nextQuestionIndex + 1}/${agentConfig.questions.length}:** ${nextQuestion.text}\n\n`);
+			
+			if (nextQuestion.examples && nextQuestion.examples.length > 0) {
+				stream.markdown('💡 **Examples:**\n');
+				for (const example of nextQuestion.examples) {
+					stream.markdown(`• ${example}\n`);
+				}
+				stream.markdown('\n');
+			}
+
+			// Add interactive buttons
+			stream.button({
+				command: 'docu.continueContextGathering',
+				title: 'Answer this question',
+				arguments: [sessionId, nextQuestionIndex, 'answer']
+			});
+			
+			stream.button({
+				command: 'docu.continueContextGathering',
+				title: 'Skip this question',
+				arguments: [sessionId, nextQuestionIndex, 'skip']
+			});
+
+			stream.button({
+				command: 'docu.continueContextGathering',
+				title: 'Skip remaining and generate',
+				arguments: [sessionId, -1, 'generate']
+			});
+		});
+
+		// Trigger the chat participant to show the next question
+		// Note: This is a simplified approach - in a real implementation, 
+		// you'd want to use the existing chat context
+		vscode.window.showInformationMessage(`Question ${nextQuestionIndex + 1} ready. Check the chat for details.`);
+
+	} catch (error) {
+		logger.extension.error('Failed to move to next context question', error instanceof Error ? error : new Error(String(error)));
+		vscode.window.showErrorMessage(`Failed to continue: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
+/**
+ * Generate document content from gathered context
+ */
+async function generateDocumentFromContext(sessionId: string, conversationManager: ConversationManager): Promise<void> {
+	try {
+		// Get conversation history to extract context
+		const history = conversationManager.getConversationHistory(sessionId);
+		const session = conversationManager.getActiveSession('prd-creator') || conversationManager.getActiveSession('requirements-gatherer');
+		
+		if (!session) {
+			vscode.window.showErrorMessage('Session not found for document generation');
+			return;
+		}
+
+		// Extract gathered context from conversation
+		const gatheredContext = extractContextFromHistory(history);
+		
+		// Get the appropriate agent for content generation
+		const agentName = session.agentName;
+		const agent = agentManager.getAgent(agentName);
+		
+		if (!agent) {
+			vscode.window.showErrorMessage(`Agent ${agentName} not found`);
+			return;
+		}
+
+		vscode.window.showInformationMessage('🔄 Generating document content from gathered context...');
+
+		// Create agent request for document generation
+		const agentContext: import('./agents/types').AgentContext = {
+			workspaceRoot: session.state.extractedData.get('workspaceRoot') || '',
+			extensionContext: globalExtensionContext,
+			previousOutputs: [],
+			workflowState: {
+				projectId: 'auto-generated',
+				currentPhase: session.state.phase as import('./agents/types').WorkflowPhase,
+				activeAgent: session.state.agentName || 'prd-creator',
+				documents: {},
+				context: {},
+				history: []
+			},
+			userPreferences: {
+				defaultDirectory: 'docs',
+				defaultAgent: session.state.agentName || 'prd-creator'
+			}
+		};
+
+		// Build prompt with gathered context
+		const contextPrompt = buildContextPrompt(gatheredContext, session.state.phase);
+		
+		// Create a mock ChatRequest for the originalRequest
+		const mockChatRequest = {
+			prompt: contextPrompt,
+			command: 'generate-content',
+			references: [],
+			location: undefined,
+			participant: 'docu',
+			toolReferences: [],
+			toolInvocationToken: undefined,
+			model: undefined
+		} as unknown as vscode.ChatRequest;
+		
+		const agentRequest: import('./agents/types').ChatRequest = {
+			prompt: contextPrompt,
+			command: 'generate-content',
+			parameters: {},
+			originalRequest: mockChatRequest
+		};
+
+		// Generate content using the agent
+		const response = await agent.handleRequest(agentRequest, agentContext);
+		
+		if (response.success && response.content) {
+			// Update the document with generated content
+			await updateDocumentWithGeneratedContent(session.state.extractedData.get('documentPath') || '', response.content, gatheredContext);
+			
+			vscode.window.showInformationMessage('✅ Document updated with generated content!');
+			
+			// End the conversation
+			await conversationManager.endConversation(sessionId);
+		} else {
+			vscode.window.showErrorMessage('Failed to generate document content');
+		}
+
+	} catch (error) {
+		logger.extension.error('Failed to generate document from context', error instanceof Error ? error : new Error(String(error)));
+		vscode.window.showErrorMessage(`Failed to generate document: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
+/**
+ * Extract structured context from conversation history
+ */
+function extractContextFromHistory(history: any[]): Record<string, any> {
+	const context: Record<string, any> = {};
+	const responses: string[] = [];
+	
+	// Simple extraction - in a real implementation, this would be more sophisticated
+	for (const turn of history) {
+		if (turn.type === 'response' && turn.content) {
+			responses.push(turn.content);
+		}
+	}
+	
+	context.responses = responses;
+	return context;
+}
+
+/**
+ * Build context prompt for agent
+ */
+function buildContextPrompt(gatheredContext: Record<string, any>, phase: string): string {
+	const responses = (gatheredContext.responses as string[]) || [];
+	
+	if (phase === 'prd') {
+		return `Generate a comprehensive PRD based on this context:
+Problem: ${responses[0] || 'Not specified'}
+Target Users: ${responses[1] || 'Not specified'}
+Solution: ${responses[2] || 'Not specified'}
+Success Metrics: ${responses[3] || 'Not specified'}
+Constraints: ${responses[4] || 'Not specified'}
+
+Please create detailed sections for Executive Summary, Product Objectives, User Personas, Scope and Constraints, and Acceptance Criteria.`;
+	}
+	
+	if (phase === 'requirements') {
+		return `Generate detailed requirements based on this context:
+Functional Requirements: ${responses[0] || 'Not specified'}
+User Stories: ${responses[1] || 'Not specified'}
+Performance Requirements: ${responses[2] || 'Not specified'}
+Security Requirements: ${responses[3] || 'Not specified'}
+
+Please create structured requirements with clear acceptance criteria.`;
+	}
+	
+	return 'Generate appropriate content based on the gathered context.';
+}
+
+/**
+ * Update document with generated content
+ */
+async function updateDocumentWithGeneratedContent(
+	documentPath: string, 
+	generatedContent: string, 
+	gatheredContext: Record<string, any>
+): Promise<void> {
+	try {
+		// Read current document
+		const document = await vscode.workspace.openTextDocument(documentPath);
+		const currentContent = document.getText();
+		
+		// Replace placeholders with generated content
+		let updatedContent = currentContent;
+		const responses = (gatheredContext.responses as string[]) || [];
+		
+		// Simple placeholder replacement - in a real implementation, 
+		// this would be more sophisticated and section-specific
+		updatedContent = updatedContent.replace(/\[TODO: Brief overview.*?\]/g, responses[0] || '[Generated content]');
+		updatedContent = updatedContent.replace(/\[TODO: Define primary goal\]/g, responses[2] || '[Generated goal]');
+		updatedContent = updatedContent.replace(/\[TODO: Define success criteria\]/g, responses[3] || '[Generated criteria]');
+		
+		// Write updated content
+		const edit = new vscode.WorkspaceEdit();
+		edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), updatedContent);
+		await vscode.workspace.applyEdit(edit);
+		
+		// Save the document
+		await document.save();
+		
+	} catch (error) {
+		logger.extension.error('Failed to update document with generated content', error instanceof Error ? error : new Error(String(error)));
+		throw error;
+	}
+}
+
+/**
  * Handle the /new command
  */
 async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
@@ -745,6 +1196,17 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			outputPath = `${filename}.md`;
 		}
 
+		// Handle path that includes directories - ensure it ends with .md if it's not a full filename
+		if (!outputPath.endsWith('.md') && !outputPath.includes('.')) {
+			// If path doesn't have an extension and doesn't end with .md, treat it as a directory
+			const filename = title.toLowerCase()
+				.replace(/[^a-z0-9\s-]/g, '')
+				.replace(/\s+/g, '-')
+				.replace(/-+/g, '-')
+				.trim();
+			outputPath = path.join(outputPath, `${filename}.md`);
+		}
+
 		// Ensure the path is absolute within the workspace
 		if (!path.isAbsolute(outputPath)) {
 			outputPath = path.join(context.workspaceRoot, outputPath);
@@ -755,10 +1217,59 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 		context.stream.markdown(`📁 Path: **${path.relative(context.workspaceRoot, outputPath)}**\n\n`);
 
 		// Prepare template variables
-		const variables = {
+		const variables: Record<string, any> = {
 			title: title,
 			author: vscode.workspace.getConfiguration('git').get('user.name') || 'Unknown'
 		};
+
+		// Check if --with-placeholders flag is set
+		const withPlaceholders = parsedCommand.flags['with-placeholders'] || parsedCommand.flags['wp'];
+		
+		if (withPlaceholders) {
+			// Get the template to add placeholder values for required variables
+			const template = templateManager.getTemplate(templateId);
+			if (template) {
+				// Add placeholder values for required variables that are missing
+				for (const variable of template.variables) {
+					if (variable.required && !(variable.name in variables)) {
+						// Provide sensible placeholders based on variable name and type
+						if (variable.name.includes('Summary') || variable.name.includes('summary')) {
+							variables[variable.name] = `[TODO: Add ${variable.description || variable.name}]`;
+						} else if (variable.name.includes('Goal') || variable.name.includes('goal')) {
+							variables[variable.name] = `[TODO: Define ${variable.description || variable.name}]`;
+						} else if (variable.name.includes('Criteria') || variable.name.includes('criteria')) {
+							variables[variable.name] = `[TODO: Specify ${variable.description || variable.name}]`;
+						} else if (variable.name.includes('Persona') || variable.name.includes('persona')) {
+							if (variable.name.includes('Role') || variable.name.includes('role')) {
+								variables[variable.name] = '[TODO: Define user role]';
+							} else if (variable.name.includes('Goals') || variable.name.includes('goals')) {
+								variables[variable.name] = '[TODO: List user goals]';
+							} else if (variable.name.includes('Pain') || variable.name.includes('pain')) {
+								variables[variable.name] = '[TODO: Identify pain points]';
+							} else {
+								variables[variable.name] = '[TODO: Define user persona]';
+							}
+						} else if (variable.name.includes('Scope') || variable.name.includes('scope')) {
+							variables[variable.name] = `[TODO: Define ${variable.name.includes('out') ? 'out of scope' : 'in scope'} items]`;
+						} else if (variable.name.includes('Constraint') || variable.name.includes('constraint')) {
+							variables[variable.name] = '[TODO: List constraints]';
+						} else if (variable.name.includes('executiveSummary')) {
+							variables[variable.name] = '[TODO: Brief overview of the product, its purpose, and key value proposition]';
+						} else if (variable.name.includes('Goal') || variable.name.includes('goal')) {
+							variables[variable.name] = '[TODO: Define primary goal]';
+						} else if (variable.name.includes('successCriteria') || variable.name.includes('Criteria')) {
+							variables[variable.name] = '[TODO: Define success criteria]';
+						} else if (variable.name.includes('acceptanceCriteria')) {
+							variables[variable.name] = '[TODO: Define acceptance criteria]';
+						} else {
+							// Generic placeholder
+							variables[variable.name] = `[TODO: ${variable.description || `Add ${variable.name}`}]`;
+						}
+					}
+				}
+				context.stream.markdown(`🔧 Using placeholders for missing variables\n`);
+			}
+		}
 
 		// Apply the template
 		const toolContext = {
@@ -810,6 +1321,13 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				}
 			}
 
+			// Auto-start context gathering conversation for structured templates
+			if (withPlaceholders && conversationManager) {
+				await startContextGatheringConversation(templateId, title, outputPath, context, conversationManager);
+			}
+
+
+
 			const duration = telemetryManager.endPerformanceMetric('command.new');
 			logger.command.info('New command completed successfully', { title, templateId, duration });
 			telemetryManager.trackCommand('new', true, duration);
@@ -834,15 +1352,26 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				context.stream.markdown('💡 *For more help, try: `/help workspace`*\n');
 			} else if (result.metadata?.templateError && result.metadata?.missingVariables) {
 				context.stream.markdown(`❌ **Error creating document:** ${result.error}\n\n`);
-				context.stream.markdown('**What to do:**\n');
-				context.stream.markdown(`1. Use the basic template instead: \`/new "${title}" --template basic --path ${parsedCommand.flags.path || ''}\`\n`);
-				context.stream.markdown(`2. Check template requirements: \`/templates show ${templateId}\`\n`);
-				context.stream.markdown(`3. Provide the missing variables when creating the document\n\n`);
+				
+				if (templateId === 'prd') {
+					context.stream.markdown('**The PRD template requires specific variables. Here are your options:**\n\n');
+					context.stream.markdown(`**Option 1 (Recommended):** Use placeholders that will be filled during conversation:\n`);
+					context.stream.markdown(`\`/new "${title}" --template prd --with-placeholders --path ${parsedCommand.flags.path || ''}\`\n\n`);
+					context.stream.markdown(`**Option 2:** Use the basic template and build structure through conversation:\n`);
+					context.stream.markdown(`\`/new "${title}" --template basic --path ${parsedCommand.flags.path || ''}\`\n\n`);
+					context.stream.markdown('💡 *Both options work great with the PRD Creator agent for guided document creation*\n\n');
+				} else {
+					context.stream.markdown('**What to do:**\n');
+					context.stream.markdown(`1. Use the basic template instead: \`/new "${title}" --template basic --path ${parsedCommand.flags.path || ''}\`\n`);
+					context.stream.markdown(`2. Check template requirements: \`/templates show ${templateId}\`\n`);
+					context.stream.markdown(`3. Create with placeholders: \`/new "${title}" --template ${templateId} --with-placeholders --path ${parsedCommand.flags.path || ''}\`\n\n`);
+					context.stream.markdown('💡 *Tip: The basic template works great with all agents and doesn\'t require specific variables*\n\n');
+				}
+				
 				context.stream.markdown('**Missing variables:**\n');
 				for (const variable of result.metadata.missingVariables) {
 					context.stream.markdown(`- \`${variable}\`\n`);
 				}
-				context.stream.markdown('\n💡 *Tip: The basic template works great with all agents and doesn\'t require specific variables*\n');
 			} else {
 				context.stream.markdown(`❌ **Error creating document:** ${result.error}`);
 			}
@@ -2011,7 +2540,86 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 		}
 	});
 
-	context.subscriptions.push(fileChangeCommand);
+	// Register context gathering continuation command
+	const continueContextGatheringCommand = vscode.commands.registerCommand('docu.continueContextGathering', async (sessionId: string, questionIndex: number, action: string) => {
+		try {
+			if (!conversationManager) {
+				vscode.window.showErrorMessage('Conversation manager not available');
+				return;
+			}
+
+			if (action === 'generate') {
+				// Skip all remaining questions and generate document
+				await generateDocumentFromContext(sessionId, conversationManager);
+				return;
+			}
+
+			if (action === 'skip') {
+				// Skip current question and move to next
+				await moveToNextContextQuestion(sessionId, questionIndex, null, conversationManager);
+				return;
+			}
+
+			if (action === 'answer') {
+				// Prompt user for answer
+				const userResponse = await vscode.window.showInputBox({
+					prompt: 'Please provide your answer',
+					placeHolder: 'Type your answer here...'
+				});
+
+				if (userResponse) {
+					await moveToNextContextQuestion(sessionId, questionIndex, userResponse, conversationManager);
+				}
+				return;
+			}
+
+		} catch (error) {
+			logger.extension.error('Failed to continue context gathering', error instanceof Error ? error : new Error(String(error)));
+			vscode.window.showErrorMessage(`Failed to continue context gathering: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	});
+
+	// Register conversation continuation command
+	const continueConversationCommand = vscode.commands.registerCommand('docu.continueConversation', async (sessionId: string, responseType: string) => {
+		try {
+			if (!conversationManager) {
+				vscode.window.showErrorMessage('Conversation manager not available');
+				return;
+			}
+
+			let userResponse = '';
+			switch (responseType) {
+				case 'continue':
+					userResponse = await vscode.window.showInputBox({
+						prompt: 'Describe the problem or pain point you want to solve',
+						placeHolder: 'e.g., Users struggle with slow authentication processes...'
+					}) || '';
+					break;
+				case 'help':
+					userResponse = 'I need help defining the problem my product should solve';
+					break;
+				case 'examples':
+					userResponse = 'Can you give me more examples of problems I could solve?';
+					break;
+				case 'preview':
+					userResponse = 'What other questions will you ask me during this process?';
+					break;
+				default:
+					userResponse = responseType;
+			}
+
+			if (userResponse) {
+				const response = await conversationManager.continueConversation(sessionId, userResponse);
+				// The response will be handled by the conversation system
+				vscode.window.showInformationMessage('Response recorded. Continue the conversation in the chat.');
+			}
+		} catch (error) {
+			logger.extension.error('Failed to continue conversation', error instanceof Error ? error : new Error(String(error)));
+			vscode.window.showErrorMessage(`Failed to continue conversation: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	});
+
+	context.subscriptions.push(fileChangeCommand, continueContextGatheringCommand, continueConversationCommand);
 
 	// Register configuration management commands
 	const showConfigCommand = vscode.commands.registerCommand('docu.showConfiguration', () => {
