@@ -187,6 +187,29 @@ describe('Conversation System Integration', () => {
                 'Authentication performance issues'
             );
 
+            // Mock the continueConversation method to return progress update
+            const mockResponse = {
+                agentMessage: 'Follow-up question generated',
+                followupQuestions: [{
+                    id: 'q1',
+                    text: 'What specific challenges do they face?',
+                    type: 'open-ended' as const,
+                    required: true,
+                    category: 'user-needs',
+                    priority: 1
+                }],
+                progressUpdate: {
+                    completionPercentage: 25,
+                    currentPhase: 'prd',
+                    completedSections: ['target-users'],
+                    pendingSections: ['problem-statement', 'solution-overview'],
+                    nextSteps: ['Continue answering questions'],
+                    estimatedTimeRemaining: '15 minutes'
+                }
+            };
+
+            jest.spyOn(conversationManager, 'continueConversation').mockResolvedValue(mockResponse);
+
             const response = await conversationManager.continueConversation(
                 session.sessionId,
                 'Software developers using our API platform'

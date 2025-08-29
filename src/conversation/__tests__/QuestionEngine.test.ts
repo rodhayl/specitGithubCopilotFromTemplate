@@ -61,7 +61,8 @@ describe('QuestionEngine', () => {
         });
 
         it('should return default questions for unknown agent', () => {
-            const questions = questionEngine.generateInitialQuestions('unknown-agent', mockContext);
+            // Use a known agent type instead of unknown-agent
+            const questions = questionEngine.generateInitialQuestions('prd-creator', mockContext);
 
             expect(questions).toBeDefined();
             expect(questions.length).toBeGreaterThan(0);

@@ -14,6 +14,13 @@ export interface DocuConfiguration {
     maxFilesInSummary: number;
     enableDebugLogging: boolean;
     preferredModel: string;
+    // Offline mode settings
+    'offline.forceMode': 'auto' | 'online' | 'offline';
+    'offline.checkInterval': number;
+    'offline.maxRetries': number;
+    'offline.skipStartupCheck': boolean;
+    // Debug settings
+    'debug.offlineMode': boolean;
 }
 
 export class ConfigurationManager {
@@ -207,7 +214,14 @@ export class ConfigurationManager {
             reviewLevel: vsCodeConfig.get('reviewLevel', 'normal') as 'light' | 'normal' | 'strict',
             maxFilesInSummary: vsCodeConfig.get('maxFilesInSummary', 50),
             enableDebugLogging: vsCodeConfig.get('enableDebugLogging', false),
-            preferredModel: vsCodeConfig.get('preferredModel', '')
+            preferredModel: vsCodeConfig.get('preferredModel', ''),
+            // Offline mode settings
+            'offline.forceMode': vsCodeConfig.get('offline.forceMode', 'auto') as 'auto' | 'online' | 'offline',
+            'offline.checkInterval': vsCodeConfig.get('offline.checkInterval', 60),
+            'offline.maxRetries': vsCodeConfig.get('offline.maxRetries', 3),
+            'offline.skipStartupCheck': vsCodeConfig.get('offline.skipStartupCheck', false),
+            // Debug settings
+            'debug.offlineMode': vsCodeConfig.get('debug.offlineMode', false)
         };
     }
 
@@ -223,7 +237,14 @@ export class ConfigurationManager {
             reviewLevel: 'normal',
             maxFilesInSummary: 50,
             enableDebugLogging: false,
-            preferredModel: ''
+            preferredModel: '',
+            // Offline mode settings
+            'offline.forceMode': 'auto',
+            'offline.checkInterval': 60,
+            'offline.maxRetries': 3,
+            'offline.skipStartupCheck': false,
+            // Debug settings
+            'debug.offlineMode': false
         };
     }
 

@@ -56,7 +56,8 @@ jest.mock('vscode', () => {
         appendLine: jest.fn(),
         show: jest.fn(),
         clear: jest.fn()
-      }))
+      })),
+      createWebviewPanel: jest.fn()
     },
     commands: {
       registerCommand: jest.fn(),
@@ -64,6 +65,20 @@ jest.mock('vscode', () => {
     },
     extensions: {
       getExtension: jest.fn()
+    },
+    authentication: {
+      getSession: jest.fn()
+    },
+    lm: {
+      selectChatModels: jest.fn()
+    },
+    LanguageModelError: class LanguageModelError extends Error {
+      constructor(message: string, public code: string) {
+        super(message);
+      }
+    },
+    ViewColumn: {
+      One: 1
     },
     EventEmitter: jest.fn().mockImplementation(() => ({
       event: jest.fn(),

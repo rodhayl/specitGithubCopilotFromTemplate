@@ -149,8 +149,28 @@ export class CommandRouter {
                 const commandName = parsedCommand.arguments[0];
                 const subcommand = parsedCommand.arguments[1];
                 
-                const helpText = this.getHelp(commandName, subcommand);
-                context.stream.markdown(helpText);
+                if (!commandName) {
+                    // Show overview help
+                    context.stream.markdown('# 🤖 Docu Assistant Help\n\n');
+                    context.stream.markdown('Docu helps you create and manage documentation through specific commands.\n\n');
+                    context.stream.markdown('## 🚀 Quick Start\n\n');
+                    context.stream.markdown('1. `/agent set <name>` - Set an active agent\n');
+                    context.stream.markdown('2. `/new "Document Title"` - Create a document\n');
+                    context.stream.markdown('3. `/chat <message>` - Start conversation with agent\n\n');
+                    context.stream.markdown('## 📋 Available Commands\n\n');
+                    context.stream.markdown('- `/new` - Create new documents\n');
+                    context.stream.markdown('- `/agent` - Manage AI agents\n');
+                    context.stream.markdown('- `/chat` - Converse with active agent\n');
+                    context.stream.markdown('- `/templates` - Manage templates\n');
+                    context.stream.markdown('- `/update` - Update document sections\n');
+                    context.stream.markdown('- `/review` - Review document quality\n');
+                    context.stream.markdown('- `/summarize` - Generate summaries\n');
+                    context.stream.markdown('- `/catalog` - Create document catalogs\n\n');
+                    context.stream.markdown('💡 Use `/help <command>` for detailed help on specific commands.\n');
+                } else {
+                    const helpText = this.getHelp(commandName, subcommand);
+                    context.stream.markdown(helpText);
+                }
                 
                 return { success: true, message: 'Help displayed' };
             }

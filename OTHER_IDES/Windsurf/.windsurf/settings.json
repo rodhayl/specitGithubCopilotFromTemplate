@@ -1,0 +1,177 @@
+{
+  "windsurf.ai.enabled": true,
+  "windsurf.ai.multiAgent.enabled": true,
+  "windsurf.ai.multiAgent.maxConcurrent": 4,
+  "windsurf.ai.multiAgent.coordinationStrategy": "consensus",
+  "windsurf.ai.multiAgent.conflictResolution": "vote",
+  
+  "windsurf.codeAnalysis.enabled": true,
+  "windsurf.codeAnalysis.deepIndexing": true,
+  "windsurf.codeAnalysis.semanticUnderstanding": true,
+  "windsurf.codeAnalysis.crossFileAnalysis": true,
+  "windsurf.codeAnalysis.dependencyTracking": true,
+  "windsurf.codeAnalysis.performanceOptimization": true,
+  
+  "windsurf.suggestions.enabled": true,
+  "windsurf.suggestions.contextLength": 10000,
+  "windsurf.suggestions.multiline": true,
+  "windsurf.suggestions.triggerDelay": 50,
+  "windsurf.suggestions.quality": "high",
+  "windsurf.suggestions.diversity": true,
+  
+  "windsurf.chat.enabled": true,
+  "windsurf.chat.contextAware": true,
+  "windsurf.chat.codebaseIntegration": true,
+  "windsurf.chat.multiAgentSupport": true,
+  "windsurf.chat.workflowIntegration": true,
+  
+  "windsurf.workflows.enabled": true,
+  "windsurf.workflows.autoTrigger": true,
+  "windsurf.workflows.directory": ".windsurf/workflows",
+  "windsurf.workflows.conditions": {
+    "fileChanges": ["src/**/*", "lib/**/*", "components/**/*"],
+    "gitEvents": ["commit", "push", "pull_request"],
+    "timeBasedTriggers": true
+  },
+  
+  "windsurf.agents.directory": ".windsurf/agents",
+  "windsurf.agents.autoLoad": true,
+  "windsurf.agents.collaboration.enabled": true,
+  "windsurf.agents.specialization.enabled": true,
+  
+  "windsurf.integrations.github.enabled": true,
+  "windsurf.integrations.github.autoSync": true,
+  "windsurf.integrations.github.prAnalysis": true,
+  "windsurf.integrations.github.issueTracking": true,
+  
+  "windsurf.performance.indexing.incremental": true,
+  "windsurf.performance.indexing.background": true,
+  "windsurf.performance.caching.enabled": true,
+  "windsurf.performance.caching.strategy": "intelligent",
+  
+  "editor.fontSize": 14,
+  "editor.fontFamily": "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+  "editor.fontLigatures": true,
+  "editor.lineHeight": 1.5,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": true,
+  "editor.wordWrap": "on",
+  "editor.minimap.enabled": true,
+  "editor.minimap.maxColumn": 120,
+  "editor.rulers": [80, 120],
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit",
+    "source.addMissingImports": "explicit"
+  },
+  
+  "editor.inlineSuggest.enabled": true,
+  "editor.inlineSuggest.showToolbar": "onHover",
+  "editor.suggest.preview": true,
+  "editor.suggest.showInlineDetails": true,
+  "editor.acceptSuggestionOnCommitCharacter": true,
+  "editor.acceptSuggestionOnEnter": "on",
+  "editor.tabCompletion": "on",
+  "editor.quickSuggestions": {
+    "other": "on",
+    "comments": "on",
+    "strings": "on"
+  },
+  
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/coverage": true,
+    "**/.next": true,
+    "**/.nuxt": true,
+    "**/out": true
+  },
+  
+  "workbench.colorTheme": "Windsurf Dark",
+  "workbench.iconTheme": "vs-seti",
+  "workbench.editor.enablePreview": false,
+  "workbench.editor.closeOnFileDelete": true,
+  "workbench.startupEditor": "welcomePage",
+  "workbench.commandPalette.experimental.suggestCommands": true,
+  
+  "terminal.integrated.fontSize": 13,
+  "terminal.integrated.fontFamily": "'Fira Code', 'JetBrains Mono', Consolas, monospace",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.defaultProfile.osx": "zsh",
+  "terminal.integrated.defaultProfile.linux": "bash",
+  
+  "git.enableSmartCommit": true,
+  "git.confirmSync": false,
+  "git.autofetch": true,
+  "git.showPushSuccessNotification": true,
+  "git.suggestSmartCommit": true,
+  
+  "typescript.preferences.quoteStyle": "single",
+  "typescript.suggest.autoImports": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.inlayHints.parameterNames.enabled": "all",
+  "typescript.inlayHints.variableTypes.enabled": true,
+  "typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+  
+  "javascript.preferences.quoteStyle": "single",
+  "javascript.suggest.autoImports": true,
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "javascript.inlayHints.parameterNames.enabled": "all",
+  "javascript.inlayHints.variableTypes.enabled": true,
+  "javascript.inlayHints.functionLikeReturnTypes.enabled": true,
+  
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "vue",
+    "html",
+    "markdown"
+  ],
+  "eslint.format.enable": true,
+  
+  "prettier.singleQuote": true,
+  "prettier.trailingComma": "es5",
+  "prettier.tabWidth": 2,
+  "prettier.semi": true,
+  "prettier.printWidth": 100,
+  "prettier.bracketSpacing": true,
+  "prettier.arrowParens": "avoid",
+  
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/coverage": true,
+    "**/.git": true,
+    "**/.windsurf/cache": true
+  },
+  
+  "extensions.autoUpdate": true,
+  "extensions.ignoreRecommendations": false,
+  
+  "diffEditor.ignoreTrimWhitespace": false,
+  "diffEditor.renderSideBySide": true,
+  "diffEditor.wordWrap": "on",
+  
+  "debug.console.fontSize": 13,
+  "debug.console.fontFamily": "'Fira Code', 'JetBrains Mono', Consolas, monospace",
+  
+  "problems.decorations.enabled": true,
+  "problems.showCurrentInStatus": true,
+  
+  "breadcrumbs.enabled": true,
+  "breadcrumbs.showFiles": true,
+  "breadcrumbs.showSymbols": true
+}

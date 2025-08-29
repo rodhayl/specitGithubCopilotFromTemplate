@@ -5,5 +5,11 @@
     "search.exclude": {
         "out": true,
     },
-    "typescript.tsc.autoDetect": "off"
+    "typescript.tsc.autoDetect": "off",
+    // Docu extension settings for testing offline mode fixes
+    "docu.debug.offlineMode": true,
+    "docu.offline.skipStartupCheck": true,
+    "docu.offline.forceMode": "auto",
+    "docu.offline.checkInterval": 30,
+    "docu.offline.maxRetries": 2
 }

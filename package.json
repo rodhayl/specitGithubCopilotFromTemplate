@@ -68,6 +68,21 @@
         "command": "docu.toggleDebug",
         "title": "Toggle Debug Mode",
         "category": "Docu"
+      },
+      {
+        "command": "docu.checkOfflineStatus",
+        "title": "Check Offline Mode Status",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.forceOfflineCheck",
+        "title": "Force Model Availability Check",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.toggleOfflineMode",
+        "title": "Toggle Offline Mode",
+        "category": "Docu"
       }
     ],
     "views": {
@@ -177,6 +192,45 @@
           "type": "boolean",
           "default": false,
           "description": "Enable debug logging for troubleshooting",
+          "scope": "workspace"
+        },
+        "docu.debug.offlineMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging for offline mode detection",
+          "scope": "workspace"
+        },
+        "docu.offline.forceMode": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "online",
+            "offline"
+          ],
+          "description": "Force online/offline mode for testing (auto = automatic detection)",
+          "scope": "workspace"
+        },
+        "docu.offline.checkInterval": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Interval in seconds between model availability checks",
+          "scope": "workspace"
+        },
+        "docu.offline.maxRetries": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Maximum number of retry attempts for model availability checks",
+          "scope": "workspace"
+        },
+        "docu.offline.skipStartupCheck": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip model availability check during extension startup (models will be checked on first use)",
           "scope": "workspace"
         },
         "docu.logging.level": {

@@ -164,7 +164,33 @@ export async function activate(context: vscode.ExtensionContext) {
 	agentManager.setCurrentAgent(defaultAgent);
 
 	// Check model availability and set offline mode if needed
-	await offlineManager.checkModelAvailability();
+	const skipStartupCheck = configManager.get('offline.skipStartupCheck') as boolean;
+	if (skipStartupCheck) {
+		logger.extension.info('Skipping model availability check during startup (skipStartupCheck=true)');
+		logger.extension.info('Models will be checked on first use');
+	} else {
+		try {
+			const modelStatus = await offlineManager.checkModelAvailability();
+			logger.extension.info('Model availability check completed', { 
+				available: modelStatus.available, 
+				error: modelStatus.error,
+				errorType: modelStatus.errorType 
+			});
+			
+			// If models are available, show a success message
+			if (modelStatus.available) {
+				logger.extension.info('GitHub Copilot models are available - full functionality enabled');
+			} else {
+				logger.extension.warn('GitHub Copilot models not available - running in offline mode', {
+					reason: modelStatus.error,
+					errorType: modelStatus.errorType
+				});
+			}
+		} catch (error) {
+			logger.extension.error('Model availability check failed', error instanceof Error ? error : new Error(String(error)));
+			// Continue activation even if model check fails
+		}
+	}
 
 	// Initialize command router
 	commandRouter = new CommandRouter();
@@ -230,6 +256,9 @@ async function handleChatRequest(
 		const prompt = request.prompt.trim();
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
+		// Ensure model availability (especially if startup check was skipped)
+		await offlineManager.ensureModelAvailability();
+		
 		// Check offline mode status
 		if (offlineManager.isOffline()) {
 			logger.extension.warn('Chat request in offline mode');
@@ -277,68 +306,40 @@ async function handleChatRequest(
 			}
 		}
 
-		// Handle non-command input with current agent
-		logger.extension.debug('Non-command chat input received, routing to current agent');
-		telemetryManager.trackEvent('chat.agent.interaction');
+		// Handle non-command input - show help and available commands
+		logger.extension.debug('Non-command chat input received, showing help');
+		telemetryManager.trackEvent('chat.help.shown');
 		
-		try {
-			const currentAgent = agentManager.getCurrentAgent();
-			if (currentAgent) {
-				// Build agent context
-				const agentContext = agentManager.buildAgentContext(request);
-				
-				// Convert VSCode ChatRequest to Agent ChatRequest
-				const agentRequest: import('./agents/types').ChatRequest = {
-					command: request.command,
-					prompt: request.prompt,
-					parameters: {}, // Extract from request if needed
-					originalRequest: request
-				};
-				
-				// Handle request with current agent
-				const agentResponse = await currentAgent.handleRequest(agentRequest, agentContext);
-				
-				// Stream the agent response
-				if (agentResponse.content) {
-					stream.markdown(agentResponse.content);
-				}
-				
-				// Add follow-up suggestions if available
-				if (agentResponse.followupSuggestions && agentResponse.followupSuggestions.length > 0) {
-					stream.markdown('\n\n**Suggestions:**\n');
-					agentResponse.followupSuggestions.forEach(suggestion => {
-						stream.markdown(`- ${suggestion}\n`);
-					});
-				}
-
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
-				return { metadata: { command: request.command, agent: currentAgent.name, duration } };
-			} else {
-				// No current agent, show help
-				stream.markdown('Hello! I am the Docu AI assistant. I can help you with documentation tasks.\n\n');
-				stream.markdown('Available commands:\n');
-				stream.markdown('- `/new <title>` - Create a new document\n');
-				stream.markdown('- `/agent list` - Show available agents\n');
-				stream.markdown('- `/agent set <agent-name>` - Set active agent\n');
-				stream.markdown('- `/templates list` - Show available templates\n');
-				stream.markdown('- `/help` - Show detailed help\n');
-				stream.markdown('\nI am ready to help you with your documentation needs!');
-
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
-				return { metadata: { command: request.command, duration } };
-			}
-		} catch (agentError) {
-			logger.extension.error('Agent interaction failed', agentError instanceof Error ? agentError : new Error(String(agentError)));
-			
-			stream.markdown(`❌ **Agent Error:** ${agentError instanceof Error ? agentError.message : String(agentError)}`);
-			stream.markdown('\n\nYou can try:\n');
-			stream.markdown('- `/agent list` - See available agents\n');
-			stream.markdown('- `/agent set <agent-name>` - Switch to a different agent\n');
-			stream.markdown('- `/help` - Get help with commands\n');
-
-			const duration = telemetryManager.endPerformanceMetric('chat.request');
-			return { metadata: { command: request.command, error: true, duration } };
+		// Show helpful guidance instead of routing to agents
+		stream.markdown('👋 **Hello! I am the Docu AI assistant.**\n\n');
+		stream.markdown('I help you create and manage documentation through specific commands. Here\'s how to get started:\n\n');
+		
+		stream.markdown('## 🚀 **Quick Start Commands**\n\n');
+		stream.markdown('- `/new "Document Title"` - Create a new document\n');
+		stream.markdown('- `/agent list` - Show available AI agents\n');
+		stream.markdown('- `/agent set <agent-name>` - Set active agent for guided workflows\n');
+		stream.markdown('- `/chat <message>` - Start a conversation with the active agent\n');
+		stream.markdown('- `/templates list` - Show available templates\n');
+		stream.markdown('- `/help` - Show detailed command help\n\n');
+		
+		stream.markdown('## 💡 **Working with Agents**\n\n');
+		stream.markdown('After setting an agent with `/agent set <name>`, you can have conversations to develop your documents. Available agents:\n\n');
+		
+		// Show available agents
+		const agents = agentManager.listAgents();
+		for (const agentInfo of agents) {
+			stream.markdown(`- **${agentInfo.name}** - ${agentInfo.description}\n`);
 		}
+		
+		stream.markdown('\n## 📝 **Example Workflow**\n\n');
+		stream.markdown('1. `/agent set prd-creator` - Set the PRD Creator agent\n');
+		stream.markdown('2. `/new "My Product PRD"` - Create a new document\n');
+		stream.markdown('3. `/chat Help me develop a PRD for my card game shop` - Start conversation\n\n');
+		
+		stream.markdown('**💬 Tip:** Use `/chat` to have conversations with agents. All interactions now require explicit commands for better control!\n');
+
+		const duration = telemetryManager.endPerformanceMetric('chat.request');
+		return { metadata: { command: request.command, type: 'help', duration } };
 	} catch (error) {
 		const duration = performance.now() - startTime;
 		
@@ -712,6 +713,21 @@ function registerCustomCommands(): void {
 		}
 	};
 
+	// Add the /chat command for agent conversations
+	const chatCommand: CommandDefinition = {
+		name: 'chat',
+		description: 'Start a conversation with the current agent',
+		usage: '/chat <message>',
+		examples: [
+			'/chat Help me develop a PRD for my product',
+			'/chat What are the key requirements for an e-commerce platform?',
+			'/chat Review my document structure and suggest improvements'
+		],
+		handler: async (parsedCommand: ParsedCommand, context: CommandContext) => {
+			return await handleChatCommand(parsedCommand, context);
+		}
+	};
+
 	commandRouter.registerCommand(newCommand);
 	commandRouter.registerCommand(templatesCommand);
 	commandRouter.registerCommand(updateCommand);
@@ -719,6 +735,7 @@ function registerCustomCommands(): void {
 	commandRouter.registerCommand(agentCommand);
 	commandRouter.registerCommand(summarizeCommand);
 	commandRouter.registerCommand(catalogCommand);
+	commandRouter.registerCommand(chatCommand);
 }
 
 /**
@@ -732,10 +749,21 @@ async function startContextGatheringConversation(
 	conversationManager: ConversationManager
 ): Promise<void> {
 	try {
+		// Check if we're in offline mode
+		const isOffline = offlineManager.isOffline();
+		
 		// Determine appropriate agent and questions based on template
 		const agentConfig = getAgentConfigForTemplate(templateId);
 		if (!agentConfig) {
 			return; // No automatic conversation for this template
+		}
+
+		if (isOffline) {
+			// Provide offline fallback conversation
+			const offlineSessionId = generateOfflineSessionId();
+			await storeDocumentPathForSession(offlineSessionId, outputPath);
+			await startOfflineConversation(templateId, title, outputPath, context, agentConfig, offlineSessionId);
+			return;
 		}
 
 		context.stream.markdown(`\n🚀 **Starting ${agentConfig.name} Context Gathering**\n\n`);
@@ -753,6 +781,9 @@ async function startContextGatheringConversation(
 
 		const session = await conversationManager.startConversation(agentConfig.agentName, conversationContext);
 		
+		// Store document path for later retrieval (both online and offline modes)
+		await storeDocumentPathForSession(session.sessionId, outputPath);
+		
 		// Start with first question
 		const firstQuestion = agentConfig.questions[0];
 		context.stream.markdown(`**Question 1/${agentConfig.questions.length}:** ${firstQuestion.text}\n\n`);
@@ -765,7 +796,7 @@ async function startContextGatheringConversation(
 			context.stream.markdown('\n');
 		}
 
-		// Add interactive buttons
+		// Add interactive buttons for online mode
 		context.stream.button({
 			command: 'docu.continueContextGathering',
 			title: 'Answer this question',
@@ -786,8 +817,166 @@ async function startContextGatheringConversation(
 
 	} catch (error) {
 		logger.command.warn('Failed to start context gathering conversation', { error });
-		context.stream.markdown('\n💡 *You can start working on your document by chatting with the appropriate agent!*\n');
+		
+		// Fallback to offline mode if conversation fails
+		const agentConfig = getAgentConfigForTemplate(templateId);
+		if (agentConfig) {
+			const fallbackSessionId = generateOfflineSessionId();
+			await storeDocumentPathForSession(fallbackSessionId, outputPath);
+			await startOfflineConversation(templateId, title, outputPath, context, agentConfig, fallbackSessionId);
+		} else {
+			context.stream.markdown('\n💡 *You can start working on your document by chatting with the appropriate agent!*\n');
+		}
 	}
+}
+
+/**
+ * Generate offline session ID
+ */
+function generateOfflineSessionId(): string {
+	return `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Store document path for session
+ */
+async function storeDocumentPathForSession(sessionId: string, documentPath: string): Promise<void> {
+	try {
+		const key = `offline_document_${sessionId}`;
+		await globalExtensionContext.globalState.update(key, documentPath);
+	} catch (error) {
+		logger.extension.warn('Failed to store document path for session', { error });
+	}
+}
+
+/**
+ * Start offline conversation fallback for structured templates
+ */
+async function startOfflineConversation(
+	templateId: string,
+	title: string,
+	outputPath: string,
+	context: CommandContext,
+	agentConfig: { agentName: string; name: string; phase: string; questions: any[] },
+	sessionId: string
+): Promise<void> {
+	try {
+		context.stream.markdown(`\n📴 **Offline Mode - ${agentConfig.name} Guidance**\n\n`);
+		context.stream.markdown(`Since AI features are currently unavailable, I'll provide structured guidance to help you complete your ${templateId.toUpperCase()} document.\n\n`);
+
+		// Provide structured offline guidance
+		context.stream.markdown(`**Document Structure for ${templateId.toUpperCase()}:**\n\n`);
+		
+		// Generate offline guidance based on template type
+		const offlineGuidance = generateOfflineGuidance(templateId, agentConfig.questions);
+		context.stream.markdown(offlineGuidance);
+
+		// Provide manual workflow suggestions
+		context.stream.markdown(`\n**Manual Workflow:**\n`);
+		context.stream.markdown(`1. Open your document: [${title}](${vscode.Uri.file(outputPath).toString()})\n`);
+		context.stream.markdown(`2. Follow the structure above to fill in each section\n`);
+		context.stream.markdown(`3. Use the examples provided as guidance\n`);
+		context.stream.markdown(`4. When online features return, you can use the ${agentConfig.name} agent for AI assistance\n\n`);
+
+		// Add helpful buttons for offline mode
+		context.stream.button({
+			command: 'vscode.open',
+			title: 'Open Document',
+			arguments: [vscode.Uri.file(outputPath)]
+		});
+
+		context.stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Start Manual Context Gathering',
+			arguments: [sessionId, 0, 'answer']
+		});
+
+		context.stream.button({
+			command: 'docu.showTemplate',
+			title: 'View Template Details',
+			arguments: [templateId]
+		});
+
+		context.stream.markdown(`\n💡 *Tip: When AI features are available again, you can chat with the ${agentConfig.name} agent to get personalized assistance!*\n`);
+
+	} catch (error) {
+		logger.command.warn('Failed to start offline conversation', { error });
+		context.stream.markdown('\n📝 *Your document has been created. You can edit it manually and use AI features when they become available.*\n');
+	}
+}
+
+/**
+ * Generate offline guidance based on template type and questions
+ */
+function generateOfflineGuidance(templateId: string, questions: any[]): string {
+	let guidance = '';
+
+	// Generate section-based guidance from questions
+	questions.forEach((question, index) => {
+		const sectionNumber = index + 1;
+		guidance += `**${sectionNumber}. ${question.section || `Section ${sectionNumber}`}**\n`;
+		guidance += `*Question to consider:* ${question.text}\n\n`;
+		
+		if (question.examples && question.examples.length > 0) {
+			guidance += `*Examples:*\n`;
+			question.examples.slice(0, 2).forEach((example: string) => {
+				guidance += `- ${example}\n`;
+			});
+			guidance += '\n';
+		}
+		
+		guidance += `*Your response:* [TODO: ${question.text}]\n\n`;
+	});
+
+	// Add template-specific additional guidance
+	const additionalGuidance = getAdditionalOfflineGuidance(templateId);
+	if (additionalGuidance) {
+		guidance += `\n**Additional Guidance:**\n${additionalGuidance}\n`;
+	}
+
+	return guidance;
+}
+
+/**
+ * Get additional offline guidance for specific templates
+ */
+function getAdditionalOfflineGuidance(templateId: string): string {
+	const guidanceMap: Record<string, string> = {
+		'prd': `
+- Start with a clear problem statement
+- Define your target users and their needs
+- Outline the proposed solution approach
+- Include success metrics and constraints
+- Keep it concise but comprehensive`,
+		
+		'requirements': `
+- Use clear, testable requirements
+- Include both functional and non-functional requirements
+- Consider user stories and acceptance criteria
+- Think about edge cases and error scenarios
+- Prioritize requirements by importance`,
+		
+		'design': `
+- Start with high-level architecture
+- Break down into components and interfaces
+- Consider data models and relationships
+- Include error handling strategies
+- Think about scalability and performance`,
+		
+		'specification': `
+- Be precise and unambiguous
+- Include detailed technical specifications
+- Consider implementation constraints
+- Add validation and testing criteria
+- Include examples and use cases`
+	};
+
+	return guidanceMap[templateId] || `
+- Structure your content logically
+- Use clear headings and sections
+- Include examples where helpful
+- Consider your audience and purpose
+- Review and refine as needed`;
 }
 
 /**
@@ -914,20 +1103,32 @@ async function moveToNextContextQuestion(
 	conversationManager: ConversationManager
 ): Promise<void> {
 	try {
+		// Check if we're in offline mode
+		const isOffline = offlineManager.isOffline();
+		
 		// Store the response if provided
-		if (userResponse) {
+		if (userResponse && !isOffline) {
 			await conversationManager.continueConversation(sessionId, userResponse);
 		}
 
 		// Get session to check progress
-		const session = conversationManager.getActiveSession('prd-creator') || conversationManager.getActiveSession('requirements-gatherer');
-		if (!session) {
+		let session = null;
+		if (!isOffline) {
+			session = conversationManager.getActiveSession('prd-creator') || 
+					 conversationManager.getActiveSession('requirements-gatherer') ||
+					 conversationManager.getActiveSession('solution-architect') ||
+					 conversationManager.getActiveSession('specification-writer');
+		}
+		
+		if (!session && !isOffline) {
 			vscode.window.showErrorMessage('Context gathering session not found');
 			return;
 		}
 
 		// Determine template type and get questions
-		const templateId = session.state.phase === 'prd' ? 'prd' : 'requirements';
+		const templateId = session?.state.phase === 'prd' ? 'prd' : 
+						 session?.state.phase === 'requirements' ? 'requirements' :
+						 session?.state.phase === 'design' ? 'design' : 'prd';
 		const agentConfig = getAgentConfigForTemplate(templateId);
 		if (!agentConfig) {
 			return;
@@ -937,47 +1138,24 @@ async function moveToNextContextQuestion(
 		
 		if (nextQuestionIndex >= agentConfig.questions.length) {
 			// All questions completed, generate document
-			await generateDocumentFromContext(sessionId, conversationManager);
+			if (isOffline) {
+				await handleOfflineDocumentCompletion(sessionId, agentConfig, userResponse);
+			} else {
+				await generateDocumentFromContext(sessionId, conversationManager);
+			}
 			return;
 		}
 
 		// Show next question
 		const nextQuestion = agentConfig.questions[nextQuestionIndex];
-		const chatParticipant = vscode.chat.createChatParticipant('docu', async (request, context, stream, token) => {
-			stream.markdown(`\n**Question ${nextQuestionIndex + 1}/${agentConfig.questions.length}:** ${nextQuestion.text}\n\n`);
-			
-			if (nextQuestion.examples && nextQuestion.examples.length > 0) {
-				stream.markdown('💡 **Examples:**\n');
-				for (const example of nextQuestion.examples) {
-					stream.markdown(`• ${example}\n`);
-				}
-				stream.markdown('\n');
-			}
-
-			// Add interactive buttons
-			stream.button({
-				command: 'docu.continueContextGathering',
-				title: 'Answer this question',
-				arguments: [sessionId, nextQuestionIndex, 'answer']
-			});
-			
-			stream.button({
-				command: 'docu.continueContextGathering',
-				title: 'Skip this question',
-				arguments: [sessionId, nextQuestionIndex, 'skip']
-			});
-
-			stream.button({
-				command: 'docu.continueContextGathering',
-				title: 'Skip remaining and generate',
-				arguments: [sessionId, -1, 'generate']
-			});
-		});
-
-		// Trigger the chat participant to show the next question
-		// Note: This is a simplified approach - in a real implementation, 
-		// you'd want to use the existing chat context
-		vscode.window.showInformationMessage(`Question ${nextQuestionIndex + 1} ready. Check the chat for details.`);
+		
+		if (isOffline) {
+			// Handle offline question progression
+			await showOfflineQuestion(nextQuestion, nextQuestionIndex, agentConfig.questions.length, sessionId);
+		} else {
+			// Handle online question progression
+			await showOnlineQuestion(nextQuestion, nextQuestionIndex, agentConfig.questions.length, sessionId);
+		}
 
 	} catch (error) {
 		logger.extension.error('Failed to move to next context question', error instanceof Error ? error : new Error(String(error)));
@@ -986,13 +1164,246 @@ async function moveToNextContextQuestion(
 }
 
 /**
+ * Show question in online mode with interactive buttons
+ */
+async function showOnlineQuestion(
+	question: any,
+	questionIndex: number,
+	totalQuestions: number,
+	sessionId: string
+): Promise<void> {
+	// Create a temporary chat participant to show the question
+	const chatParticipant = vscode.chat.createChatParticipant('docu', async (request, context, stream, token) => {
+		stream.markdown(`\n**Question ${questionIndex + 1}/${totalQuestions}:** ${question.text}\n\n`);
+		
+		if (question.examples && question.examples.length > 0) {
+			stream.markdown('💡 **Examples:**\n');
+			for (const example of question.examples) {
+				stream.markdown(`• ${example}\n`);
+			}
+			stream.markdown('\n');
+		}
+
+		// Add interactive buttons
+		stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Answer this question',
+			arguments: [sessionId, questionIndex, 'answer']
+		});
+		
+		stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Skip this question',
+			arguments: [sessionId, questionIndex, 'skip']
+		});
+
+		stream.button({
+			command: 'docu.continueContextGathering',
+			title: 'Skip remaining and generate',
+			arguments: [sessionId, -1, 'generate']
+		});
+	});
+
+	// Show notification to user
+	vscode.window.showInformationMessage(`Question ${questionIndex + 1} ready. Check the chat for details.`);
+}
+
+/**
+ * Show question in offline mode with manual guidance
+ */
+async function showOfflineQuestion(
+	question: any,
+	questionIndex: number,
+	totalQuestions: number,
+	sessionId: string
+): Promise<void> {
+	const questionText = `Question ${questionIndex + 1}/${totalQuestions}: ${question.text}`;
+	
+	let examplesText = '';
+	if (question.examples && question.examples.length > 0) {
+		examplesText = '\n\nExamples:\n' + question.examples.map((ex: string) => `• ${ex}`).join('\n');
+	}
+
+	const userResponse = await vscode.window.showInputBox({
+		prompt: questionText,
+		placeHolder: 'Type your answer here, or leave empty to skip...',
+		ignoreFocusOut: true,
+		value: '',
+		title: `Offline Context Gathering - Question ${questionIndex + 1}/${totalQuestions}`
+	});
+
+	// Store response in a simple way for offline mode
+	if (userResponse) {
+		await storeOfflineResponse(sessionId, questionIndex, question.id, userResponse);
+	}
+
+	// Continue to next question or complete
+	if (questionIndex + 1 >= totalQuestions) {
+		await handleOfflineDocumentCompletion(sessionId, { questions: [] }, userResponse);
+	} else {
+		// Automatically continue to next question in offline mode
+		const nextQuestionIndex = questionIndex + 1;
+		// This will be handled by the calling function
+	}
+}
+
+/**
+ * Handle document completion in offline mode
+ */
+async function handleOfflineDocumentCompletion(
+	sessionId: string,
+	agentConfig: any,
+	lastResponse?: string | null
+): Promise<void> {
+	try {
+		// Get stored offline responses
+		const responses = getStoredOfflineResponses(sessionId);
+		
+		// Show completion message
+		const message = `Context gathering completed! ${responses.length} responses collected.`;
+		vscode.window.showInformationMessage(message);
+
+		// Offer to open document for manual editing
+		const action = await vscode.window.showInformationMessage(
+			'Your document is ready for manual editing. Would you like to open it now?',
+			'Open Document',
+			'View Responses',
+			'Later'
+		);
+
+		if (action === 'Open Document') {
+			// Try to find and open the document
+			const documentPath = getDocumentPathFromSession(sessionId);
+			if (documentPath) {
+				await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(documentPath));
+			}
+		} else if (action === 'View Responses') {
+			// Show collected responses
+			await showCollectedResponses(sessionId, responses);
+		}
+
+		// Clean up offline session data
+		clearOfflineSession(sessionId);
+
+	} catch (error) {
+		logger.extension.error('Failed to handle offline document completion', error instanceof Error ? error : new Error(String(error)));
+		vscode.window.showErrorMessage('Failed to complete offline context gathering');
+	}
+}
+
+/**
+ * Store offline response in extension context
+ */
+async function storeOfflineResponse(
+	sessionId: string,
+	questionIndex: number,
+	questionId: string,
+	response: string
+): Promise<void> {
+	try {
+		const key = `offline_responses_${sessionId}`;
+		const existingResponses = globalExtensionContext.globalState.get(key, []) as any[];
+		
+		existingResponses.push({
+			questionIndex,
+			questionId,
+			response,
+			timestamp: new Date().toISOString()
+		});
+
+		await globalExtensionContext.globalState.update(key, existingResponses);
+	} catch (error) {
+		logger.extension.warn('Failed to store offline response', { error });
+	}
+}
+
+/**
+ * Get stored offline responses for a session
+ */
+function getStoredOfflineResponses(sessionId: string): any[] {
+	try {
+		const key = `offline_responses_${sessionId}`;
+		return globalExtensionContext.globalState.get(key, []) as any[];
+	} catch (error) {
+		logger.extension.warn('Failed to get stored offline responses', { error });
+		return [];
+	}
+}
+
+/**
+ * Get document path from session (simplified for offline mode)
+ */
+function getDocumentPathFromSession(sessionId: string): string | null {
+	try {
+		const key = `offline_document_${sessionId}`;
+		return globalExtensionContext.globalState.get(key, null) as string | null;
+	} catch (error) {
+		logger.extension.warn('Failed to get document path from session', { error });
+		return null;
+	}
+}
+
+/**
+ * Show collected responses to user
+ */
+async function showCollectedResponses(sessionId: string, responses: any[]): Promise<void> {
+	try {
+		let content = '# Collected Responses\n\n';
+		
+		responses.forEach((response, index) => {
+			content += `## Question ${response.questionIndex + 1}\n`;
+			content += `**ID:** ${response.questionId}\n`;
+			content += `**Response:** ${response.response}\n`;
+			content += `**Time:** ${response.timestamp}\n\n`;
+		});
+
+		// Create a new untitled document with the responses
+		const doc = await vscode.workspace.openTextDocument({
+			content,
+			language: 'markdown'
+		});
+		
+		await vscode.window.showTextDocument(doc);
+	} catch (error) {
+		logger.extension.error('Failed to show collected responses', error instanceof Error ? error : new Error(String(error)));
+	}
+}
+
+/**
+ * Clear offline session data
+ */
+function clearOfflineSession(sessionId: string): void {
+	try {
+		const responseKey = `offline_responses_${sessionId}`;
+		const documentKey = `offline_document_${sessionId}`;
+		
+		globalExtensionContext.globalState.update(responseKey, undefined);
+		globalExtensionContext.globalState.update(documentKey, undefined);
+	} catch (error) {
+		logger.extension.warn('Failed to clear offline session', { error });
+	}
+}
+
+/**
  * Generate document content from gathered context
  */
 async function generateDocumentFromContext(sessionId: string, conversationManager: ConversationManager): Promise<void> {
 	try {
+		// Check if we're in offline mode
+		const isOffline = offlineManager.isOffline();
+		
+		if (isOffline) {
+			// Handle offline document generation
+			await handleOfflineDocumentGeneration(sessionId);
+			return;
+		}
+
 		// Get conversation history to extract context
 		const history = conversationManager.getConversationHistory(sessionId);
-		const session = conversationManager.getActiveSession('prd-creator') || conversationManager.getActiveSession('requirements-gatherer');
+		const session = conversationManager.getActiveSession('prd-creator') || 
+						conversationManager.getActiveSession('requirements-gatherer') ||
+						conversationManager.getActiveSession('solution-architect') ||
+						conversationManager.getActiveSession('specification-writer');
 		
 		if (!session) {
 			vscode.window.showErrorMessage('Session not found for document generation');
@@ -1054,24 +1465,122 @@ async function generateDocumentFromContext(sessionId: string, conversationManage
 			originalRequest: mockChatRequest
 		};
 
-		// Generate content using the agent
-		const response = await agent.handleRequest(agentRequest, agentContext);
-		
-		if (response.success && response.content) {
-			// Update the document with generated content
-			await updateDocumentWithGeneratedContent(session.state.extractedData.get('documentPath') || '', response.content, gatheredContext);
+		try {
+			// Generate content using the agent
+			const response = await agent.handleRequest(agentRequest, agentContext);
 			
-			vscode.window.showInformationMessage('✅ Document updated with generated content!');
-			
-			// End the conversation
-			await conversationManager.endConversation(sessionId);
-		} else {
-			vscode.window.showErrorMessage('Failed to generate document content');
+			if (response.success && response.content) {
+				// Update the document with generated content
+				const documentPath = session.state.extractedData.get('documentPath') || '';
+				await updateDocumentWithGeneratedContent(documentPath, response.content, gatheredContext);
+				
+				vscode.window.showInformationMessage('✅ Document updated with generated content!');
+				
+				// End the conversation
+				await conversationManager.endConversation(sessionId);
+			} else {
+				// Fallback to offline mode if AI generation fails
+				vscode.window.showWarningMessage('AI generation failed. Falling back to manual editing mode.');
+				await handleOfflineDocumentGeneration(sessionId, gatheredContext);
+			}
+		} catch (agentError) {
+			// Fallback to offline mode if agent fails
+			logger.extension.warn('Agent failed, falling back to offline mode', { error: agentError });
+			vscode.window.showWarningMessage('AI features unavailable. Falling back to manual editing mode.');
+			await handleOfflineDocumentGeneration(sessionId, gatheredContext);
 		}
 
 	} catch (error) {
 		logger.extension.error('Failed to generate document from context', error instanceof Error ? error : new Error(String(error)));
 		vscode.window.showErrorMessage(`Failed to generate document: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
+/**
+ * Handle document generation in offline mode
+ */
+async function handleOfflineDocumentGeneration(sessionId: string, gatheredContext?: Record<string, any>): Promise<void> {
+	try {
+		// Get offline responses if available
+		const offlineResponses = getStoredOfflineResponses(sessionId);
+		const documentPath = getDocumentPathFromSession(sessionId);
+		
+		if (!documentPath) {
+			vscode.window.showErrorMessage('Document path not found for offline generation');
+			return;
+		}
+
+		// Create structured content from responses
+		let content = '# Document Content\n\n';
+		content += '*Generated from offline context gathering*\n\n';
+		
+		if (offlineResponses.length > 0) {
+			content += '## Gathered Information\n\n';
+			offlineResponses.forEach((response, index) => {
+				content += `### ${response.questionId || `Question ${index + 1}`}\n`;
+				content += `${response.response}\n\n`;
+			});
+		}
+
+		if (gatheredContext && gatheredContext.responses) {
+			content += '## Additional Context\n\n';
+			(gatheredContext.responses as string[]).forEach((response, index) => {
+				content += `**Response ${index + 1}:** ${response}\n\n`;
+			});
+		}
+
+		content += '\n---\n\n';
+		content += '*This document was created in offline mode. You can now edit it manually or use AI features when they become available.*\n';
+
+		// Update the document with offline content
+		await updateDocumentWithOfflineContent(documentPath, content);
+		
+		// Open the document for editing
+		await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(documentPath));
+		
+		vscode.window.showInformationMessage('✅ Document updated with offline content. You can now edit it manually.');
+		
+		// Clean up offline session
+		clearOfflineSession(sessionId);
+
+	} catch (error) {
+		logger.extension.error('Failed to handle offline document generation', error instanceof Error ? error : new Error(String(error)));
+		vscode.window.showErrorMessage('Failed to generate offline document content');
+	}
+}
+
+/**
+ * Update document with offline content
+ */
+async function updateDocumentWithOfflineContent(documentPath: string, content: string): Promise<void> {
+	try {
+		// Read existing document
+		const uri = vscode.Uri.file(documentPath);
+		let existingContent = '';
+		
+		try {
+			const document = await vscode.workspace.openTextDocument(uri);
+			existingContent = document.getText();
+		} catch (error) {
+			// Document doesn't exist or can't be read, will create new
+		}
+
+		// Append or replace content
+		let newContent = content;
+		if (existingContent.trim()) {
+			newContent = existingContent + '\n\n' + content;
+		}
+
+		// Write updated content
+		const edit = new vscode.WorkspaceEdit();
+		edit.createFile(uri, { overwrite: true });
+		edit.insert(uri, new vscode.Position(0, 0), newContent);
+		
+		await vscode.workspace.applyEdit(edit);
+		
+	} catch (error) {
+		logger.extension.error('Failed to update document with offline content', error instanceof Error ? error : new Error(String(error)));
+		throw error;
 	}
 }
 
@@ -1161,6 +1670,35 @@ async function updateDocumentWithGeneratedContent(
 }
 
 /**
+ * Determine if a conversation should be started for the given template and flags
+ */
+function shouldStartConversation(templateId: string, withPlaceholders: boolean, flags: Record<string, any>): boolean {
+	// Check for explicit conversation flags
+	if (flags['with-conversation'] || flags['wc']) {
+		return true;
+	}
+	
+	// Check for explicit no-conversation flags
+	if (flags['no-conversation'] || flags['nc']) {
+		return false;
+	}
+	
+	// Auto-start for structured templates with placeholders
+	if (withPlaceholders) {
+		return true;
+	}
+	
+	// Auto-start for specific templates that benefit from conversations
+	const conversationTemplates = ['prd', 'requirements', 'design', 'specification'];
+	if (conversationTemplates.includes(templateId)) {
+		return true;
+	}
+	
+	// Default to no conversation for basic templates
+	return false;
+}
+
+/**
  * Handle the /new command
  */
 async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
@@ -1223,7 +1761,7 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 		};
 
 		// Check if --with-placeholders flag is set
-		const withPlaceholders = parsedCommand.flags['with-placeholders'] || parsedCommand.flags['wp'];
+		const withPlaceholders = Boolean(parsedCommand.flags['with-placeholders'] || parsedCommand.flags['wp']);
 		
 		if (withPlaceholders) {
 			// Get the template to add placeholder values for required variables
@@ -1321,8 +1859,8 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				}
 			}
 
-			// Auto-start context gathering conversation for structured templates
-			if (withPlaceholders && conversationManager) {
+			// Auto-start context gathering conversation for structured templates or when appropriate
+			if (conversationManager && shouldStartConversation(templateId, withPlaceholders, parsedCommand.flags)) {
 				await startContextGatheringConversation(templateId, title, outputPath, context, conversationManager);
 			}
 
@@ -2135,6 +2673,229 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 }
 
 /**
+ * Handle the /chat command
+ */
+async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
+	try {
+		// Get the message from arguments
+		const message = parsedCommand.arguments.join(' ').trim();
+		
+		if (!message) {
+			context.stream.markdown('❌ **Error:** Message is required\n\n**Usage:** `/chat <message>`\n\n**Examples:**\n');
+			context.stream.markdown('- `/chat Help me develop a PRD for my product`\n');
+			context.stream.markdown('- `/chat What are the key requirements for an e-commerce platform?`\n');
+			context.stream.markdown('- `/chat Review my document structure and suggest improvements`\n');
+			return { success: false, error: 'Message is required' };
+		}
+
+		// Check if there's an active agent
+		const currentAgent = agentManager.getCurrentAgent();
+		if (!currentAgent) {
+			context.stream.markdown('❌ **No active agent set**\n\n');
+			context.stream.markdown('You need to set an agent before starting a conversation.\n\n');
+			context.stream.markdown('**Available agents:**\n');
+			
+			const agents = agentManager.listAgents();
+			for (const agentInfo of agents) {
+				context.stream.markdown(`- **${agentInfo.name}** - ${agentInfo.description}\n`);
+			}
+			
+			context.stream.markdown('\n💡 *Use `/agent set <name>` to activate an agent, then try your chat command again.*\n');
+			return { success: false, error: 'No active agent' };
+		}
+
+		// Check offline mode
+		if (offlineManager.isOffline()) {
+			context.stream.markdown('⚠️ **Offline Mode Active** - AI features are unavailable.\n\n');
+			context.stream.markdown('**Your message:** ' + message + '\n\n');
+			context.stream.markdown('**Offline guidance for ' + currentAgent.name + ':**\n\n');
+			
+			// Provide offline guidance based on agent type
+			const offlineGuidance = getOfflineAgentGuidance(currentAgent.name, message);
+			context.stream.markdown(offlineGuidance);
+			
+			return { success: true, data: { mode: 'offline', agent: currentAgent.name } };
+		}
+
+		// Process the chat message with the current agent
+		logger.extension.info('Processing chat command with agent', { agent: currentAgent.name, message: message.substring(0, 100) });
+		telemetryManager.trackEvent('chat.agent.interaction', { agent: currentAgent.name });
+		
+		try {
+			// Build agent context
+			const agentContext = agentManager.buildAgentContext(context.request);
+			
+			// Convert to Agent ChatRequest
+			const agentRequest: import('./agents/types').ChatRequest = {
+				command: context.request.command,
+				prompt: message,
+				parameters: {},
+				originalRequest: context.request
+			};
+			
+			// Handle request with current agent
+			const agentResponse = await currentAgent.handleRequest(agentRequest, agentContext);
+			
+			// Stream the agent response
+			if (agentResponse.content) {
+				context.stream.markdown(agentResponse.content);
+			}
+			
+			// Add follow-up suggestions if available
+			if (agentResponse.followupSuggestions && agentResponse.followupSuggestions.length > 0) {
+				context.stream.markdown('\n\n**Suggestions:**\n');
+				agentResponse.followupSuggestions.forEach(suggestion => {
+					context.stream.markdown(`- ${suggestion}\n`);
+				});
+			}
+
+			return { success: true, data: { agent: currentAgent.name, responseLength: agentResponse.content?.length || 0 } };
+			
+		} catch (agentError) {
+			logger.extension.error('Agent interaction failed', agentError instanceof Error ? agentError : new Error(String(agentError)));
+			
+			context.stream.markdown(`❌ **Agent Error:** ${agentError instanceof Error ? agentError.message : String(agentError)}\n\n`);
+			context.stream.markdown('**What you can try:**\n');
+			context.stream.markdown('- `/agent list` - See available agents\n');
+			context.stream.markdown('- `/agent set <agent-name>` - Switch to a different agent\n');
+			context.stream.markdown('- `/help` - Get help with commands\n');
+
+			return { success: false, error: agentError instanceof Error ? agentError.message : String(agentError) };
+		}
+
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
+		return { success: false, error: errorMessage };
+	}
+}
+
+/**
+ * Get offline guidance for specific agent types
+ */
+function getOfflineAgentGuidance(agentName: string, userMessage: string): string {
+	const baseGuidance: Record<string, string> = {
+		'prd-creator': `**PRD Creator Offline Guidance:**
+
+Since AI is unavailable, here's how to develop your PRD manually:
+
+1. **Problem Definition**: Clearly articulate the problem you're solving
+2. **Target Market**: Define your user personas and market size
+3. **Solution Overview**: Describe your product concept and key features
+4. **Success Metrics**: Define measurable goals and KPIs
+5. **Competitive Analysis**: Research and compare with existing solutions
+6. **Technical Requirements**: Outline high-level technical needs
+
+**Your message suggests you want to:** ${userMessage}
+
+**Next steps:**
+- Open your PRD document and start with the problem definition
+- Use the \`/templates show prd\` command to see the full structure
+- Fill out each section systematically`,
+
+		'requirements-gatherer': `**Requirements Gatherer Offline Guidance:**
+
+For systematic requirements gathering without AI:
+
+1. **User Stories**: Write in "As a... I want... So that..." format
+2. **Acceptance Criteria**: Use EARS format (WHEN... THEN... SHALL...)
+3. **Functional Requirements**: Core system capabilities
+4. **Non-Functional Requirements**: Performance, security, usability
+5. **Business Rules**: Constraints and validation rules
+
+**Your message suggests:** ${userMessage}
+
+**Manual approach:**
+- Break down features into specific user stories
+- Define clear acceptance criteria for each story
+- Consider edge cases and error scenarios`,
+
+		'solution-architect': `**Solution Architect Offline Guidance:**
+
+For technical architecture design:
+
+1. **System Overview**: High-level architecture diagram
+2. **Component Design**: Break down into services/modules
+3. **Data Architecture**: Database design and data flow
+4. **Integration Points**: External systems and APIs
+5. **Security Architecture**: Authentication, authorization, data protection
+6. **Scalability Considerations**: Performance and growth planning
+
+**Your message indicates:** ${userMessage}
+
+**Design approach:**
+- Start with system context and boundaries
+- Define major components and their responsibilities
+- Document data flow and integration patterns`,
+
+		'specification-writer': `**Specification Writer Offline Guidance:**
+
+For implementation planning:
+
+1. **Task Breakdown**: Divide work into manageable tasks
+2. **Dependencies**: Identify task relationships and blockers
+3. **Estimates**: Provide time and effort estimates
+4. **Acceptance Criteria**: Define "done" for each task
+5. **Risk Assessment**: Identify potential issues and mitigation
+
+**Your message suggests:** ${userMessage}
+
+**Planning approach:**
+- Break features into development tasks
+- Estimate effort and identify dependencies
+- Create implementation timeline and milestones`,
+
+		'quality-reviewer': `**Quality Reviewer Offline Guidance:**
+
+For document review and validation:
+
+1. **Completeness Check**: Ensure all required sections are present
+2. **Consistency Review**: Check for contradictions and alignment
+3. **Clarity Assessment**: Verify content is clear and understandable
+4. **Standards Compliance**: Ensure adherence to documentation standards
+5. **Actionability**: Verify requirements are implementable
+
+**Your message indicates:** ${userMessage}
+
+**Review approach:**
+- Use checklists for systematic review
+- Check cross-references and traceability
+- Validate technical feasibility`,
+
+		'brainstormer': `**Brainstormer Offline Guidance:**
+
+For creative ideation and exploration:
+
+1. **Divergent Thinking**: Generate many ideas without judgment
+2. **Mind Mapping**: Create visual connections between concepts
+3. **SCAMPER Method**: Substitute, Combine, Adapt, Modify, Put to other uses, Eliminate, Reverse
+4. **User Journey Mapping**: Explore user experience touchpoints
+5. **Competitive Analysis**: Study what others are doing differently
+
+**Your message suggests:** ${userMessage}
+
+**Ideation techniques:**
+- Set aside judgment and generate quantity first
+- Build on ideas rather than dismissing them
+- Consider multiple perspectives and use cases`
+	};
+
+	return baseGuidance[agentName] || `**General Offline Guidance:**
+
+AI features are currently unavailable. Here are some manual approaches:
+
+1. **Structure your thinking** using templates and frameworks
+2. **Research** similar solutions and best practices
+3. **Break down complex problems** into smaller, manageable parts
+4. **Document your decisions** and reasoning
+5. **Iterate and refine** your approach
+
+**Your message:** ${userMessage}
+
+**Suggestion:** Use the available commands like \`/templates list\` and \`/help\` to guide your manual work.`;
+}
+
+/**
  * Handle the /catalog command
  */
 async function handleCatalogCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
@@ -2543,20 +3304,32 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 	// Register context gathering continuation command
 	const continueContextGatheringCommand = vscode.commands.registerCommand('docu.continueContextGathering', async (sessionId: string, questionIndex: number, action: string) => {
 		try {
-			if (!conversationManager) {
+			// Check if we're in offline mode
+			const isOffline = offlineManager.isOffline();
+			
+			if (!conversationManager && !isOffline) {
 				vscode.window.showErrorMessage('Conversation manager not available');
 				return;
 			}
 
 			if (action === 'generate') {
 				// Skip all remaining questions and generate document
-				await generateDocumentFromContext(sessionId, conversationManager);
+				if (isOffline) {
+					await handleOfflineDocumentCompletion(sessionId, { questions: [] });
+				} else {
+					await generateDocumentFromContext(sessionId, conversationManager!);
+				}
 				return;
 			}
 
 			if (action === 'skip') {
 				// Skip current question and move to next
-				await moveToNextContextQuestion(sessionId, questionIndex, null, conversationManager);
+				if (isOffline) {
+					// In offline mode, just move to next question without storing response
+					await moveToNextContextQuestion(sessionId, questionIndex, null, conversationManager!);
+				} else {
+					await moveToNextContextQuestion(sessionId, questionIndex, null, conversationManager!);
+				}
 				return;
 			}
 
@@ -2564,18 +3337,32 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 				// Prompt user for answer
 				const userResponse = await vscode.window.showInputBox({
 					prompt: 'Please provide your answer',
-					placeHolder: 'Type your answer here...'
+					placeHolder: 'Type your answer here...',
+					ignoreFocusOut: true
 				});
 
 				if (userResponse) {
-					await moveToNextContextQuestion(sessionId, questionIndex, userResponse, conversationManager);
+					if (isOffline) {
+						// Store response offline and continue
+						await storeOfflineResponse(sessionId, questionIndex, `question_${questionIndex}`, userResponse);
+						await moveToNextContextQuestion(sessionId, questionIndex, userResponse, conversationManager!);
+					} else {
+						await moveToNextContextQuestion(sessionId, questionIndex, userResponse, conversationManager!);
+					}
 				}
 				return;
 			}
 
 		} catch (error) {
 			logger.extension.error('Failed to continue context gathering', error instanceof Error ? error : new Error(String(error)));
-			vscode.window.showErrorMessage(`Failed to continue context gathering: ${error instanceof Error ? error.message : String(error)}`);
+			
+			// Provide helpful error message based on mode
+			const isOffline = offlineManager.isOffline();
+			const errorMsg = isOffline 
+				? 'Failed to continue offline context gathering. You can still edit your document manually.'
+				: `Failed to continue context gathering: ${error instanceof Error ? error.message : String(error)}`;
+			
+			vscode.window.showErrorMessage(errorMsg);
 		}
 	});
 
@@ -2870,12 +3657,53 @@ function registerDebugCommands(context: vscode.ExtensionContext): void {
 		vscode.window.showInformationMessage(`Docu debug mode ${newLevel === 'debug' ? 'enabled' : 'disabled'}`);
 	});
 
+	// Check offline mode status
+	const checkOfflineStatusCommand = vscode.commands.registerCommand('docu.checkOfflineStatus', async () => {
+		logger.extension.info('Checking offline mode status');
+		const status = offlineManager.getDetailedStatus();
+		const statusMessage = `Offline Mode: ${status.isOffline ? 'ACTIVE' : 'INACTIVE'}
+Reason: ${status.reason}
+Last Check: ${status.lastCheck.toLocaleString()}
+Models Found: ${status.modelStatus.modelsFound}
+${status.modelStatus.lastError ? `Last Error: ${status.modelStatus.lastError} (${status.modelStatus.errorType})` : ''}`;
+		
+		vscode.window.showInformationMessage(statusMessage, { modal: true });
+	});
+
+	// Force offline mode check
+	const forceOfflineCheckCommand = vscode.commands.registerCommand('docu.forceOfflineCheck', async () => {
+		logger.extension.info('Forcing offline mode check');
+		vscode.window.showInformationMessage('Checking model availability...');
+		
+		const result = await offlineManager.checkModelAvailability(true);
+		const resultMessage = `Model Check Result:
+Available: ${result.available}
+Models Found: ${result.models.length}
+${result.error ? `Error: ${result.error} (${result.errorType})` : ''}
+${result.retryAfter ? `Retry After: ${result.retryAfter}ms` : ''}`;
+		
+		vscode.window.showInformationMessage(resultMessage, { modal: true });
+	});
+
+	// Toggle offline mode
+	const toggleOfflineModeCommand = vscode.commands.registerCommand('docu.toggleOfflineMode', async () => {
+		const status = offlineManager.getDetailedStatus();
+		const newMode = !status.isOffline;
+		
+		offlineManager.setOfflineMode(newMode, `Manually toggled via debug command`);
+		logger.extension.info(`Offline mode ${newMode ? 'enabled' : 'disabled'} via debug command`);
+		vscode.window.showInformationMessage(`Docu offline mode ${newMode ? 'enabled' : 'disabled'}`);
+	});
+
 	context.subscriptions.push(
 		showDiagnosticsCommand,
 		exportDiagnosticsCommand,
 		showOutputCommand,
 		clearLogsCommand,
-		toggleDebugCommand
+		toggleDebugCommand,
+		checkOfflineStatusCommand,
+		forceOfflineCheckCommand,
+		toggleOfflineModeCommand
 	);
 
 	logger.extension.debug('Debug commands registered');

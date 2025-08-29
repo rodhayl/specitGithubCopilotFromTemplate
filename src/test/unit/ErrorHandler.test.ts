@@ -6,10 +6,19 @@ import { TestTimeoutManager } from '../utils/TestTimeoutManager';
 
 describe('ErrorHandler Unit Tests', () => {
     let errorHandler: ErrorHandler;
+    let consoleErrorSpy: jest.SpyInstance;
 
-    beforeAll(() => {
+    beforeEach(() => {
         errorHandler = ErrorHandler.getInstance();
         errorHandler.clearHistory(); // Clear history before each test
+        
+        // Mock console.error to prevent test failures
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        // Restore console.error after each test
+        consoleErrorSpy.mockRestore();
     });
 
     afterAll(() => {

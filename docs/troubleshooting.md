@@ -1,511 +1,480 @@
-# Troubleshooting Guide
+# Docu Extension Troubleshooting Guide
 
-This guide helps you diagnose and resolve common issues with the Docu VS Code extension.
+This guide helps you resolve common issues with the Docu VS Code extension, particularly around offline mode detection and GitHub Copilot integration.
 
-## 🔧 Quick Diagnostics
+## Quick Fixes
 
-Before diving into specific issues, run these quick diagnostic checks:
+### 1. Extension Shows Offline Mode Incorrectly
 
-### 1. Check Extension Status
+**Problem:** Docu reports being offline even when GitHub Copilot is working properly.
+
+**Quick Fix:**
 ```bash
-# Open Command Palette (Ctrl+Shift+P)
-> Extensions: Show Installed Extensions
-# Find "Docu - AI Documentation Assistant" and verify it's enabled
-```
+# Check status
+@docu /diagnostics
 
-### 2. View Diagnostics Panel
-```bash
-# Open Command Palette
-> Docu: Show Diagnostics
-```
-
-### 3. Check Output Channel
-```bash
-# Open Command Palette
-> Docu: Show Output Channel
-# Review logs for error messages
-```
-
-### 4. Verify GitHub Copilot
-```bash
-# Open Command Palette
-> GitHub Copilot: Check Status
-# Ensure status shows "Ready" or "Active"
-```
-
-## 🚨 Common Issues
-
-### Extension Not Loading
-
-**Symptoms:**
-- Extension appears in Extensions list but doesn't respond
-- `@docu` not recognized in chat
-- No response to commands
-
-**Causes & Solutions:**
-
-#### 1. VS Code Version Compatibility
-**Check:** VS Code version 1.97.0 or higher required
-```bash
-# Check VS Code version
-> Help: About
-```
-**Solution:** Update VS Code to latest version
-
-#### 2. Extension Not Activated
-**Check:** Extension activation status
-```bash
-# View Output Channel
-> Docu: Show Output Channel
-# Look for activation messages
-```
-**Solution:** 
-- Restart VS Code
-- Reload window (`Ctrl+Shift+P` → "Developer: Reload Window")
-
-#### 3. GitHub Copilot Issues
-**Check:** Copilot authentication and status
-```bash
-> GitHub Copilot: Check Status
-```
-**Solution:**
-- Sign in to GitHub Copilot
-- Restart VS Code
-- Check Copilot subscription status
-
----
-
-### Chat Participant Not Found
-
-**Symptoms:**
-- `@docu` shows "Participant not found"
-- Chat doesn't recognize the participant
-- No autocomplete for `@docu`
-
-**Causes & Solutions:**
-
-#### 1. Chat Feature Not Enabled
-**Check:** GitHub Copilot Chat availability
-```bash
-# Try opening Copilot Chat
-Ctrl+Shift+I (Windows/Linux) or Cmd+Shift+I (Mac)
-```
-**Solution:**
-- Ensure GitHub Copilot Chat is included in your subscription
-- Update GitHub Copilot extension
-- Restart VS Code
-
-#### 2. Extension Registration Failed
-**Check:** Extension output for registration errors
-```bash
-> Docu: Show Output Channel
-# Look for "Chat participant registered" message
-```
-**Solution:**
-- Check for error messages in output
-- Restart VS Code
-- Reinstall extension if needed
-
-#### 3. Conflicting Extensions
-**Check:** Other chat participant extensions
-**Solution:**
-- Disable other chat extensions temporarily
-- Check for extension conflicts in output
-
----
-
-### Commands Not Working
-
-**Symptoms:**
-- Commands like `/new`, `/agent`, `/templates` don't work
-- Error messages when running commands
-- Partial command execution
-
-**Causes & Solutions:**
-
-#### 1. Incorrect Command Syntax
-**Check:** Command format and parameters
-```bash
-# Correct format examples:
-@docu /new "Document Title" --template basic
+# Try agent switching to refresh connection
 @docu /agent set prd-creator
-@docu /templates list --verbose
+
+# If still offline, restart VS Code
 ```
-**Solution:** Review command syntax in documentation
 
-#### 2. Missing Required Parameters
-**Check:** Required parameters for commands
-**Solution:**
-- Use `@docu /help` to see command usage
-- Provide all required parameters
-- Check parameter spelling and format
+### 2. GitHub Copilot Authentication Conflicts
 
-#### 3. Workspace Issues
-**Check:** Workspace folder availability
+**Problem:** Using Docu causes GitHub Copilot to prompt for re-authentication.
+
+**Quick Fix:**
+1. Restart VS Code completely
+2. Re-authenticate GitHub Copilot if needed:
+   - `Ctrl+Shift+P` → "GitHub Copilot: Sign Out"
+   - `Ctrl+Shift+P` → "GitHub Copilot: Sign In"
+
+### 3. Template Variable Errors
+
+**Problem:** Getting "Missing required variables" when creating documents.
+
+**Quick Fix:**
 ```bash
-# Ensure workspace folder is open
-> File: Open Folder
+# Use basic template instead
+@docu /new "Document Title" --template basic
+
+# Or check what's needed
+@docu /templates show prd
 ```
-**Solution:**
-- Open a workspace folder
-- Check folder permissions
-- Verify workspace is not read-only
 
----
+## Detailed Troubleshooting
 
-### File Operation Errors
+### Offline Mode Issues
+
+#### Symptoms
+- Extension reports offline status
+- Agents provide basic templates instead of AI responses
+- Limited functionality available
+- Error messages about model availability
+
+#### Root Causes
+1. **GitHub Copilot Authentication Problems**
+   - Copilot not properly authenticated
+   - Authentication token expired
+   - Extension conflicts
+
+2. **Model Detection Issues**
+   - Timing issues during extension startup
+   - Network connectivity problems
+   - VS Code API limitations
+
+3. **Extension Initialization Problems**
+   - Extension loaded before Copilot
+   - Workspace not properly initialized
+   - Configuration conflicts
+
+#### Solutions
+
+**Method 1: Restart and Refresh**
+1. Close VS Code completely
+2. Reopen VS Code and your workspace
+3. Wait for all extensions to load
+4. Test Docu functionality
+
+**Method 2: Re-authenticate GitHub Copilot**
+1. Open Command Palette (`Ctrl+Shift+P`)
+2. Run "GitHub Copilot: Sign Out"
+3. Run "GitHub Copilot: Sign In"
+4. Complete authentication process
+5. Test Docu again
+
+**Method 3: Check Extension Order**
+1. Disable Docu extension
+2. Restart VS Code
+3. Verify GitHub Copilot works
+4. Re-enable Docu extension
+5. Test functionality
+
+### GitHub Copilot Integration Issues
+
+#### Authentication Interference
+
+**Problem:** Docu causes GitHub Copilot to lose authentication or prompt for re-login.
+
+**Investigation Steps:**
+1. Check if issue occurs consistently
+2. Note timing (startup, during use, after specific actions)
+3. Test with other AI extensions disabled
+
+**Solutions:**
+1. **Prevent Conflicts:**
+   - Authenticate Copilot before using Docu
+   - Avoid rapid switching between AI features
+   - Use extensions sequentially rather than simultaneously
+
+2. **Resolve Active Conflicts:**
+   - Restart VS Code
+   - Re-authenticate both extensions if needed
+   - Check for extension updates
+
+#### Model Availability Detection
+
+**Problem:** Docu can't detect available GitHub Copilot models.
+
+**Diagnostic Commands:**
+```bash
+# Check current status
+@docu /diagnostics
+
+# List available agents (should work even offline)
+@docu /agent list
+
+# Test basic functionality
+@docu /help
+```
+
+**Solutions:**
+1. **Verify Copilot Status:**
+   - Test Copilot in code editor (get suggestions)
+   - Try Copilot Chat independently
+   - Check Copilot status in VS Code status bar
+
+2. **Refresh Model Detection:**
+   - Switch agents: `@docu /agent set prd-creator`
+   - Restart VS Code if needed
+   - Wait for full extension initialization
+
+### Command and Template Issues
+
+#### Template Variable Errors
+
+**Error Message:**
+```
+❌ Error creating document: Missing required variables
+The PRD template requires specific variables: executiveSummary, primaryGoal1, successCriteria1...
+```
+
+**Understanding the Issue:**
+- Some templates require specific variables to be defined
+- The PRD and Requirements templates have structured formats
+- Variables must be provided or placeholders used
+
+**Solutions:**
+
+**Option 1: Use Basic Template**
+```bash
+@docu /new "Document Title" --template basic --path docs/
+```
+
+**Option 2: Check Template Requirements**
+```bash
+@docu /templates show prd
+@docu /templates show requirements
+```
+
+**Option 3: Use Placeholders (if supported)**
+```bash
+@docu /new "Document Title" --template prd --with-placeholders --path docs/
+```
+
+#### Command Not Implemented
+
+**Error Message:**
+```
+Command not implemented yet
+```
+
+**Understanding the Issue:**
+- Some commands shown in documentation may not be fully implemented
+- The extension is under active development
+- Some features work through conversation rather than commands
+
+**Workarounds:**
+
+**Instead of `/review --file document.md`:**
+```
+Switch to Quality Reviewer agent and ask:
+"Please review my document at docs/prd.md for completeness and quality"
+```
+
+**Instead of `/update --file document.md --section "Requirements"`:**
+```
+Switch to appropriate agent and ask:
+"Please help me update the Requirements section in my document with additional user stories"
+```
+
+**Instead of `/catalog --pattern "docs/**/*.md"`:**
+```
+Ask any agent:
+"Please create an index of all documentation files in my docs/ folder"
+```
+
+### Agent and Conversation Issues
+
+#### Agents Not Responding Contextually
 
 **Symptoms:**
-- "Permission denied" errors
-- "File not found" errors
-- Cannot create or update files
+- Generic responses regardless of input
+- No personalized suggestions
+- Conversations don't build on previous context
 
-**Causes & Solutions:**
+**Causes:**
+1. **Offline Mode:** Extension thinks it's offline
+2. **Context Loss:** Agent state not maintained
+3. **Model Issues:** Problems with underlying AI models
 
-#### 1. Permission Issues
-**Check:** File and folder permissions
-**Solution:**
-- Check workspace folder permissions
-- Run VS Code as administrator (Windows)
-- Verify user has write access to workspace
+**Solutions:**
 
-#### 2. Path Issues
-**Check:** File paths and workspace structure
+**Check Online Status:**
 ```bash
-# Check current workspace
-> File: Show Active File in Explorer
+@docu /agent current
+@docu /diagnostics
 ```
-**Solution:**
-- Use relative paths from workspace root
-- Check for typos in file paths
-- Ensure directories exist
 
-#### 3. Security Restrictions
-**Check:** Security validation in output
-**Solution:**
-- Ensure paths are within workspace
-- Avoid restricted directories (node_modules, .git)
-- Check file extension restrictions
+**Improve Prompts:**
+- Be specific about your project
+- Provide context in each message
+- Ask direct questions
+- Reference previous work
 
----
-
-### Template Issues
-
-**Symptoms:**
-- Template not found errors
-- Template validation failures
-- Variables not substituting correctly
-
-**Causes & Solutions:**
-
-#### 1. Template Directory Configuration
-**Check:** Template directory setting
-```json
-// .vscode/settings.json
-{
-  "docu.templateDirectory": ".vscode/docu/templates"
-}
+**Example of Good Prompt:**
 ```
-**Solution:**
-- Verify template directory exists
-- Check directory path is correct
-- Create directory if missing
-
-#### 2. Template Syntax Errors
-**Check:** Template YAML syntax
-```bash
-@docu /templates validate <template-id>
+I'm working on CardCraft, an online card game marketplace. Based on the PRD we developed, help me create user stories for the shopping cart functionality. Focus on competitive players who need to quickly purchase tournament supplies.
 ```
-**Solution:**
-- Fix YAML syntax errors
-- Validate variable definitions
-- Check front matter format
 
-#### 3. Variable Issues
-**Check:** Variable names and usage
-**Solution:**
-- Use `{{variableName}}` format
-- Define all variables in front matter
-- Check variable name spelling
+**Example of Poor Prompt:**
+```
+Help me with requirements.
+```
 
----
+#### Agent Switching Problems
 
-### Agent Issues
+**Error Message:**
+```
+❌ Failed to switch to agent: requirements-gatherer
+```
 
-**Symptoms:**
-- Agent not switching
-- Agent responses not relevant
-- Agent context issues
+**Solutions:**
 
-**Causes & Solutions:**
-
-#### 1. Agent Configuration
-**Check:** Agent configuration files
+**Check Available Agents:**
 ```bash
 @docu /agent list
-# Verify all agents are listed
 ```
-**Solution:**
-- Check agent configuration files
-- Reload agent configurations
-- Verify agent definitions
 
-#### 2. Context Issues
-**Check:** Agent context and previous outputs
-**Solution:**
-- Provide clear context in conversations
-- Reference previous documents
-- Use appropriate agent for task
+**Use Exact Agent Names:**
+- `prd-creator` (not "PRD Creator")
+- `requirements-gatherer` (not "requirements")
+- `solution-architect` (not "architect")
+- `specification-writer` (not "spec writer")
+- `quality-reviewer` (not "reviewer")
+- `brainstormer` (not "brainstorm")
 
-#### 3. Model Availability
-**Check:** Language model access
-**Solution:**
-- Verify GitHub Copilot is active
-- Check model availability
-- Try switching agents
+**Correct Commands:**
+```bash
+@docu /agent set prd-creator
+@docu /agent set requirements-gatherer
+@docu /agent set solution-architect
+@docu /agent set specification-writer
+@docu /agent set quality-reviewer
+@docu /agent set brainstormer
+```
 
----
+### File and Workspace Issues
+
+#### Document Creation Problems
+
+**Issue:** Files not created in expected locations or permission errors.
+
+**Prerequisites:**
+1. **Open Workspace:** Ensure a folder is open in VS Code
+   - Use File → Open Folder
+   - Select your project directory
+   - Verify folder appears in Explorer panel
+
+2. **Check Permissions:** Ensure write access to target directory
+   - Avoid system directories
+   - Use project-relative paths
+   - Create directories manually if needed
+
+**Path Examples:**
+```bash
+# Good paths (relative to workspace)
+@docu /new "Document" --path docs/
+@docu /new "Document" --path ./requirements/
+@docu /new "Document" --path subfolder/document.md
+
+# Avoid absolute paths or system directories
+# Bad: C:\System\document.md
+# Bad: /usr/local/document.md
+```
+
+#### Workspace Not Detected
+
+**Error Message:**
+```
+❌ No workspace folder open. Please open a folder in VS Code first.
+```
+
+**Solution:**
+1. File → Open Folder (or `Ctrl+K Ctrl+O`)
+2. Select your project directory
+3. Wait for VS Code to load the workspace
+4. Verify folder appears in Explorer panel
+5. Try Docu command again
 
 ### Performance Issues
 
+#### Slow Responses or Timeouts
+
 **Symptoms:**
-- Slow response times
-- High memory usage
-- Extension freezing
+- Long delays before agent responses
+- Timeout errors
+- VS Code becomes unresponsive
 
-**Causes & Solutions:**
+**Causes:**
+1. **Network Issues:** Slow connection to AI services
+2. **Large Requests:** Complex prompts or large documents
+3. **Resource Constraints:** System performance issues
+4. **Extension Conflicts:** Multiple AI extensions running
 
-#### 1. Large Files
-**Check:** File sizes and workspace size
-**Solution:**
-- Limit file sizes for operations
-- Use file patterns to exclude large files
-- Consider workspace cleanup
+**Solutions:**
 
-#### 2. Memory Usage
-**Check:** Extension memory usage
+**Immediate Fixes:**
+1. **Break Down Requests:** Ask for one section at a time
+2. **Simplify Prompts:** Be concise and specific
+3. **Check Network:** Ensure stable internet connection
+
+**System Optimization:**
+1. **Close Unused Extensions:** Disable unnecessary extensions
+2. **Restart VS Code:** Reload window or restart completely
+3. **Check System Resources:** Ensure adequate RAM and CPU
+
+**Advanced Troubleshooting:**
+1. **Developer Tools:** `Ctrl+Shift+P` → "Developer: Toggle Developer Tools"
+2. **Check Console:** Look for error messages or warnings
+3. **Extension Logs:** Check VS Code output panel for extension logs
+
+## Diagnostic Information
+
+### System Check Commands
+
 ```bash
-> Docu: Show Diagnostics
-# Check memory usage statistics
+# Basic functionality test
+@docu /help
+
+# Agent system test
+@docu /agent list
+@docu /agent current
+
+# Template system test
+@docu /templates list
+
+# Document creation test
+@docu /new "Test Document" --template basic
 ```
-**Solution:**
-- Restart VS Code
-- Clear logs and cache
-- Reduce log retention
 
-#### 3. Network Issues
-**Check:** Network connectivity for Copilot
-**Solution:**
-- Check internet connection
-- Verify proxy settings
-- Test Copilot connectivity
+### Information to Collect for Support
 
----
+When reporting issues, include:
 
-## 🔍 Advanced Diagnostics
+**System Information:**
+- VS Code version
+- Docu extension version
+- GitHub Copilot extension version
+- Operating system and version
 
-### Enable Debug Logging
+**Error Details:**
+- Exact error messages
+- Steps to reproduce
+- Expected vs actual behavior
+- Screenshots if helpful
 
-1. **Enable Debug Mode**
-   ```bash
-   > Docu: Toggle Debug Mode
-   ```
+**Extension Status:**
+- GitHub Copilot authentication status
+- Other AI extensions installed
+- Workspace configuration
 
-2. **Set Debug Level in Settings**
-   ```json
-   {
-     "docu.logging.level": "debug"
-   }
-   ```
+**Diagnostic Output:**
+```bash
+# Run these and include output
+@docu /help
+@docu /agent list
+@docu /diagnostics  # if available
+```
 
-3. **View Debug Output**
-   ```bash
-   > Docu: Show Output Channel
-   ```
-
-### Export Diagnostic Report
-
-1. **Generate Report**
-   ```bash
-   > Docu: Export Diagnostics
-   ```
-
-2. **Review Report Contents**
-   - System information
-   - Error statistics
-   - Performance metrics
-   - Recent debug information
-
-### Check System Requirements
-
-**Minimum Requirements:**
-- VS Code 1.97.0+
-- Node.js 20.x+ (for development)
-- GitHub Copilot subscription
-- Active internet connection
-
-**Recommended:**
-- 8GB+ RAM
-- SSD storage
-- Stable internet connection
-
-## 🛠️ Manual Fixes
-
-### Reset Extension Configuration
-
-1. **Clear Workspace Settings**
-   ```bash
-   # Remove .vscode/settings.json docu settings
-   ```
-
-2. **Reset Global Settings**
-   ```bash
-   # Open Settings UI
-   > Preferences: Open Settings (UI)
-   # Search "docu" and reset to defaults
-   ```
-
-3. **Clear Extension Data**
-   ```bash
-   > Docu: Clear Logs
-   ```
-
-### Reinstall Extension
-
-1. **Uninstall Extension**
-   ```bash
-   # Extensions view
-   > Extensions: Show Installed Extensions
-   # Find Docu extension → Uninstall
-   ```
-
-2. **Restart VS Code**
-
-3. **Reinstall Extension**
-   ```bash
-   # Install from Marketplace or VSIX
-   ```
-
-### Workspace Reset
-
-1. **Create New Workspace**
-   ```bash
-   > File: New Window
-   > File: Open Folder
-   ```
-
-2. **Test Extension**
-   ```bash
-   @docu /agent list
-   ```
-
-3. **Migrate Configuration**
-   - Copy working settings
-   - Recreate templates
-   - Test functionality
-
-## 📊 Monitoring and Prevention
-
-### Regular Maintenance
-
-1. **Weekly Checks**
-   - Review diagnostic panel
-   - Check error statistics
-   - Clear old logs
-
-2. **Monthly Reviews**
-   - Update extension
-   - Review configuration
-   - Clean up templates
-
-3. **Performance Monitoring**
-   - Monitor memory usage
-   - Check response times
-   - Review error rates
+## Prevention Tips
 
 ### Best Practices
 
-1. **Configuration Management**
-   - Use version control for settings
-   - Document custom configurations
-   - Test changes in development
+1. **Setup Order:**
+   - Install and authenticate GitHub Copilot first
+   - Install Docu extension second
+   - Test both independently before using together
 
-2. **Template Management**
-   - Validate templates regularly
-   - Use consistent naming
-   - Document template purposes
+2. **Usage Patterns:**
+   - Open workspace before using Docu
+   - Use one AI extension at a time when possible
+   - Save work frequently
+   - Use basic templates when in doubt
 
-3. **Workspace Organization**
-   - Keep workspaces clean
-   - Use appropriate directory structure
-   - Manage file permissions
+3. **Maintenance:**
+   - Keep extensions updated
+   - Restart VS Code periodically
+   - Clear extension cache if issues persist
 
-## 🆘 Getting Help
+### Avoiding Common Issues
 
-### Self-Service Resources
+1. **Authentication Problems:**
+   - Don't switch rapidly between AI extensions
+   - Complete authentication flows fully
+   - Restart VS Code after authentication issues
 
-1. **Documentation**
-   - [Installation Guide](installation.md)
-   - [Agent Guide](agents.md)
-   - [Template Management](template-management.md)
-   - [Configuration Reference](configuration.md)
+2. **Template Errors:**
+   - Start with basic templates
+   - Check template requirements before use
+   - Use conversational approach for complex documents
 
-2. **Examples**
-   - [Workflow Examples](../examples/workflows/)
-   - [Template Examples](../examples/templates/)
-   - [Configuration Examples](../examples/configurations/)
+3. **Performance Issues:**
+   - Break large tasks into smaller parts
+   - Close unnecessary applications
+   - Use wired internet connection when possible
 
-### Community Support
+## Recovery Procedures
 
-1. **GitHub Discussions**
-   - [Ask Questions](https://github.com/docu/vscode-docu-extension/discussions)
-   - [Share Solutions](https://github.com/docu/vscode-docu-extension/discussions)
-   - [Feature Requests](https://github.com/docu/vscode-docu-extension/discussions)
+### Complete Reset
 
-2. **Issue Reporting**
-   - [Bug Reports](https://github.com/docu/vscode-docu-extension/issues)
-   - Include diagnostic report
-   - Provide reproduction steps
+If multiple issues persist:
 
-### Professional Support
+1. **Disable Extensions:**
+   - Disable Docu extension
+   - Disable GitHub Copilot extension
+   - Restart VS Code
 
-For enterprise users:
-- Priority support available
-- Custom configuration assistance
-- Training and onboarding
+2. **Re-enable Sequentially:**
+   - Enable GitHub Copilot first
+   - Test authentication and functionality
+   - Enable Docu extension
+   - Test basic functionality
 
-## 📋 Issue Report Template
+3. **Verify Functionality:**
+   - Test each agent individually
+   - Create test documents
+   - Verify conversation capabilities
 
-When reporting issues, please include:
+### Emergency Workarounds
 
-```markdown
-## Issue Description
-Brief description of the problem
+When Docu isn't working properly:
 
-## Environment
-- VS Code Version: 
-- Docu Extension Version: 
-- Operating System: 
-- GitHub Copilot Status: 
+1. **Manual Document Creation:**
+   - Create markdown files manually
+   - Use basic templates as starting points
+   - Copy structure from working examples
 
-## Steps to Reproduce
-1. Step one
-2. Step two
-3. Step three
+2. **Alternative AI Tools:**
+   - Use GitHub Copilot Chat directly
+   - Use other AI assistants for content
+   - Import generated content into Docu templates
 
-## Expected Behavior
-What should happen
-
-## Actual Behavior
-What actually happens
-
-## Diagnostic Information
-[Attach diagnostic report from "Docu: Export Diagnostics"]
-
-## Additional Context
-Any other relevant information
-```
+3. **Offline Development:**
+   - Use Docu's offline templates
+   - Follow structured approaches manually
+   - Enhance with AI when connectivity returns
 
 ---
 
-**Still having issues?** Don't hesitate to [open an issue](https://github.com/docu/vscode-docu-extension/issues) or [start a discussion](https://github.com/docu/vscode-docu-extension/discussions). We're here to help!
+This troubleshooting guide covers the most common issues with the Docu extension. For additional support or to report bugs, please refer to the extension documentation or support channels.

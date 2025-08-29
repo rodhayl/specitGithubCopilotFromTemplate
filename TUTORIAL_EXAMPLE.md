@@ -14,6 +14,25 @@ Before starting, ensure you have:
 - ✅ Docu extension installed and configured
 - ✅ A workspace folder open in VS Code
 
+## 🔄 **Important: New Interaction Model**
+
+Docu now uses an **explicit command-based interaction model** for better control:
+
+- **❌ Old way:** `@docu some random message` (sent directly to AI)
+- **✅ New way:** `@docu /chat some message` (explicit conversation command)
+
+**Why this change?**
+- Prevents accidental AI calls from random messages
+- Gives you full control over when AI features are used
+- Makes the interaction model clear and predictable
+- Allows for better offline mode handling
+
+**Key Commands:**
+- `/chat <message>` - Start conversations with the active agent
+- `/agent set <name>` - Set the active agent before chatting
+- `/new "Title"` - Create documents
+- `/help` - Get help and see all commands
+
 ## Verification Setup
 
 Let's verify everything is working before we begin:
@@ -29,7 +48,40 @@ Let's verify everything is working before we begin:
 @docu /templates list
 ```
 
-If you see responses to these commands, you're ready to proceed!
+**Expected Response for `/help`:**
+```
+🤖 **Docu Assistant Help**
+
+Available commands:
+• /new <title> [--template <template-id>] [--path <output-path>] - Create a new document
+• /agent <subcommand> - Manage AI agents (list, set, current)
+• /templates <subcommand> - Manage templates (list, show, open)
+• /update <file> --section <section> - Update document sections
+• /review <file> [--level <level>] - Review document quality
+```
+
+**Expected Response for `/agent list`:**
+```
+📋 **Available Agents:**
+
+• **prd-creator** - Product Requirements Document creation and strategic planning
+• **brainstormer** - Creative ideation and concept exploration  
+• **requirements-gatherer** - Structured requirements collection using EARS format
+• **solution-architect** - Technical architecture and system design
+• **specification-writer** - Implementation planning and task breakdown
+• **quality-reviewer** - Document validation and quality assurance
+```
+
+**Expected Response for `/templates list`:**
+```
+📄 **Available Templates:**
+
+• **basic** - Basic document template with standard structure
+• **prd** - Product Requirements Document template
+• **requirements** - Requirements document with EARS format structure
+```
+
+If you see similar responses to these commands, you're ready to proceed!
 
 ## Phase 1: Product Requirements Document (PRD Creation)
 
@@ -53,146 +105,148 @@ Let Docu create them automatically by omitting the path parameter.
 
 ### Step 2: Create the PRD Document
 
-The PRD template requires specific variables to be filled in. You have two options:
+You have two main options for creating your PRD:
 
-**Option A: Use PRD Template with Placeholders (Recommended)**
-```bash
-@docu /new "CardCraft Online Store PRD" --template prd --with-placeholders --path docs/01-prd/
-```
-
-**Option B: Use Basic Template (Alternative)**
+**Option A: Use Basic Template (Recommended for Beginners)**
 ```bash
 @docu /new "CardCraft Online Store PRD" --template basic --path docs/01-prd/
 ```
 
-**What Happens with Option A:**
-- Creates `docs/01-prd/cardcraft-online-store-prd.md` with PRD structure
-- Automatically fills in placeholder text like "[TODO: Add executive summary]"
+**Option B: Use PRD Template (Advanced)**
+```bash
+@docu /new "CardCraft Online Store PRD" --template prd --path docs/01-prd/
+```
+
+**What Happens with Option A (Basic Template):**
+- Creates `docs/01-prd/cardcraft-online-store-prd.md` with basic structure
 - Creates the directory structure if it doesn't exist
 - Opens the document in VS Code
-- **🚀 AUTOMATICALLY STARTS CONTEXT GATHERING** with 5 strategic questions
-- **Generates comprehensive content** from your answers in a single LLM call
-- **Updates the document** with generated sections automatically
+- Works seamlessly with all agents for guided development
+- No template variable requirements
 
-**What Happens with Option B:**
-- Creates a basic markdown document
-- You'll work with the agent to build the PRD structure through conversation
-- More flexible but requires more manual structuring
+**What Happens with Option B (PRD Template):**
+- Attempts to create a structured PRD document
+- May require specific template variables
+- If variables are missing, you'll get helpful error messages with alternatives
 
-**Why the `--with-placeholders` flag is needed:**
-The PRD template requires specific variables like `executiveSummary`, `primaryGoal1`, `successCriteria1`, etc. Without placeholders, you'll get an error listing all missing variables. The placeholders create a structured document that gets filled in during your conversation with the agent.
-
-### 🎯 **NEW: Automatic Context Gathering System**
-
-When you use `--with-placeholders` with structured templates (PRD, Requirements), the system now **automatically starts an intelligent conversation** to gather context:
-
-#### **What You'll See:**
+**Expected Success Response:**
 ```
-🚀 Starting PRD Creator Context Gathering
+✅ **Document Created Successfully**
 
-I'll ask you 5 quick questions to gather context for your PRD. 
-You can skip any question by typing "skip".
+📄 **File:** docs/01-prd/cardcraft-online-store-prd.md
+📁 **Directory:** Created docs/01-prd/ 
+🚀 **Status:** Document opened in editor
 
-Question 1/5: What specific problem or pain point does your product solve?
+**Next Steps:**
+• Work with the PRD Creator agent to develop your content
+• Use `/chat` commands to build out sections
+• The agent will guide you through strategic questions
+```
 
-💡 Examples:
-• Users struggle with slow authentication processes
-• Current data processing takes too long for real-time needs
-• Customers can't easily find product information
+**If You Get Template Variable Errors:**
+```
+❌ **Error creating document:** Missing required variables
 
-[Answer this question] [Skip this question] [Skip all and generate now]
+**The PRD template requires specific variables. Here are your options:**
+
+**Option 1 (Recommended):** Use placeholders that will be filled during conversation:
+`/new "CardCraft Online Store PRD" --template prd --with-placeholders --path docs/01-prd/`
+
+**Option 2:** Use the basic template and build structure through conversation:
+`/new "CardCraft Online Store PRD" --template basic --path docs/01-prd/`
+
+💡 *Both options work great with the PRD Creator agent for guided document creation*
+```
+
+### 🎯 **Working with the PRD Creator Agent**
+
+Once your document is created, you'll work with the PRD Creator agent to develop comprehensive content through conversation:
+
+#### **What You'll Experience:**
+The PRD Creator agent specializes in strategic product thinking and will guide you through:
+
+- **Problem Definition** - Understanding the core problem you're solving
+- **Market Analysis** - Identifying target users and competitive landscape  
+- **Product Vision** - Defining objectives and success criteria
+- **Feature Planning** - Outlining core functionality and requirements
+- **Strategic Positioning** - How your product fits in the market
+
+#### **Conversation Style:**
+The agent uses a conversational approach, asking strategic questions like:
+
+```
+I'm here to help you develop CardCraft into a comprehensive PRD. Let me start with some strategic questions:
+
+1. **Market Position**: How will CardCraft differentiate from existing competitors like TCGPlayer or local game stores?
+
+2. **Business Model**: Are you planning:
+   - Direct sales of sealed products?
+   - Marketplace for individual cards?
+   - Subscription boxes?
+   - Tournament organization?
+
+3. **Geographic Scope**: Starting locally, nationally, or internationally?
+
+Let's start with your differentiation strategy - what unique value will CardCraft provide?
 ```
 
 #### **Key Benefits:**
-- ✅ **Fully Automatic** - No manual agent switching required
-- ✅ **Cost Efficient** - Single LLM call after gathering all context
-- ✅ **Comprehensive** - Structured questions ensure complete information
-- ✅ **Flexible** - Skip questions that aren't relevant
-- ✅ **Fast** - Immediate document generation with professional content
+- ✅ **Strategic Guidance** - Expert-level product strategy questions
+- ✅ **Iterative Development** - Build your PRD through natural conversation
+- ✅ **Comprehensive Coverage** - Ensures all critical PRD sections are addressed
+- ✅ **Professional Output** - Generates market-ready documentation
 
-#### **The Process:**
-1. **Document Creation** - Creates structured document with placeholders
-2. **Context Gathering** - Asks 5 strategic questions with examples
-3. **Response Collection** - Collects your answers (no LLM calls yet)
-4. **Content Generation** - Single LLM call with all gathered context
-5. **Document Update** - Automatically replaces placeholders with generated content
-6. **Final Save** - Saves the completed document
+### Step 3: Develop PRD Content Through Conversation
 
-### Step 3: Automatic Context Gathering (NEW!)
+Now that your document is created, start a conversation with the PRD Creator agent to develop comprehensive content:
 
-After running the `/new` command with `--with-placeholders`, the system **automatically starts** the context gathering process. You'll see the first question appear immediately:
-
-**System Response:**
+**Your Initial Prompt:**
 ```
-🚀 Starting PRD Creator Context Gathering
-
-I'll ask you 5 quick questions to gather context for your PRD. 
-You can skip any question by typing "skip".
-
-Question 1/5: What specific problem or pain point does your product solve?
-
-💡 Examples:
-• Users struggle with slow authentication processes  
-• Current data processing takes too long for real-time needs
-• Customers can't easily find product information
-
-[Answer this question] [Skip this question] [Skip all and generate now]
+@docu /chat Help me develop a comprehensive PRD for CardCraft, an online card game shop. I want to create a marketplace that serves card game enthusiasts with competitive pricing, authentic products, and community features.
 ```
 
-**Your Response to Question 1:**
+**Expected Agent Response:**
 ```
-Card game enthusiasts struggle to find reliable online stores with competitive prices, authentic products, and good community features. Most existing stores lack personalized recommendations and have poor user experiences.
-```
+Excellent concept! Let me help you develop this into a comprehensive PRD. I have some strategic questions:
 
-**System Response:**
-```
-Question 2/5: Who are your primary target users?
+1. **Market Position**: How will CardCraft differentiate from existing competitors like TCGPlayer or local game stores?
 
-💡 Examples:
-• Software developers who need API access
-• Business analysts creating reports  
-• E-commerce customers aged 25-45
+2. **Business Model**: Are you planning:
+   - Direct sales of sealed products?
+   - Marketplace for individual cards?
+   - Subscription boxes?
+   - Tournament organization?
 
-[Answer this question] [Skip this question] [Skip all and generate now]
-```
+3. **Geographic Scope**: Starting locally, nationally, or internationally?
 
-**Your Response to Question 2:**
-```
-Primary users are card game enthusiasts aged 13-35, including competitive players, collectors, and casual gamers who play Pokemon, Magic: The Gathering, Yu-Gi-Oh, and board games.
+4. **Key Success Metrics**: What would make CardCraft successful in year one?
+
+Let's start with your differentiation strategy - what unique value will CardCraft provide?
 ```
 
-Continue answering the remaining questions about solution approach, success metrics, and constraints. After all questions are answered (or skipped), the system will automatically generate comprehensive content and update your document.
-
-#### **Final System Response:**
+**Your Follow-up Response:**
 ```
-🔄 Generating document content from gathered context...
+@docu /chat CardCraft will differentiate by offering:
+1. AI-powered deck building recommendations
+2. Virtual card condition verification using photos
+3. Community features like deck sharing and tournaments
+4. Subscription boxes with personalized card selections
+5. Trade-in program for unwanted cards
 
-✅ Document updated with generated content!
-
-Your PRD has been automatically updated with:
-• Executive Summary based on your problem definition
-• Product Objectives derived from your solution approach  
-• Target Market Analysis from your user descriptions
-• Success Criteria from your metrics
-• Constraints and Assumptions from your limitations
-
-📖 Open docs/01-prd/cardcraft-online-store-prd.md to see the results!
+We'll start nationally in the US, focusing on competitive players and collectors.
 ```
 
-#### **What Gets Generated:**
-The system replaces all placeholders with professional content like:
+**Agent's Strategic Development:**
+The agent will then help you develop each section systematically:
 
-**Executive Summary:**
-> CardCraft is an innovative online card game marketplace designed to address the fragmented and often unreliable landscape of card game retail. By combining competitive pricing, authentic product verification, and community-driven features, CardCraft will serve as the premier destination for card game enthusiasts aged 13-35...
-
-**Primary Goals:**
-> 1. Establish CardCraft as the most trusted online card game retailer through authentic product verification and competitive pricing
-> 2. Build a thriving community of 10,000+ active users within the first year through personalized recommendations and social features...
-
-**Success Criteria:**
-> - Achieve $500K in revenue within the first 12 months
-> - Maintain 99.5% customer satisfaction rating for product authenticity
-> - Build a community of 10,000+ registered users with 30% monthly active rate...
+- **Executive Summary** - Based on your problem definition and solution
+- **Product Objectives** - Derived from your business goals
+- **Target Market Analysis** - From your user descriptions
+- **User Personas** - Detailed profiles of your target customers
+- **Success Criteria** - Measurable goals and KPIs
+- **Competitive Analysis** - How you compare to existing solutions
+- **Technical Requirements** - High-level technical needs
+- **Timeline and Milestones** - Development roadmap
 
 **Agent Response (Example):**
 ```
@@ -215,7 +269,7 @@ Let's start with your differentiation strategy - what unique value will CardCraf
 
 **Your Follow-up:**
 ```
-CardCraft will differentiate by offering:
+@docu /chat CardCraft will differentiate by offering:
 1. AI-powered deck building recommendations
 2. Virtual card condition verification using photos
 3. Community features like deck sharing and tournaments
@@ -257,7 +311,7 @@ Let's think outside the box and discover innovative features for CardCraft!
 
 **Your Input:**
 ```
-Based on the CardCraft PRD, what innovative features could we add to make our card game shop stand out from competitors?
+@docu /chat Based on the CardCraft PRD, what innovative features could we add to make our card game shop stand out from competitors?
 ```
 
 **Agent Response (Example):**
@@ -290,7 +344,7 @@ Which of these directions excites you most? Let's dive deeper into the most prom
 
 **Your Follow-up:**
 ```
-I love the AI-powered features and the AR card scanner idea. How could we implement a comprehensive AI recommendation system that helps both new and experienced players?
+@docu /chat I love the AI-powered features and the AR card scanner idea. How could we implement a comprehensive AI recommendation system that helps both new and experienced players?
 ```
 
 Continue this creative exploration to generate innovative feature ideas.
@@ -313,25 +367,44 @@ I'll help you create structured user stories and detailed acceptance criteria.
 ### Step 8: Create Requirements Document
 
 ```bash
+@docu /new "CardCraft Requirements Specification" --template basic --path docs/02-requirements/
+```
+
+**Alternative (if you want to try the requirements template):**
+```bash
 @docu /new "CardCraft Requirements Specification" --template requirements --path docs/02-requirements/
 ```
 
 **What Happens:**
 - Creates `docs/02-requirements/cardcraft-requirements-specification.md`
-- Automatically creates the directory structure
-- Applies requirements template structure
-- Opens the document in VS Code
+- Automatically creates the directory structure if it doesn't exist
+- Opens the document in VS Code for editing
+- Ready for agent-guided development
 
-**Note:** If the template has required variables, Docu will show you exactly what's needed and suggest alternatives like using the basic template.
+**Expected Success Response:**
+```
+✅ **Document Created Successfully**
+
+📄 **File:** docs/02-requirements/cardcraft-requirements-specification.md
+📁 **Directory:** Created docs/02-requirements/
+🚀 **Status:** Document opened in editor
+
+**Next Steps:**
+• Work with the Requirements Gatherer agent
+• Develop structured user stories and acceptance criteria
+• Use EARS format for precise requirements
+```
+
+**Note:** If the requirements template has missing variables, you'll get helpful error messages suggesting to use the basic template or add placeholders.
 
 ### Step 9: Define User Stories and Acceptance Criteria
 
 **Your Input:**
 ```
-Based on our CardCraft PRD and brainstorming session, help me create comprehensive requirements for the core e-commerce functionality, user management, and AI recommendation features.
+@docu /chat Based on our CardCraft PRD and brainstorming session, help me create comprehensive requirements for the core e-commerce functionality, user management, and AI recommendation features.
 ```
 
-**Agent Response (Example):**
+**Expected Agent Response:**
 ```
 Perfect! Let's create structured requirements using EARS format. I'll help you develop user stories with clear acceptance criteria.
 
@@ -348,6 +421,21 @@ Let's start with core user management:
 
 Should we continue with the product catalog requirements next?
 ```
+
+**Your Follow-up:**
+```
+@docu /chat Yes, let's continue with product catalog requirements. I want to ensure we cover product search, filtering, and inventory management.
+```
+
+**Agent's Continued Development:**
+The Requirements Gatherer agent will systematically help you develop:
+
+- **Functional Requirements** - Core system capabilities
+- **User Stories** - In "As a... I want... So that..." format  
+- **Acceptance Criteria** - Using EARS format (WHEN... THEN... SHALL...)
+- **Non-Functional Requirements** - Performance, security, usability
+- **Business Rules** - Constraints and validation rules
+- **Integration Requirements** - External system dependencies
 
 ### Step 11: Complete All Requirement Categories
 
@@ -394,16 +482,25 @@ I'll help you design a scalable, secure system architecture for CardCraft.
 @docu /new "CardCraft System Architecture" --template basic --path docs/03-architecture/
 ```
 
-**Alternative if directory doesn't exist:**
-```bash
-@docu /new "CardCraft System Architecture" --template basic
+**Expected Success Response:**
+```
+✅ **Document Created Successfully**
+
+📄 **File:** docs/03-architecture/cardcraft-system-architecture.md
+📁 **Directory:** Created docs/03-architecture/
+🚀 **Status:** Document opened in editor
+
+**Next Steps:**
+• Work with the Solution Architect agent
+• Design scalable system architecture
+• Plan technical implementation approach
 ```
 
 ### Step 14: Design Technical Solution
 
 **Your Input:**
 ```
-Help me design the system architecture for CardCraft. We need to support high traffic during product releases, real-time inventory management, AI recommendations, and mobile apps. What architecture patterns and technologies would you recommend?
+@docu /chat Help me design the system architecture for CardCraft. We need to support high traffic during product releases, real-time inventory management, AI recommendations, and mobile apps. What architecture patterns and technologies would you recommend?
 ```
 
 **Agent Response (Example):**
@@ -473,16 +570,25 @@ I'll help you create detailed development tasks and technical specifications.
 @docu /new "CardCraft Implementation Plan" --template basic --path docs/04-implementation/
 ```
 
-**Alternative if directory doesn't exist:**
-```bash
-@docu /new "CardCraft Implementation Plan" --template basic
+**Expected Success Response:**
+```
+✅ **Document Created Successfully**
+
+📄 **File:** docs/04-implementation/cardcraft-implementation-plan.md
+📁 **Directory:** Created docs/04-implementation/
+🚀 **Status:** Document opened in editor
+
+**Next Steps:**
+• Work with the Specification Writer agent
+• Break down development into manageable tasks
+• Create detailed implementation roadmap
 ```
 
 ### Step 17: Break Down Implementation Tasks
 
 **Your Input:**
 ```
-Based on our CardCraft architecture, help me create a detailed implementation plan with specific development tasks, priorities, and estimated timelines. We have a team of 6 developers and want to launch an MVP in 4 months.
+@docu /chat Based on our CardCraft architecture, help me create a detailed implementation plan with specific development tasks, priorities, and estimated timelines. We have a team of 6 developers and want to launch an MVP in 4 months.
 ```
 
 **Agent Response (Example):**
@@ -569,20 +675,50 @@ I'll help ensure your documentation meets high standards and is ready for implem
 
 ### Step 19: Review All Documents
 
-Review each document systematically:
+Review each document systematically with the Quality Reviewer agent:
 
+**Start a Review Conversation:**
+```
+@docu /chat Please review my CardCraft PRD document at docs/01-prd/cardcraft-online-store-prd.md and provide feedback on completeness, clarity, and professional quality.
+```
+
+**Expected Agent Response:**
+```
+I'll review your CardCraft PRD for completeness, clarity, and professional quality. Let me analyze the document structure and content...
+
+## Review Results: CardCraft PRD
+
+### Overall Assessment: Good Foundation ✅
+Your PRD has a solid structure and covers the essential elements. Here are my findings:
+
+### Strengths:
+• Clear problem statement and market opportunity
+• Well-defined target audience
+• Comprehensive feature list
+• Realistic success metrics
+
+### Areas for Improvement:
+• **Competitive Analysis**: Add more detailed competitor comparison
+• **Technical Requirements**: Include more specific technical constraints
+• **Risk Assessment**: Add potential risks and mitigation strategies
+• **Timeline**: Include more detailed milestone planning
+
+### Specific Recommendations:
+1. Expand the competitive analysis section with feature comparisons
+2. Add technical architecture requirements
+3. Include user personas with more demographic detail
+4. Define clear success metrics with measurement methods
+
+Would you like me to help you address any of these areas?
+```
+
+**Alternative Review Commands (if available):**
 ```bash
-# Review PRD with normal level
-@docu /review --file "docs/01-prd/cardcraft-online-store-prd.md" --level normal
+# Basic document review
+@docu /review --file "docs/01-prd/cardcraft-online-store-prd.md"
 
-# Review Requirements with strict level
+# Detailed review with specific focus
 @docu /review --file "docs/02-requirements/cardcraft-requirements-specification.md" --level strict
-
-# Review Architecture with normal level
-@docu /review --file "docs/03-architecture/cardcraft-system-architecture.md" --level normal
-
-# Review Implementation Plan with strict level and auto-fix
-@docu /review --file "docs/04-implementation/cardcraft-implementation-plan.md" --level strict --fix
 ```
 
 ### Step 20: Address Review Feedback
@@ -671,14 +807,50 @@ Review each document systematically:
 
 ### Step 23: Create Document Catalog
 
-```bash
-@docu /catalog --pattern "docs/**/*.md" --output "CardCraft-Documentation-Index.md"
+**Using Agent Conversation:**
+```
+@docu /chat Please help me create a comprehensive index of all the CardCraft documentation we've created, including the PRD, requirements, architecture, and implementation plan.
+```
+
+**Expected Agent Response:**
+```
+I'll create a comprehensive documentation index for your CardCraft project. Here's what I found:
+
+# CardCraft Documentation Index
+
+## Project Overview
+**CardCraft** - Online card game marketplace serving enthusiasts with competitive pricing, authentic products, and community features.
+
+## Documentation Structure
+
+### 📋 Phase 1: Product Requirements
+- **File:** `docs/01-prd/cardcraft-online-store-prd.md`
+- **Status:** Complete
+- **Content:** Executive summary, market analysis, user personas, success criteria
+
+### 📝 Phase 2: Requirements Specification  
+- **File:** `docs/02-requirements/cardcraft-requirements-specification.md`
+- **Status:** Complete
+- **Content:** User stories, acceptance criteria, functional/non-functional requirements
+
+### 🏗️ Phase 3: System Architecture
+- **File:** `docs/03-architecture/cardcraft-system-architecture.md`
+- **Status:** Complete
+- **Content:** Technical architecture, component design, data models
+
+### 🚀 Phase 4: Implementation Plan
+- **File:** `docs/04-implementation/cardcraft-implementation-plan.md`
+- **Status:** Complete
+- **Content:** Development tasks, timeline, resource allocation
+
+Would you like me to create a summary document as well?
 ```
 
 ### Step 24: Create Project Summary
 
-```bash
-@docu /summarize --pattern "docs/**/*.md" --output "CardCraft-Project-Summary.md"
+**Using Agent Conversation:**
+```
+@docu /chat Please create a comprehensive project summary that captures the key points from all our CardCraft documentation.
 ```
 
 ## Complete Project Structure
@@ -728,11 +900,18 @@ workspace/
 
 ### Document Management Commands
 ```bash
-@docu /update --file "path/to/file.md" --section "Section Name" --mode append "Content"
-@docu /review --file "path/to/file.md" --level strict --fix
-@docu /catalog --pattern "docs/**/*.md" --output "index.md"
-@docu /summarize --pattern "docs/**/*.md" --output "summary.md"
+# Document creation
+@docu /new "Document Title" --template basic --path docs/folder/
+
+# Agent-based document review (recommended)
+# Use /chat commands with Quality Reviewer agent
+
+# Template management
+@docu /templates list
+@docu /templates show basic
 ```
+
+**Note:** Many advanced commands like `/update`, `/review`, `/catalog`, and `/summarize` may not be fully implemented yet. The recommended approach is to use `/chat` commands with the appropriate agents to achieve these goals.
 
 ### Template and Help Commands
 ```bash
@@ -778,6 +957,329 @@ By completing this tutorial, you've learned:
 2. **Advanced Template Variables** - Create dynamic, context-aware templates
 3. **Automated Quality Gates** - Set up automated review processes
 4. **Integration Workflows** - Connect Docu with your existing tools
+
+## Troubleshooting Guide
+
+### Common Issues and Solutions
+
+#### 1. Offline Mode Problems
+
+**Issue: Extension shows "offline mode" even with GitHub Copilot working**
+
+**Symptoms:**
+- Docu reports being offline
+- Agents provide basic templates instead of AI-powered responses
+- Limited functionality available
+
+**Solutions:**
+```bash
+# Check current status
+@docu /diagnostics
+
+# Try switching agents to refresh connection
+@docu /agent set prd-creator
+
+# Restart VS Code if the issue persists
+```
+
+**Root Causes:**
+- GitHub Copilot authentication interference
+- Network connectivity issues
+- Extension initialization problems
+
+**Prevention:**
+- Ensure GitHub Copilot is properly authenticated before using Docu
+- Avoid running multiple AI extensions simultaneously during initial setup
+- Keep VS Code and extensions updated
+
+#### 2. GitHub Copilot Authentication Issues
+
+**Issue: Docu causes GitHub Copilot to prompt for re-authentication**
+
+**Symptoms:**
+- GitHub Copilot stops working after using Docu
+- Authentication prompts appear unexpectedly
+- Both extensions show authentication errors
+
+**Solutions:**
+1. **Restart VS Code** - This often resolves authentication conflicts
+2. **Re-authenticate GitHub Copilot:**
+   - Open Command Palette (`Ctrl+Shift+P`)
+   - Run "GitHub Copilot: Sign Out"
+   - Run "GitHub Copilot: Sign In"
+3. **Check extension compatibility:**
+   - Ensure both extensions are updated to latest versions
+   - Disable other AI extensions temporarily
+
+**Prevention:**
+- Authenticate GitHub Copilot before installing Docu
+- Avoid rapid switching between AI features
+- Use one AI extension at a time when possible
+
+#### 3. Template and Command Issues
+
+**Issue: Template variable errors when creating documents**
+
+**Error Message:**
+```
+❌ Error creating document: Missing required variables
+```
+
+**Solutions:**
+```bash
+# Use basic template instead
+@docu /new "Document Title" --template basic
+
+# Check template requirements
+@docu /templates show prd
+
+# Use placeholders if supported
+@docu /new "Document Title" --template prd --with-placeholders
+```
+
+**Issue: Commands not recognized or not working**
+
+**Symptoms:**
+- Commands return "not implemented" messages
+- Unexpected error responses
+- Features described in tutorial don't work
+
+**Solutions:**
+1. **Check available commands:**
+   ```bash
+   @docu /help
+   ```
+2. **Use `/chat` command instead:**
+   - Instead of `/review --file document.md`
+   - Use: `@docu /chat Please review my document at document.md`
+3. **Verify agent capabilities:**
+   ```bash
+   @docu /agent list
+   @docu /agent current
+   ```
+
+#### 4. Agent and Conversation Issues
+
+**Issue: Agents not responding or providing generic responses**
+
+**Symptoms:**
+- Agents give the same response regardless of input
+- No personalized or contextual responses
+- Conversations don't progress naturally
+
+**Solutions:**
+1. **Check online status:**
+   - Verify GitHub Copilot is working in other contexts
+   - Try switching agents: `@docu /agent set prd-creator`
+2. **Restart conversation:**
+   - Switch to a different agent and back
+   - Restart VS Code if needed
+3. **Use specific prompts:**
+   - Be detailed in your requests
+   - Provide context about your project
+   - Ask specific questions rather than general ones
+
+**Issue: Agent switching doesn't work**
+
+**Error Message:**
+```
+❌ Failed to switch to agent: [agent-name]
+```
+
+**Solutions:**
+```bash
+# Check available agents
+@docu /agent list
+
+# Verify correct agent name
+@docu /agent set prd-creator
+@docu /agent set requirements-gatherer
+@docu /agent set solution-architect
+```
+
+#### 5. File and Workspace Issues
+
+**Issue: Documents not created in expected locations**
+
+**Symptoms:**
+- Files created in wrong directories
+- Path errors when specifying locations
+- Permission denied errors
+
+**Solutions:**
+1. **Ensure workspace is open:**
+   - Open a folder in VS Code before using Docu
+   - Use File → Open Folder to select project directory
+2. **Use relative paths:**
+   ```bash
+   @docu /new "Document" --path docs/
+   @docu /new "Document" --path ./docs/requirements/
+   ```
+3. **Check workspace permissions:**
+   - Ensure you have write permissions to the workspace
+   - Avoid system directories or protected folders
+
+#### 6. Performance and Responsiveness Issues
+
+**Issue: Slow responses or timeouts**
+
+**Symptoms:**
+- Long delays before agent responses
+- Timeout errors
+- VS Code becomes unresponsive
+
+**Solutions:**
+1. **Check network connection:**
+   - Ensure stable internet connectivity
+   - Test GitHub Copilot in other contexts
+2. **Reduce complexity:**
+   - Break large requests into smaller parts
+   - Focus on one section at a time
+3. **Restart if needed:**
+   - Reload VS Code window: `Ctrl+Shift+P` → "Developer: Reload Window"
+   - Close and reopen VS Code completely
+
+### Debugging Steps
+
+#### Step 1: Basic Diagnostics
+```bash
+# Check system status
+@docu /help
+@docu /agent list
+@docu /templates list
+
+# Verify workspace
+# Ensure a folder is open in VS Code
+```
+
+#### Step 2: Test Core Functionality
+```bash
+# Test document creation
+@docu /new "Test Document" --template basic
+
+# Test agent switching
+@docu /agent set prd-creator
+@docu /agent current
+```
+
+#### Step 3: Check GitHub Copilot Integration
+1. Test GitHub Copilot independently:
+   - Open a code file
+   - Try getting code suggestions
+   - Verify Copilot chat works
+2. If Copilot has issues, resolve those first before using Docu
+
+#### Step 4: Advanced Troubleshooting
+1. **Check VS Code logs:**
+   - Open Command Palette (`Ctrl+Shift+P`)
+   - Run "Developer: Toggle Developer Tools"
+   - Check Console for errors
+2. **Extension conflicts:**
+   - Disable other AI extensions temporarily
+   - Test Docu functionality
+   - Re-enable extensions one by one
+
+### Getting Help
+
+#### When to Seek Support
+- Persistent authentication issues
+- Consistent offline mode problems
+- Features that should work but don't
+- Error messages not covered in this guide
+
+#### Information to Provide
+When reporting issues, include:
+- VS Code version
+- Docu extension version
+- GitHub Copilot status
+- Exact error messages
+- Steps to reproduce the issue
+- Operating system details
+
+#### Workarounds
+While waiting for fixes:
+- Use basic templates instead of complex ones
+- Rely on conversational interactions rather than specific commands
+- Work with one agent at a time
+- Create documents manually and use agents for content development
+
+---
+
+# 🚀 **Fast Commands-Only Tutorial**
+
+For experienced users who want just the commands without explanations:
+
+## Setup & Verification
+```bash
+@docu /help
+@docu /agent list
+@docu /templates list
+```
+
+## Phase 1: PRD Creation
+```bash
+@docu /agent set prd-creator
+@docu /new "CardCraft Online Store PRD" --template basic --path docs/01-prd/
+@docu /chat Help me develop a comprehensive PRD for CardCraft, an online card game shop with competitive pricing, authentic products, and community features.
+@docu /chat CardCraft will differentiate by offering AI-powered deck building, virtual card condition verification, community features, subscription boxes, and trade-in programs. We'll start nationally in the US.
+```
+
+## Phase 2: Ideation & Features
+```bash
+@docu /agent set brainstormer
+@docu /chat Based on the CardCraft PRD, what innovative features could we add to make our card game shop stand out from competitors?
+@docu /chat I love the AI-powered features and AR scanner idea. How could we implement a comprehensive AI recommendation system for both new and experienced players?
+```
+
+## Phase 3: Requirements Gathering
+```bash
+@docu /agent set requirements-gatherer
+@docu /new "CardCraft Requirements Specification" --template basic --path docs/02-requirements/
+@docu /chat Based on our CardCraft PRD and brainstorming session, help me create comprehensive requirements for core e-commerce functionality, user management, and AI recommendation features.
+@docu /chat Yes, let's continue with product catalog requirements. I want to ensure we cover product search, filtering, and inventory management.
+```
+
+## Phase 4: Solution Architecture
+```bash
+@docu /agent set solution-architect
+@docu /new "CardCraft System Architecture" --template basic --path docs/03-architecture/
+@docu /chat Help me design the system architecture for CardCraft. We need to support high traffic during product releases, real-time inventory management, AI recommendations, and mobile apps. What architecture patterns and technologies would you recommend?
+```
+
+## Phase 5: Implementation Planning
+```bash
+@docu /agent set specification-writer
+@docu /new "CardCraft Implementation Plan" --template basic --path docs/04-implementation/
+@docu /chat Based on our CardCraft architecture, help me create a detailed implementation plan with specific development tasks, priorities, and estimated timelines. We have a team of 6 developers and want to launch an MVP in 4 months.
+```
+
+## Phase 6: Quality Review
+```bash
+@docu /agent set quality-reviewer
+@docu /chat Please review my CardCraft PRD document at docs/01-prd/cardcraft-online-store-prd.md and provide feedback on completeness, clarity, and professional quality.
+@docu /review --file "docs/02-requirements/cardcraft-requirements-specification.md" --level strict
+```
+
+## Phase 7: Documentation Organization
+```bash
+@docu /chat Please help me create a comprehensive index of all the CardCraft documentation we've created, including the PRD, requirements, architecture, and implementation plan.
+@docu /catalog --glob "docs/**/*.md" --output project-index.md
+@docu /summarize --glob "docs/**/*.md" --output project-summary.md
+```
+
+## Utility Commands
+```bash
+# Update document sections
+@docu /update --file "docs/requirements.md" --section "Performance Requirements" --mode append "New requirements here"
+
+# Template management
+@docu /templates show basic
+@docu /templates list --verbose
+
+# Agent management
+@docu /agent current
+@docu /agent list
+```
 
 ---
 

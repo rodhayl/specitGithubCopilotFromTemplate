@@ -9,7 +9,9 @@ describe('SecurityManager Unit Tests', () => {
     const mockData = TestUtilities.createMockData();
 
     beforeAll(() => {
-        securityManager = new SecurityManager(mockData.workspaceRoot);
+        // Use a real temporary directory for testing
+        const testWorkspaceRoot = process.cwd(); // Use current working directory as test workspace
+        securityManager = new SecurityManager(testWorkspaceRoot);
     });
 
     afterAll(() => {

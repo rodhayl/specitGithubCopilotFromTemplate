@@ -379,4 +379,534 @@ ${contextInfo ? `## Context\n\n${contextInfo}` : ''}
             'What makes a good requirement?'
         ];
     }
+
+    /**
+     * Override to provide requirements-specific offline response
+     */
+    protected async getAgentSpecificOfflineResponse(
+        operation: string, 
+        templateType: string, 
+        context: AgentContext
+    ): Promise<string | null> {
+        if (templateType !== 'requirements') {
+            return null;
+        }
+
+        let response = `📋 **Requirements Gatherer - Offline Mode**\n\n`;
+        response += `I'm the Requirements Gatherer agent, specialized in creating structured, testable requirements using the EARS format. While I can't have dynamic conversations right now, I can provide comprehensive frameworks for requirements documentation.\n\n`;
+
+        switch (operation) {
+            case 'document-creation':
+                response += `**Creating Requirements Documents Offline**\n\n`;
+                response += `I'll create a structured requirements template with:\n`;
+                response += `• **User Stories** - "As a [role], I want [feature], so that [benefit]" format\n`;
+                response += `• **EARS Acceptance Criteria** - WHEN/IF/THEN/SHALL statements\n`;
+                response += `• **Functional Requirements** - Core system capabilities\n`;
+                response += `• **Non-Functional Requirements** - Performance, security, usability\n`;
+                response += `• **Edge Cases & Error Handling** - What happens when things go wrong\n`;
+                response += `• **Dependencies & Assumptions** - Prerequisites and constraints\n\n`;
+                
+                response += `**EARS Format Guidelines (Offline Reference):**\n`;
+                response += `• **WHEN** [event] **THEN** [system] **SHALL** [response] - Event-driven requirements\n`;
+                response += `• **IF** [precondition] **THEN** [system] **SHALL** [response] - Conditional requirements\n`;
+                response += `• **WHERE** [location/context] - Spatial or contextual requirements\n`;
+                response += `• **WHILE** [ongoing condition] - Continuous requirements\n\n`;
+                
+                response += `**Requirements Quality Checklist:**\n`;
+                response += `□ Specific and unambiguous\n`;
+                response += `□ Measurable and testable\n`;
+                response += `□ Achievable and realistic\n`;
+                response += `□ Relevant to user needs\n`;
+                response += `□ Time-bound where applicable\n`;
+                break;
+
+            case 'document-review':
+                response += `**Requirements Review Framework (Offline)**\n\n`;
+                response += `Use this comprehensive checklist to review your requirements:\n\n`;
+                
+                response += `**User Story Quality:**\n`;
+                response += `□ Follows "As a [role], I want [feature], so that [benefit]" format\n`;
+                response += `□ Role is specific and well-defined\n`;
+                response += `□ Feature is clear and actionable\n`;
+                response += `□ Benefit explains the value and motivation\n\n`;
+                
+                response += `**Acceptance Criteria Quality:**\n`;
+                response += `□ Uses proper EARS format (WHEN/IF/THEN/SHALL)\n`;
+                response += `□ Criteria are specific and measurable\n`;
+                response += `□ All scenarios are covered (happy path, edge cases, errors)\n`;
+                response += `□ Criteria are testable and verifiable\n\n`;
+                
+                response += `**Completeness Check:**\n`;
+                response += `□ All functional requirements are documented\n`;
+                response += `□ Non-functional requirements are included\n`;
+                response += `□ Dependencies are identified\n`;
+                response += `□ Assumptions are documented\n`;
+                response += `□ Edge cases and error scenarios are covered\n\n`;
+                
+                response += `**Clarity and Consistency:**\n`;
+                response += `□ Language is clear and unambiguous\n`;
+                response += `□ Terminology is consistent throughout\n`;
+                response += `□ Requirements don't contradict each other\n`;
+                response += `□ Priority levels are assigned\n`;
+                break;
+
+            case 'conversation':
+                response += `**Structured Requirements Gathering (Offline)**\n\n`;
+                response += `Work through this systematic process to gather comprehensive requirements:\n\n`;
+                
+                response += `**Phase 1: Functional Requirements Discovery**\n`;
+                response += `For each major feature or capability:\n`;
+                response += `1. Who will use this feature? (Define the role)\n`;
+                response += `2. What do they want to accomplish? (Define the want)\n`;
+                response += `3. Why is this valuable to them? (Define the benefit)\n`;
+                response += `4. What are the specific steps they'll take?\n`;
+                response += `5. What could go wrong and how should the system respond?\n\n`;
+                
+                response += `**Phase 2: Acceptance Criteria Definition**\n`;
+                response += `For each user story, define:\n`;
+                response += `1. **Happy Path:** WHEN [normal condition] THEN system SHALL [expected response]\n`;
+                response += `2. **Edge Cases:** IF [unusual condition] THEN system SHALL [appropriate response]\n`;
+                response += `3. **Error Handling:** WHEN [error occurs] THEN system SHALL [error response]\n`;
+                response += `4. **Validation:** IF [invalid input] THEN system SHALL [validation response]\n\n`;
+                
+                response += `**Phase 3: Non-Functional Requirements**\n`;
+                response += `Consider these categories:\n`;
+                response += `• **Performance:** How fast should it be?\n`;
+                response += `• **Scalability:** How many users/transactions?\n`;
+                response += `• **Security:** What data needs protection?\n`;
+                response += `• **Usability:** What's the user experience expectation?\n`;
+                response += `• **Reliability:** What's the uptime requirement?\n`;
+                response += `• **Compatibility:** What systems must it work with?\n\n`;
+                
+                response += `**Phase 4: Dependencies & Constraints**\n`;
+                response += `Document:\n`;
+                response += `• What other systems or features does this depend on?\n`;
+                response += `• What assumptions are you making?\n`;
+                response += `• What technical or business constraints exist?\n`;
+                response += `• What regulatory or compliance requirements apply?\n\n`;
+                
+                response += `**💡 Pro tip:** Write requirements from the user's perspective, not the system's. Focus on what value is delivered, not how it's implemented.`;
+                break;
+
+            default:
+                response += `**Requirements Gatherer Offline Capabilities**\n\n`;
+                response += `I can help you create structured requirements through:\n`;
+                response += `• EARS format templates and examples\n`;
+                response += `• User story frameworks\n`;
+                response += `• Acceptance criteria checklists\n`;
+                response += `• Requirements quality guidelines\n`;
+                response += `• Review and validation frameworks\n\n`;
+                
+                response += `**Available commands:**\n`;
+                response += `• \`/new <feature-name>\` - Create requirements template\n`;
+                response += `• \`/help\` - Get offline help\n`;
+                response += `• \`/status\` - Check offline status\n`;
+                break;
+        }
+
+        return response;
+    }
+
+    /**
+     * Override to provide requirements-specific template content
+     */
+    protected async getTemplateSpecificContent(templateType: string, title: string, context: AgentContext): Promise<string> {
+        if (templateType !== 'requirements') {
+            return super.getTemplateSpecificContent(templateType, title, context);
+        }
+
+        return `## Introduction
+
+This document outlines the functional and non-functional requirements for **${title}**. Requirements are structured using the EARS format (Easy Approach to Requirements Syntax) to ensure clarity, testability, and implementation readiness.
+
+### Document Purpose
+*Explain what this requirements document covers and who should use it*
+
+**Example:** "This document defines the requirements for the customer management system, intended for use by developers, testers, and product stakeholders to guide implementation and validation."
+
+**Your document purpose:**
+*[Describe the scope and intended audience for these requirements]*
+
+### Reference Documents
+*List any related documents that provide context*
+
+**Examples:**
+- Product Requirements Document (PRD)
+- User research findings
+- Technical architecture documents
+- Existing system documentation
+
+**Your reference documents:**
+- *[Document 1]: [Brief description]*
+- *[Document 2]: [Brief description]*
+- *[Document 3]: [Brief description]*
+
+## Requirements Overview
+
+### Requirement Categories
+*Organize your requirements into logical groups*
+
+**Example categories:**
+- User Management
+- Data Management
+- Reporting and Analytics
+- Integration and APIs
+- Security and Compliance
+
+**Your requirement categories:**
+1. *[Category 1]: [Brief description]*
+2. *[Category 2]: [Brief description]*
+3. *[Category 3]: [Brief description]*
+4. *[Category 4]: [Brief description]*
+
+## Functional Requirements
+
+### Requirement 1: [Feature Name]
+
+**User Story:** As a [specific role], I want [specific capability], so that [specific benefit].
+
+**Example:** "As a sales manager, I want to view a dashboard of team performance metrics, so that I can identify coaching opportunities and track progress toward goals."
+
+**Your user story:**
+*As a [role], I want [capability], so that [benefit].*
+
+#### Acceptance Criteria
+
+**Example criteria:**
+1. **WHEN** a sales manager logs into the system **THEN** the system **SHALL** display the team dashboard within 3 seconds
+2. **WHEN** the dashboard loads **THEN** the system **SHALL** show current month metrics by default
+3. **IF** no data is available for the selected period **THEN** the system **SHALL** display a "No data available" message
+4. **WHEN** a manager clicks on a team member's metrics **THEN** the system **SHALL** show detailed individual performance data
+
+**Your acceptance criteria:**
+1. **WHEN** [trigger event] **THEN** the system **SHALL** [expected response]
+2. **IF** [condition] **THEN** the system **SHALL** [conditional response]
+3. **WHEN** [user action] **THEN** the system **SHALL** [system reaction]
+4. **IF** [error condition] **THEN** the system **SHALL** [error handling]
+
+#### Priority
+*Set priority level: Critical, High, Medium, Low*
+
+**Your priority:** *[Priority level and rationale]*
+
+#### Dependencies
+*List any other requirements or systems this depends on*
+
+**Your dependencies:**
+- *[Dependency 1]: [Why it's needed]*
+- *[Dependency 2]: [Why it's needed]*
+
+---
+
+### Requirement 2: [Feature Name]
+
+**User Story:** As a [role], I want [capability], so that [benefit].
+
+**Example:** "As a customer service representative, I want to search for customers by multiple criteria, so that I can quickly find the right customer record during support calls."
+
+**Your user story:**
+*As a [role], I want [capability], so that [benefit].*
+
+#### Acceptance Criteria
+
+**Example criteria:**
+1. **WHEN** a user enters search criteria **THEN** the system **SHALL** return results within 2 seconds
+2. **WHEN** multiple search fields are used **THEN** the system **SHALL** apply AND logic between fields
+3. **IF** no results are found **THEN** the system **SHALL** suggest alternative search terms
+4. **WHEN** more than 100 results are found **THEN** the system **SHALL** paginate results with 25 per page
+
+**Your acceptance criteria:**
+1. **WHEN** [trigger] **THEN** the system **SHALL** [response]
+2. **IF** [condition] **THEN** the system **SHALL** [response]
+3. **WHEN** [action] **THEN** the system **SHALL** [reaction]
+4. **WHILE** [ongoing condition] **THEN** the system **SHALL** [continuous behavior]
+
+#### Priority
+**Your priority:** *[Priority level and rationale]*
+
+#### Dependencies
+**Your dependencies:**
+- *[Dependency 1]: [Description]*
+- *[Dependency 2]: [Description]*
+
+---
+
+### Requirement 3: [Feature Name]
+
+**User Story:** As a [role], I want [capability], so that [benefit].
+
+**Your user story:**
+*As a [role], I want [capability], so that [benefit].*
+
+#### Acceptance Criteria
+
+**Your acceptance criteria:**
+1. **WHEN** [event] **THEN** the system **SHALL** [response]
+2. **IF** [precondition] **THEN** the system **SHALL** [response]
+3. **WHERE** [location/context] the system **SHALL** [behavior]
+4. **WHEN** [error occurs] **THEN** the system **SHALL** [error handling]
+
+#### Priority
+**Your priority:** *[Priority level and rationale]*
+
+#### Dependencies
+**Your dependencies:**
+- *[List any dependencies]*
+
+---
+
+*Continue adding requirements following the same pattern...*
+
+## Non-Functional Requirements
+
+### Performance Requirements
+
+**Response Time:**
+- **WHEN** a user performs any action **THEN** the system **SHALL** respond within 2 seconds under normal load
+- **WHEN** the system is under peak load **THEN** 95% of requests **SHALL** complete within 5 seconds
+
+**Throughput:**
+- The system **SHALL** support at least [X] concurrent users
+- The system **SHALL** process at least [X] transactions per minute
+
+**Your performance requirements:**
+- *[Response time requirement]: [Specific timing]*
+- *[Throughput requirement]: [Specific capacity]*
+- *[Scalability requirement]: [Growth expectations]*
+
+### Security Requirements
+
+**Authentication:**
+- **WHEN** a user attempts to access the system **THEN** the system **SHALL** require valid authentication
+- **IF** authentication fails 3 times **THEN** the system **SHALL** lock the account for 15 minutes
+
+**Authorization:**
+- **WHEN** an authenticated user accesses a feature **THEN** the system **SHALL** verify appropriate permissions
+- **IF** a user lacks required permissions **THEN** the system **SHALL** deny access and log the attempt
+
+**Data Protection:**
+- The system **SHALL** encrypt all sensitive data in transit using TLS 1.3 or higher
+- The system **SHALL** encrypt all sensitive data at rest using AES-256 encryption
+
+**Your security requirements:**
+- *[Authentication requirement]: [Specific method]*
+- *[Authorization requirement]: [Permission model]*
+- *[Data protection requirement]: [Encryption standards]*
+
+### Usability Requirements
+
+**Accessibility:**
+- The system **SHALL** comply with WCAG 2.1 Level AA accessibility guidelines
+- **WHEN** using screen readers **THEN** all functionality **SHALL** be accessible
+
+**User Experience:**
+- **WHEN** a new user first accesses the system **THEN** they **SHALL** be able to complete their primary task within 5 minutes without training
+- The system **SHALL** provide contextual help for all major features
+
+**Your usability requirements:**
+- *[Accessibility requirement]: [Specific standards]*
+- *[User experience requirement]: [Usability goals]*
+- *[Help and documentation requirement]: [Support features]*
+
+### Reliability Requirements
+
+**Availability:**
+- The system **SHALL** maintain 99.9% uptime during business hours
+- **WHEN** planned maintenance occurs **THEN** users **SHALL** receive 24-hour advance notice
+
+**Data Integrity:**
+- **WHEN** data is saved **THEN** the system **SHALL** verify data integrity before confirming save
+- The system **SHALL** perform automated backups every 4 hours
+
+**Your reliability requirements:**
+- *[Availability requirement]: [Uptime expectations]*
+- *[Backup requirement]: [Backup frequency and retention]*
+- *[Recovery requirement]: [Recovery time objectives]*
+
+### Compatibility Requirements
+
+**Browser Support:**
+- The system **SHALL** function correctly on Chrome, Firefox, Safari, and Edge (latest 2 versions)
+- **WHEN** using unsupported browsers **THEN** the system **SHALL** display a compatibility warning
+
+**Integration Requirements:**
+- The system **SHALL** integrate with [existing system] via REST API
+- **WHEN** external systems are unavailable **THEN** the system **SHALL** continue to function with cached data
+
+**Your compatibility requirements:**
+- *[Browser requirement]: [Supported browsers]*
+- *[Integration requirement]: [External systems]*
+- *[Platform requirement]: [Operating systems/devices]*
+
+## Edge Cases and Error Handling
+
+### Data Validation
+
+**Input Validation:**
+- **WHEN** invalid data is entered **THEN** the system **SHALL** highlight errors and prevent submission
+- **IF** required fields are empty **THEN** the system **SHALL** display specific field-level error messages
+
+**Data Limits:**
+- **WHEN** data exceeds maximum limits **THEN** the system **SHALL** truncate with user notification
+- **IF** file uploads exceed size limits **THEN** the system **SHALL** reject with clear error message
+
+**Your validation requirements:**
+- *[Input validation]: [Validation rules]*
+- *[Data limits]: [Size and format constraints]*
+- *[Error messaging]: [User communication standards]*
+
+### System Errors
+
+**Network Issues:**
+- **WHEN** network connectivity is lost **THEN** the system **SHALL** queue actions for retry when connection resumes
+- **IF** external services are unavailable **THEN** the system **SHALL** display appropriate error messages
+
+**Server Errors:**
+- **WHEN** server errors occur **THEN** the system **SHALL** log detailed error information for debugging
+- **IF** critical errors occur **THEN** the system **SHALL** notify administrators immediately
+
+**Your error handling requirements:**
+- *[Network error handling]: [Retry and fallback strategies]*
+- *[Server error handling]: [Logging and notification]*
+- *[User error communication]: [Error message standards]*
+
+## Assumptions and Dependencies
+
+### Assumptions
+
+**User Assumptions:**
+- Users have basic computer literacy
+- Users have reliable internet connectivity
+- Users will receive appropriate training
+
+**Technical Assumptions:**
+- Existing infrastructure can support the new system
+- Third-party services will maintain current API contracts
+- Database performance will scale with user growth
+
+**Your assumptions:**
+1. *[User assumption]: [Impact if incorrect]*
+2. *[Technical assumption]: [Impact if incorrect]*
+3. *[Business assumption]: [Impact if incorrect]*
+
+### Dependencies
+
+**External Dependencies:**
+- Integration with [external system] must be completed first
+- User authentication system must be upgraded
+- Database migration must be completed
+
+**Internal Dependencies:**
+- User interface design must be finalized
+- API specifications must be approved
+- Testing environment must be configured
+
+**Your dependencies:**
+1. *[External dependency]: [Timeline and impact]*
+2. *[Internal dependency]: [Timeline and impact]*
+3. *[Technical dependency]: [Timeline and impact]*
+
+## Acceptance Testing Criteria
+
+### Testing Approach
+
+**Functional Testing:**
+- Each acceptance criterion must pass automated tests
+- User stories must be validated through user acceptance testing
+- Integration points must be tested with real data
+
+**Non-Functional Testing:**
+- Performance requirements must be validated under load
+- Security requirements must pass penetration testing
+- Usability requirements must be validated with real users
+
+**Your testing approach:**
+- *[Functional testing]: [Testing methods]*
+- *[Performance testing]: [Load testing strategy]*
+- *[Security testing]: [Security validation approach]*
+
+### Definition of Done
+
+A requirement is considered complete when:
+□ All acceptance criteria pass automated tests
+□ Code review is completed and approved
+□ Documentation is updated
+□ User acceptance testing is passed
+□ Performance benchmarks are met
+□ Security review is completed
+
+**Your definition of done:**
+□ *[Completion criterion 1]*
+□ *[Completion criterion 2]*
+□ *[Completion criterion 3]*
+□ *[Completion criterion 4]*
+
+## Traceability Matrix
+
+### Requirement to User Story Mapping
+
+| Requirement ID | User Story | Priority | Status |
+|---------------|------------|----------|---------|
+| REQ-001 | As a [role], I want [feature]... | High | Not Started |
+| REQ-002 | As a [role], I want [feature]... | Medium | Not Started |
+| REQ-003 | As a [role], I want [feature]... | High | Not Started |
+
+**Your traceability matrix:**
+*[Create a table mapping your requirements to user stories, priorities, and implementation status]*
+
+## Glossary
+
+### Terms and Definitions
+
+**Business Terms:**
+- **[Term 1]:** [Definition]
+- **[Term 2]:** [Definition]
+
+**Technical Terms:**
+- **[Technical term 1]:** [Definition]
+- **[Technical term 2]:** [Definition]
+
+**Your glossary:**
+- **[Term]:** *[Definition]*
+- **[Term]:** *[Definition]*
+- **[Term]:** *[Definition]*
+
+## Appendices
+
+### Appendix A: User Research Summary
+*[Include relevant user research findings that informed these requirements]*
+
+### Appendix B: Competitive Analysis
+*[Include analysis of how competitors handle similar requirements]*
+
+### Appendix C: Regulatory Requirements
+*[Include any compliance or regulatory requirements that must be met]*
+
+---
+
+## Next Steps
+
+### Requirements Review Process
+1. **Stakeholder Review:** Share with product owners, developers, and testers
+2. **Technical Feasibility:** Validate technical approach with development team
+3. **Estimation:** Get effort estimates for each requirement
+4. **Prioritization:** Finalize priority order based on business value and effort
+
+### Transition to Design
+When requirements are approved:
+- Use \`/agent set solution-architect\` to create technical design
+- Use \`/agent set specification-writer\` to create detailed specifications
+- Begin sprint planning and development
+
+### Requirements Management
+- Track changes and updates in version control
+- Maintain traceability to user stories and test cases
+- Regular review and refinement based on feedback
+
+**Current status:**
+□ Requirements documented
+□ Stakeholder review completed
+□ Technical feasibility confirmed
+□ Ready for design phase`;
+    }
 }

@@ -12,6 +12,45 @@ import './integration/ToolManager.test';
 import './e2e/WorkflowTests.test';
 
 describe('Docu Extension Test Suite', () => {
+	let mockExtension: any;
+
+	beforeEach(() => {
+		// Mock extension with proper package.json structure
+		mockExtension = {
+			id: 'docu.vscode-docu-extension',
+			isActive: true,
+			packageJSON: {
+				name: 'vscode-docu-extension',
+				displayName: 'Docu - AI Documentation Assistant',
+				version: '0.1.0',
+				main: './out/extension.js',
+				activationEvents: [
+					'onLanguage:markdown',
+					'onCommand:docu.createDocument'
+				],
+				contributes: {
+					commands: [
+						{
+							command: 'docu.createDocument',
+							title: 'Create Document'
+						}
+					],
+					chatParticipants: [
+						{
+							id: 'docu',
+							name: 'Docu',
+							description: 'AI Documentation Assistant'
+						}
+					]
+				}
+			},
+			activate: jest.fn().mockResolvedValue(undefined),
+			exports: {}
+		};
+
+		// Mock the getExtension method to return our mock
+		(vscode.extensions.getExtension as jest.Mock).mockReturnValue(mockExtension);
+	});
 
 	vscode.window.showInformationMessage('Starting Docu extension tests...');
 
