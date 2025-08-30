@@ -100,7 +100,7 @@ describe('End-to-End Workflow Tests', () => {
 
         // Step 2: Try to get template details (might not be available in test)
         try {
-            const basicTemplate = templateManager.getTemplate('basic');
+            const basicTemplate = await templateManager.getTemplate('basic');
             if (basicTemplate) {
                 assert.ok(basicTemplate.variables);
             }
@@ -111,7 +111,7 @@ describe('End-to-End Workflow Tests', () => {
 
         // Step 3: Try to render template (if available)
         try {
-            const renderResult = templateManager.renderTemplate('basic', {
+            const renderResult = await templateManager.renderTemplate('basic', {
                 variables: {
                     title: 'Test Workflow Document',
                     content: 'This is a test of the complete workflow'

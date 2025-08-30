@@ -53,6 +53,42 @@ export interface CommandResult {
         recoveryOptions?: string[];
         [key: string]: any;
     };
+    // Conversation continuation fields
+    conversationConfig?: ConversationConfig;
+    shouldContinueConversation?: boolean;
+    agentName?: string;
+    documentPath?: string;
+    // Auto-chat integration
+    autoChatEnabled?: boolean;
+}
+
+export interface ConversationConfig {
+    agentName: string;
+    templateId: string;
+    documentPath: string;
+    title: string;
+    initialQuestions?: Question[];
+    conversationContext: ConversationContext;
+}
+
+export interface Question {
+    id: string;
+    text: string;
+    type: 'open-ended' | 'multiple-choice' | 'yes-no' | 'structured';
+    examples?: string[];
+    required: boolean;
+    followupTriggers?: string[];
+    category: string;
+    priority: number;
+}
+
+export interface ConversationContext {
+    documentType: string;
+    workflowPhase: string;
+    documentPath: string;
+    title: string;
+    workspaceRoot: string;
+    extensionContext: vscode.ExtensionContext;
 }
 
 export type CommandHandler = (

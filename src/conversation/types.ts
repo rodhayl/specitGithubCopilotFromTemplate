@@ -76,6 +76,22 @@ export interface ConversationState {
     completionScore: number;
     isActive: boolean;
     lastUpdated: Date;
+    // Enhanced fields for command-initiated conversations
+    initiatedByCommand?: string;
+    documentPath?: string;
+    templateId?: string;
+    commandContext?: Partial<CommandContext>;
+    // Auto-chat workflow fields
+    currentTurn?: number;
+    conversationHistory?: Array<{ userMessage?: string; assistantMessage?: string; timestamp: Date }>;
+}
+
+export interface CommandContext {
+    request: any;
+    stream: any;
+    token: any;
+    workspaceRoot: string;
+    extensionContext: any;
 }
 
 export interface DocumentUpdate {

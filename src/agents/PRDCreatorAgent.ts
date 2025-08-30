@@ -32,8 +32,8 @@ When creating PRD documents:
         );
     }
 
-    async handleLegacyRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
-        this.log(`Handling legacy request: ${request.command || 'chat'}`);
+    async handleDirectRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
+        this.log(`Handling direct request: ${request.command || 'chat'}`);
 
         try {
             const params = this.parseParameters(request);
@@ -43,8 +43,26 @@ When creating PRD documents:
                 return await this.createNewPRD(params.title, request.prompt, context);
             }
 
-            // Handle conversational PRD development
-            return await this.handleConversationalPRDRequest(request, context);
+            // Handle conversational PRD development - use base class conversation system
+            // This will automatically use the conversation manager if available
+            return this.createResponse(
+                `I'm here to help you develop your product ideas into a comprehensive PRD. ` +
+                `I can help you:\n\n` +
+                `- Explore and refine your product concept\n` +
+                `- Create a structured PRD document\n` +
+                `- Ask strategic questions about goals and users\n` +
+                `- Define success criteria and constraints\n\n` +
+                `What would you like to work on? You can:\n` +
+                `- Tell me about your product idea\n` +
+                `- Use \`/new <title>\` to create a new PRD\n` +
+                `- Ask me questions about PRD best practices`,
+                [],
+                [
+                    'Tell me about your product idea',
+                    'Create a new PRD document',
+                    'What makes a good PRD?'
+                ]
+            );
 
         } catch (error) {
             this.log(`Error handling request: ${error}`, 'error');
@@ -107,115 +125,7 @@ When creating PRD documents:
         );
     }
 
-    private async handleConversationalPRDRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
-        // Analyze the request to determine what kind of help the user needs
-        const prompt = request.prompt.toLowerCase();
 
-        if (prompt.includes('prd') || prompt.includes('product requirements') || prompt.includes('document')) {
-            return this.providePRDGuidance(request, context);
-        }
-
-        if (prompt.includes('idea') || prompt.includes('concept') || prompt.includes('product')) {
-            return this.facilitateIdeaExploration(request, context);
-        }
-
-        if (prompt.includes('help') || prompt.includes('what') || prompt.includes('how')) {
-            return this.provideHelp(context);
-        }
-
-        // Default conversational response
-        return this.createResponse(
-            `I'm here to help you develop your product ideas into a comprehensive PRD. ` +
-            `I can help you:\n\n` +
-            `- Explore and refine your product concept\n` +
-            `- Create a structured PRD document\n` +
-            `- Ask strategic questions about goals and users\n` +
-            `- Define success criteria and constraints\n\n` +
-            `What would you like to work on? You can:\n` +
-            `- Tell me about your product idea\n` +
-            `- Use \`/new <title>\` to create a new PRD\n` +
-            `- Ask me questions about PRD best practices`,
-            [],
-            [
-                'Tell me about your product idea',
-                'Create a new PRD document',
-                'What makes a good PRD?'
-            ]
-        );
-    }
-
-    private providePRDGuidance(request: ChatRequest, context: AgentContext): AgentResponse {
-        return this.createResponse(
-            `A great PRD should answer these key questions:\n\n` +
-            `**Product Vision**\n` +
-            `- What problem are you solving?\n` +
-            `- Who is your target user?\n` +
-            `- What's your unique value proposition?\n\n` +
-            `**Scope & Constraints**\n` +
-            `- What's in scope for this version?\n` +
-            `- What are your technical constraints?\n` +
-            `- What's your timeline and budget?\n\n` +
-            `**Success Metrics**\n` +
-            `- How will you measure success?\n` +
-            `- What are your key performance indicators?\n` +
-            `- What does "done" look like?\n\n` +
-            `Would you like me to help you work through any of these areas?`,
-            [],
-            [
-                'Help me define my product vision',
-                'Work through scope and constraints',
-                'Define success metrics'
-            ]
-        );
-    }
-
-    private facilitateIdeaExploration(request: ChatRequest, context: AgentContext): AgentResponse {
-        return this.createResponse(
-            `Let's explore your product idea! I'd love to learn more about:\n\n` +
-            `**The Problem**\n` +
-            `- What specific problem or pain point are you addressing?\n` +
-            `- Who experiences this problem most acutely?\n` +
-            `- How do people currently solve this problem?\n\n` +
-            `**Your Solution**\n` +
-            `- What's your proposed solution?\n` +
-            `- What makes your approach unique?\n` +
-            `- Why is now the right time for this solution?\n\n` +
-            `**Target Users**\n` +
-            `- Who would use your product?\n` +
-            `- What are their key characteristics?\n` +
-            `- What motivates them to seek a solution?\n\n` +
-            `Tell me about any of these aspects, and I'll help you develop them further!`,
-            [],
-            [
-                'Let me describe the problem I\'m solving',
-                'Here\'s my solution approach',
-                'Let me tell you about my target users'
-            ]
-        );
-    }
-
-    private provideHelp(context: AgentContext): AgentResponse {
-        return this.createResponse(
-            `I'm the PRD Creator agent, and I specialize in helping you develop product ideas into comprehensive Product Requirements Documents.\n\n` +
-            `**What I can do:**\n` +
-            `- Guide you through product concept exploration\n` +
-            `- Ask strategic questions about your product vision\n` +
-            `- Create structured PRD documents\n` +
-            `- Help define user personas and success criteria\n\n` +
-            `**Available commands:**\n` +
-            `- \`/new <title>\` - Create a new PRD document\n` +
-            `- \`/agent list\` - See all available agents\n` +
-            `- \`/agent set brainstormer\` - Switch to ideation mode\n\n` +
-            `**Getting started:**\n` +
-            `Just tell me about your product idea, or use \`/new\` to create a PRD document right away!`,
-            [],
-            [
-                'Tell me about my product idea',
-                'Create a new PRD document',
-                'Switch to brainstormer agent'
-            ]
-        );
-    }
 
     private generatePRDTemplate(title: string, prompt: string, context: AgentContext): string {
         const date = new Date().toISOString().split('T')[0];

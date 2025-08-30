@@ -14,24 +14,25 @@ Before starting, ensure you have:
 - ✅ Docu extension installed and configured
 - ✅ A workspace folder open in VS Code
 
-## 🔄 **Important: New Interaction Model**
+## 🔄 **Important: Enhanced Conversation Flow**
 
-Docu now uses an **explicit command-based interaction model** for better control:
+Docu now features **seamless conversation flow** with automatic conversation continuation:
 
-- **❌ Old way:** `@docu some random message` (sent directly to AI)
-- **✅ New way:** `@docu /chat some message` (explicit conversation command)
-
-**Why this change?**
-- Prevents accidental AI calls from random messages
-- Gives you full control over when AI features are used
-- Makes the interaction model clear and predictable
-- Allows for better offline mode handling
+- **🚀 Automatic Conversations:** Commands like `/new` can automatically start conversations
+- **💬 Natural Flow:** Once a conversation starts, you can respond naturally without `/chat`
+- **🤖 Smart Routing:** Your messages are automatically routed to active conversations or agents
 
 **Key Commands:**
+- `/new "Title" --with-conversation` - Create document and start conversation automatically
 - `/chat <message>` - Start conversations with the active agent
 - `/agent set <name>` - Set the active agent before chatting
-- `/new "Title"` - Create documents
+- `/new "Title"` - Create documents (with conversation tips)
 - `/help` - Get help and see all commands
+
+**Enhanced Examples:**
+- `/new "My PRD" --with-conversation` - Creates document AND starts PRD conversation
+- After `/new` command: Simply type your response to continue the conversation
+- `/agent set prd-creator` then naturally chat without `/chat` prefix
 
 ## Verification Setup
 
@@ -107,29 +108,35 @@ Let Docu create them automatically by omitting the path parameter.
 
 You have two main options for creating your PRD:
 
-**Option A: Use Basic Template (Recommended for Beginners)**
+**Option A: Create with Automatic Conversation (Recommended)**
+```bash
+@docu /new "CardCraft Online Store PRD" --template basic --with-conversation --path docs/01-prd/
+```
+
+**Option B: Create Document Only (Manual Conversation)**
 ```bash
 @docu /new "CardCraft Online Store PRD" --template basic --path docs/01-prd/
 ```
 
-**Option B: Use PRD Template (Advanced)**
+**Option C: Use PRD Template with Conversation (Advanced)**
 ```bash
-@docu /new "CardCraft Online Store PRD" --template prd --path docs/01-prd/
+@docu /new "CardCraft Online Store PRD" --template prd --with-conversation --path docs/01-prd/
 ```
 
-**What Happens with Option A (Basic Template):**
+**What Happens with Option A (Automatic Conversation):**
 - Creates `docs/01-prd/cardcraft-online-store-prd.md` with basic structure
 - Creates the directory structure if it doesn't exist
 - Opens the document in VS Code
-- Works seamlessly with all agents for guided development
-- No template variable requirements
+- **Automatically starts PRD Creator conversation**
+- **Asks first strategic question immediately**
+- **You can respond naturally to continue the conversation**
 
 **What Happens with Option B (PRD Template):**
 - Attempts to create a structured PRD document
 - May require specific template variables
 - If variables are missing, you'll get helpful error messages with alternatives
 
-**Expected Success Response:**
+**Expected Success Response (with --with-conversation):**
 ```
 ✅ **Document Created Successfully**
 
@@ -137,10 +144,31 @@ You have two main options for creating your PRD:
 📁 **Directory:** Created docs/01-prd/ 
 🚀 **Status:** Document opened in editor
 
-**Next Steps:**
-• Work with the PRD Creator agent to develop your content
-• Use `/chat` commands to build out sections
-• The agent will guide you through strategic questions
+🚀 **Starting PRD Creator Conversation**
+
+I'll help you develop your PRD document. Let's start with some questions to gather context.
+
+**Question 1:** What specific problem or pain point does CardCraft solve for card game enthusiasts?
+
+💡 **Examples:**
+• Current marketplaces lack authenticity verification
+• Local stores have limited inventory
+• Pricing is inconsistent across platforms
+
+💬 **Please respond to this question in your next message.**
+
+🤖 **Active Agent:** PRD Creator - Ready for your response!
+```
+
+**If you used Option B (Manual):**
+```
+✅ **Document Created Successfully**
+
+💡 **Start a Conversation**
+Get AI assistance while creating your document by starting a conversation:
+• `/new "My Product PRD" --with-conversation`
+• `/new "API Design" --template basic --with-conversation`
+• After creating: `/chat Help me develop this document`
 ```
 
 **If You Get Template Variable Errors:**
@@ -196,11 +224,16 @@ Let's start with your differentiation strategy - what unique value will CardCraf
 - ✅ **Comprehensive Coverage** - Ensures all critical PRD sections are addressed
 - ✅ **Professional Output** - Generates market-ready documentation
 
-### Step 3: Develop PRD Content Through Conversation
+### Step 3: Continue the Conversation Flow
 
-Now that your document is created, start a conversation with the PRD Creator agent to develop comprehensive content:
+If you used `--with-conversation`, the conversation has already started! Simply respond to the agent's question:
 
-**Your Initial Prompt:**
+**Your Response to the Agent's Question:**
+```
+CardCraft solves the authenticity and trust problem in online card trading. Current marketplaces lack proper verification, leading to counterfeit cards and disputes. We'll provide AI-powered authenticity verification and community-driven trust systems.
+```
+
+**If you created manually, start the conversation:**
 ```
 @docu /chat Help me develop a comprehensive PRD for CardCraft, an online card game shop. I want to create a marketplace that serves card game enthusiasts with competitive pricing, authentic products, and community features.
 ```
@@ -224,9 +257,9 @@ Excellent concept! Let me help you develop this into a comprehensive PRD. I have
 Let's start with your differentiation strategy - what unique value will CardCraft provide?
 ```
 
-**Your Follow-up Response:**
+**Your Follow-up Response (Natural Conversation):**
 ```
-@docu /chat CardCraft will differentiate by offering:
+CardCraft will differentiate by offering:
 1. AI-powered deck building recommendations
 2. Virtual card condition verification using photos
 3. Community features like deck sharing and tournaments
@@ -235,6 +268,8 @@ Let's start with your differentiation strategy - what unique value will CardCraf
 
 We'll start nationally in the US, focusing on competitive players and collectors.
 ```
+
+**Note:** Once the conversation is active, you don't need `/chat` - just type naturally!
 
 **Agent's Strategic Development:**
 The agent will then help you develop each section systematically:

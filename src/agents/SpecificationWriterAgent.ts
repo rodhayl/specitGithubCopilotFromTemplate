@@ -41,8 +41,43 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
     allowedTools = ['readFile', 'writeFile', 'insertSection', 'listFiles'];
     workflowPhase = 'implementation' as const;
 
-    async handleLegacyRequest(request: any, context: AgentContext): Promise<AgentResponse> {
-        return await this.handleRequest(request, context);
+    async handleDirectRequest(request: any, context: AgentContext): Promise<AgentResponse> {
+        try {
+            const prompt = request.prompt?.trim() || '';
+            
+            // Handle specification writing requests
+            if (prompt.includes('implementation') || prompt.includes('plan') || prompt.includes('task')) {
+                return this.createResponse(
+                    `I'm the Specification Writer agent. I help create detailed implementation plans and break down development tasks.\n\n` +
+                    `I can help you:\n` +
+                    `- Create implementation roadmaps\n` +
+                    `- Break down features into development tasks\n` +
+                    `- Define technical specifications\n` +
+                    `- Plan resource allocation and timelines\n\n` +
+                    `What would you like to work on?`,
+                    [],
+                    [
+                        'Create an implementation plan',
+                        'Break down development tasks',
+                        'Define technical specifications'
+                    ]
+                );
+            }
+            
+            // Default response
+            return this.createResponse(
+                `I'm here to help with implementation planning and specification writing. What would you like to work on?`,
+                [],
+                ['Tell me about your project', 'Create implementation plan', 'Get help with specifications']
+            );
+            
+        } catch (error) {
+            return this.createResponse(
+                `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                [],
+                ['Try again', 'Get help']
+            );
+        }
     }
 
     async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {

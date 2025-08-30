@@ -158,6 +158,49 @@ export function restoreWorkspace(): void {
 }
 
 /**
+ * Create a mock tool context for testing
+ */
+export function createMockToolContext(workspaceRoot: string = '/mock/workspace'): any {
+    return {
+        workspaceRoot,
+        extensionContext: createMockExtensionContext(),
+        cancellationToken: createMockCancellationToken()
+    };
+}
+
+/**
+ * Create a mock command context for testing
+ */
+export function createMockCommandContext(workspaceRoot: string = '/mock/workspace'): any {
+    return {
+        request: createMockChatRequest('test command'),
+        stream: createMockChatResponseStream(),
+        token: createMockCancellationToken(),
+        workspaceRoot,
+        extensionContext: createMockExtensionContext()
+    };
+}
+
+/**
+ * Create a mock text document for testing
+ */
+export function createMockTextDocument(content: string, filePath: string = '/test/document.md'): any {
+    return {
+        getText: () => content,
+        uri: vscode.Uri.file(filePath),
+        fileName: filePath,
+        isUntitled: false,
+        languageId: 'markdown',
+        version: 1,
+        isDirty: false,
+        isClosed: false,
+        save: () => Promise.resolve(true),
+        eol: vscode.EndOfLine.LF,
+        lineCount: content.split('\n').length
+    };
+}
+
+/**
  * Test data generators
  */
 export const TestData = {

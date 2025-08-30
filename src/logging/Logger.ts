@@ -61,7 +61,20 @@ export class Logger {
 
     static getInstance(): Logger {
         if (!Logger.instance) {
-            throw new Error('Logger not initialized. Call Logger.initialize() first.');
+            // Create a temporary logger with console fallback if not initialized
+            console.warn('Logger accessed before initialization, creating temporary instance');
+            // Create a minimal context for temporary logger
+            const tempContext = {
+                subscriptions: [],
+                workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+                globalState: { get: () => undefined, update: () => Promise.resolve() },
+                extensionUri: { fsPath: '' },
+                extensionPath: '',
+                storagePath: undefined,
+                globalStoragePath: '',
+                logPath: ''
+            } as any;
+            Logger.instance = new Logger(tempContext);
         }
         return Logger.instance;
     }

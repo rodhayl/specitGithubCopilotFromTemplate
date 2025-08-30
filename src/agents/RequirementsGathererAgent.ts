@@ -30,7 +30,7 @@ Focus on creating comprehensive, well-structured requirements.md documents that 
     allowedTools = ['readFile', 'writeFile', 'insertSection', 'applyTemplate'];
     workflowPhase = 'requirements' as const;
 
-    async handleLegacyRequest(request: any, context: AgentContext): Promise<AgentResponse> {
+    async handleDirectRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {
             const prompt = request.prompt?.trim() || '';
             

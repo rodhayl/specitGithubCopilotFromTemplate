@@ -51,8 +51,8 @@ export abstract class BaseAgent implements Agent {
             return await this.handleConversationalRequest(request, context);
         }
 
-        // Fall back to legacy handling
-        return await this.handleLegacyRequest(request, context);
+        // Fall back to direct handling
+        return await this.handleDirectRequest(request, context);
     }
 
     /**
@@ -84,16 +84,18 @@ export abstract class BaseAgent implements Agent {
     }
 
     /**
-     * Handle legacy requests (to be implemented by subclasses)
+     * Handle direct requests (to be implemented by subclasses)
      */
-    protected abstract handleLegacyRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse>;
+    protected abstract handleDirectRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse>;
 
     /**
      * Handle conversation-based requests
      */
     protected async handleConversationalRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
         if (!this.conversationManager) {
-            throw new Error('Conversation manager not available');
+            // Conversation manager not available, use direct agent response
+            this.log('Conversation manager not available, using direct agent response', 'warn');
+            return await this.handleDirectRequest(request, context);
         }
 
         try {
@@ -117,15 +119,31 @@ export abstract class BaseAgent implements Agent {
             } else {
                 // Continue existing conversation
                 const response = await this.conversationManager.continueConversation(session.sessionId, request.prompt);
+                
+                // Generate document updates based on the conversation
+                const documentUpdates = await this.generateDocumentUpdatesFromConversation(session, response, context);
+                
+                // Apply document updates if any
+                if (documentUpdates.length > 0) {
+                    const toolCalls = documentUpdates.map(update => ({
+                        tool: 'updateDocument',
+                        parameters: update
+                    }));
+                    
+                    // Add tool calls to response
+                    const formattedResponse = this.formatConversationResponse(session, response, false);
+                    formattedResponse.toolCalls = toolCalls;
+                    return formattedResponse;
+                }
+                
                 return this.formatConversationResponse(session, response, false);
             }
 
         } catch (error) {
-            return this.createResponse(
-                `I encountered an error during our conversation: ${error instanceof Error ? error.message : 'Unknown error'}. Let's try starting fresh.`,
-                [],
-                ['Start a new conversation', 'Try a different approach']
-            );
+            this.log(`Conversation error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            
+            // Fall back to direct handling on conversation errors
+            return await this.handleDirectRequest(request, context);
         }
     }
 
@@ -133,6 +151,11 @@ export abstract class BaseAgent implements Agent {
      * Determine if this request should use conversation mode
      */
     protected shouldUseConversation(request: ChatRequest, context: AgentContext): boolean {
+        // Always use conversation mode for chat commands and when conversation manager is available
+        if (this.conversationManager && (request.command === 'chat' || !request.command)) {
+            return true;
+        }
+        
         // Use conversation mode for non-command requests
         return !request.command || request.command === 'chat';
     }
@@ -233,6 +256,46 @@ export abstract class BaseAgent implements Agent {
         followups.push('Let me provide more detail');
 
         return followups.slice(0, 3); // Limit to 3 followups
+    }
+
+    /**
+     * Generate document updates from conversation responses
+     */
+    protected async generateDocumentUpdatesFromConversation(
+        session: ConversationSession, 
+        response: ConversationResponse | null, 
+        context: AgentContext
+    ): Promise<any[]> {
+        if (!response || !response.documentUpdates) {
+            return [];
+        }
+
+        const updates: any[] = [];
+        
+        // Process each document update from the conversation
+        for (const update of response.documentUpdates) {
+            try {
+                // Get the document path
+                const documentPath = this.getDocumentPath(context);
+                
+                // Create update parameters
+                const updateParams = {
+                    path: documentPath,
+                    section: update.section || 'content',
+                    content: update.content || '',
+                    updateType: update.updateType || 'append'
+                };
+                
+                updates.push(updateParams);
+                
+                this.log(`Generated document update for section: ${update.section}`, 'info');
+                
+            } catch (error) {
+                this.log(`Error generating document update: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            }
+        }
+        
+        return updates;
     }
 
     /**

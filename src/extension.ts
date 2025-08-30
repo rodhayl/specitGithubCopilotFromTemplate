@@ -1,9 +1,11 @@
-// extension.ts
+// extension.ts - Consolidated and deduplicated
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { TemplateManager } from './templates';
+import { TemplateService } from './templates/TemplateService';
 import { ToolManager } from './tools';
 import { CommandRouter, CommandDefinition, ParsedCommand, CommandContext } from './commands';
+import { CommandTipProvider } from './commands/CommandTipProvider';
+import { OutputCoordinator } from './commands/OutputCoordinator';
 import { AgentManager } from './agents';
 import { ConfigurationManager } from './config';
 import { ErrorHandler } from './error';
@@ -20,11 +22,14 @@ import {
     WorkflowOrchestrator, 
     ProgressTracker 
 } from './conversation';
+import { ConversationFlowHandler } from './conversation/ConversationFlowHandler';
+import { ConversationSessionRouter } from './conversation/ConversationSessionRouter';
 import { LLMService } from './llm/LLMService';
 import { SettingsWebviewProvider } from './config/SettingsWebviewProvider';
 import { SettingsCommand } from './commands/SettingsCommand';
 
-let templateManager: TemplateManager;
+// Consolidated manager instances - single source of truth
+let templateService: TemplateService;
 let toolManager: ToolManager;
 let commandRouter: CommandRouter;
 let agentManager: AgentManager;
@@ -36,6 +41,8 @@ let logger: Logger;
 let telemetryManager: TelemetryManager;
 let debugManager: DebugManager;
 let conversationManager: ConversationManager;
+let conversationFlowHandler: ConversationFlowHandler;
+let conversationSessionRouter: ConversationSessionRouter;
 let llmService: LLMService;
 let settingsProvider: SettingsWebviewProvider;
 let globalExtensionContext: vscode.ExtensionContext;
@@ -47,6 +54,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize logging system first
 	logger = Logger.initialize(context);
 	logger.extension.info('Docu extension activation started');
+	
+	// Show activation message to user for debugging
+	vscode.window.showInformationMessage('Docu extension is activating...');
+	console.log('DOCU EXTENSION: Activation started');
 
 	// Initialize telemetry and debugging
 	telemetryManager = TelemetryManager.initialize(context);
@@ -99,14 +110,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
-	// Initialize template system
-	templateManager = new TemplateManager(context);
-	templateManager.loadUserTemplates();
+	// Initialize consolidated template service
+	templateService = TemplateService.getInstance();
+	templateService.initialize(context);
+	await templateService.loadUserTemplates();
 
-	// Initialize tool system with template manager
-	toolManager = new ToolManager(templateManager);
+	// Initialize tool system with template service
+	toolManager = new ToolManager(templateService);
 
-	// Initialize conversation system
+	// Initialize agent manager
+	agentManager = new AgentManager(context);
+	await agentManager.loadConfigurations();
+
+	// Initialize consolidated conversation system
 	const questionEngine = new QuestionEngine();
 	const responseProcessor = new ResponseProcessor();
 	const contentCapture = new ContentCapture();
@@ -119,12 +135,36 @@ export async function activate(context: vscode.ExtensionContext) {
 		contentCapture,
 		workflowOrchestrator,
 		progressTracker,
-		context
+		context,
+		offlineManager,
+		agentManager
+	);
+	
+	conversationFlowHandler = new ConversationFlowHandler(
+		conversationManager,
+		agentManager,
+		offlineManager
 	);
 
-	// Initialize agent manager
-	agentManager = new AgentManager(context);
-	await agentManager.loadConfigurations();
+	// Initialize conversation session router
+	conversationSessionRouter = new ConversationSessionRouter(
+		conversationManager,
+		agentManager,
+		context,
+		offlineManager
+	);
+
+	// Set session router on conversation flow handler
+	conversationFlowHandler.setSessionRouter(conversationSessionRouter);
+
+	// Set up auto-chat integration for NewCommandHandler
+	const autoChatManager = conversationSessionRouter.getAutoChatManager();
+	const documentUpdateEngine = conversationSessionRouter.getDocumentUpdateEngine();
+	
+	if (autoChatManager && documentUpdateEngine) {
+		// Get the NewCommandHandler instance and set up auto-chat integration
+		// This will be done in the command registration section
+	}
 
 	// Initialize LLM service
 	const preferredModel = configManager.get('preferredModel') as string;
@@ -192,40 +232,92 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// Initialize command router
+	// Initialize command router with consolidated conversation manager
 	commandRouter = new CommandRouter();
+	
+	// Set conversation handlers on command router (using consolidated manager)
+	commandRouter.setConversationHandlers(
+		conversationFlowHandler,
+		conversationManager
+	);
+
+	// Set up auto-chat integration
+	if (autoChatManager && documentUpdateEngine) {
+		commandRouter.setAutoChatIntegration(autoChatManager, documentUpdateEngine);
+		logger.extension.info('Auto-chat integration configured successfully');
+	} else {
+		logger.extension.warn('Auto-chat integration not available - some features may be limited');
+	}
+	
 	registerCustomCommands();
 
 	// Setup configuration change handlers
 	setupConfigurationHandlers(context);
 
 	// Register the @docu chat participant
-	logger.extension.info('Registering chat participant');
-	const participant = vscode.chat.createChatParticipant('docu', handleChatRequest);
-	participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
-	participant.followupProvider = {
-		provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: vscode.CancellationToken) {
-			return [
-				{
-					prompt: 'Help me create a new document',
-					label: vscode.l10n.t('Create Document'),
-					command: 'new'
-				},
-				{
-					prompt: 'Show me available agents',
-					label: vscode.l10n.t('List Agents'),
-					command: 'agent'
-				},
-				{
-					prompt: 'Show me available templates',
-					label: vscode.l10n.t('List Templates'),
-					command: 'templates'
-				}
-			];
+	try {
+		logger.extension.info('Registering chat participant');
+		console.log('DOCU EXTENSION: About to create chat participant');
+		
+		// Check if chat API is available
+		if (!vscode.chat || !vscode.chat.createChatParticipant) {
+			throw new Error('VS Code Chat API is not available - please ensure you have VS Code 1.97.0 or later');
 		}
-	};
+		
+		const participant = vscode.chat.createChatParticipant('docu', handleChatRequest);
+		console.log('DOCU EXTENSION: Chat participant created:', participant);
+		
+		// Verify participant was created successfully
+		if (!participant) {
+			throw new Error('Failed to create chat participant - createChatParticipant returned null/undefined');
+		}
+		
+		participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+		participant.followupProvider = {
+			provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: vscode.CancellationToken) {
+				return [
+					{
+						prompt: 'Help me create a new document',
+						label: vscode.l10n.t('Create Document'),
+						command: 'new'
+					},
+					{
+						prompt: 'Show me available agents',
+						label: vscode.l10n.t('List Agents'),
+						command: 'agent'
+					},
+					{
+						prompt: 'Show me available templates',
+						label: vscode.l10n.t('List Templates'),
+						command: 'templates'
+					}
+				];
+			}
+		};
 
-	context.subscriptions.push(participant);
+		context.subscriptions.push(participant);
+		logger.extension.info('Chat participant registered successfully', { participantId: 'docu' });
+		console.log('DOCU EXTENSION: Chat participant registered successfully and added to subscriptions');
+		vscode.window.showInformationMessage('Docu chat participant registered successfully!');
+		
+	} catch (participantError) {
+		const error = participantError instanceof Error ? participantError : new Error(String(participantError));
+		logger.extension.error('Failed to register chat participant', error);
+		console.error('DOCU EXTENSION: Failed to register chat participant:', error);
+		
+		// Show error to user
+		vscode.window.showErrorMessage(
+			`Failed to register Docu chat participant: ${error.message}. Please reload VS Code and try again.`,
+			'Reload Window'
+		).then(selection => {
+			if (selection === 'Reload Window') {
+				vscode.commands.executeCommand('workbench.action.reloadWindow');
+			}
+		});
+		
+		// Don't throw - allow extension to continue activating
+		telemetryManager.trackError(error, { operation: 'chat-participant-registration' });
+	}
 
 	// Complete activation
 	const activationDuration = telemetryManager.endPerformanceMetric('extension.activation');
@@ -240,6 +332,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		SettingsCommand.register(context, settingsProvider)
 	);
+
+	// Register a test command to verify extension is working
+	context.subscriptions.push(
+		vscode.commands.registerCommand('docu.test', () => {
+			vscode.window.showInformationMessage('Docu extension is active and working!');
+			logger.extension.info('Test command executed successfully');
+		})
+	);
 }
 
 async function handleChatRequest(
@@ -249,8 +349,18 @@ async function handleChatRequest(
 	token: vscode.CancellationToken
 ): Promise<vscode.ChatResult> {
 	const startTime = performance.now();
-	logger.extension.info('Chat request received', { prompt: request.prompt.substring(0, 100) });
+	logger.extension.info('Chat request received', { 
+		prompt: request.prompt.substring(0, 100),
+		command: request.command
+	});
 	telemetryManager.startPerformanceMetric('chat.request');
+	
+	// Add debug information about the request
+	debugManager.addDebugInfo('chat', 'info', 'Chat request received', {
+		prompt: request.prompt.substring(0, 100),
+		command: request.command,
+		timestamp: new Date().toISOString()
+	});
 
 	try {
 		const prompt = request.prompt.trim();
@@ -306,11 +416,101 @@ async function handleChatRequest(
 			}
 		}
 
-		// Handle non-command input - show help and available commands
-		logger.extension.debug('Non-command chat input received, showing help');
+		// Handle non-command input - use conversation session routing
+		logger.extension.info('Processing non-command input', { prompt: prompt.substring(0, 100) });
+		
+		try {
+			// Check if we're in offline mode
+			if (offlineManager.isOffline()) {
+				const currentAgent = agentManager.getCurrentAgent();
+				if (currentAgent) {
+					stream.markdown(`🤖 **${currentAgent.name} (Offline Mode)**\n\n`);
+					stream.markdown('**Your message:** ' + prompt + '\n\n');
+					
+					// Provide offline guidance based on agent type
+					const offlineGuidance = getOfflineAgentGuidance(currentAgent.name, prompt);
+					stream.markdown(offlineGuidance);
+					
+					const duration = telemetryManager.endPerformanceMetric('chat.request');
+					return { metadata: { agent: currentAgent.name, mode: 'offline', duration } };
+				}
+			}
+
+			// Route user input through conversation session router
+			const commandContext: CommandContext = {
+				request,
+				stream,
+				token,
+				workspaceRoot,
+				extensionContext: context as any
+			};
+
+			const routingResult = await conversationSessionRouter.routeUserInput(prompt, commandContext);
+			
+			logger.extension.info('User input routed', { 
+				routedTo: routingResult.routedTo,
+				sessionId: routingResult.sessionId,
+				agentName: routingResult.agentName
+			});
+
+			// Handle routing result
+			if (routingResult.routedTo === 'conversation') {
+				// Input was routed to active conversation
+				if (routingResult.response) {
+					stream.markdown(routingResult.response);
+				}
+				
+				// Show conversation status
+				if (routingResult.shouldContinue) {
+					stream.markdown('\n💬 **Conversation continues** - Please respond to continue the discussion.\n');
+				} else {
+					stream.markdown('\n✅ **Conversation completed** - You can start a new conversation or use commands.\n');
+				}
+
+				const duration = telemetryManager.endPerformanceMetric('chat.request');
+				telemetryManager.trackEvent('chat.conversation.continued', { sessionId: routingResult.sessionId });
+				return { metadata: { type: 'conversation', sessionId: routingResult.sessionId, duration } };
+
+			} else if (routingResult.routedTo === 'agent') {
+				// Input was routed to active agent
+				if (routingResult.response) {
+					stream.markdown(routingResult.response);
+				}
+
+				const duration = telemetryManager.endPerformanceMetric('chat.request');
+				telemetryManager.trackEvent('chat.agent.conversation', { agent: routingResult.agentName });
+				return { metadata: { type: 'agent', agent: routingResult.agentName, duration } };
+
+			} else if (routingResult.routedTo === 'error') {
+				// Routing failed
+				stream.markdown(`❌ **Error:** ${routingResult.error}\n\n`);
+				stream.markdown('**What you can try:**\n');
+				stream.markdown('- `/agent list` - See available agents\n');
+				stream.markdown('- `/agent set <agent-name>` - Set an active agent\n');
+				stream.markdown('- `/help` - Get help with commands\n');
+
+				const duration = telemetryManager.endPerformanceMetric('chat.request');
+				return { metadata: { type: 'error', error: routingResult.error, duration } };
+			}
+
+		} catch (routingError) {
+			logger.extension.error('Conversation routing failed', routingError instanceof Error ? routingError : new Error(String(routingError)));
+			
+			stream.markdown(`❌ **Routing Error:** ${routingError instanceof Error ? routingError.message : String(routingError)}\n\n`);
+			stream.markdown('**What you can try:**\n');
+			stream.markdown('- `/agent list` - See available agents\n');
+			stream.markdown('- `/agent set <agent-name>` - Switch to a different agent\n');
+			stream.markdown('- `/help` - Get help with commands\n');
+
+			const duration = telemetryManager.endPerformanceMetric('chat.request');
+			return { metadata: { type: 'routing-error', error: true, duration } };
+		}
+		
+		// No active agent - show help and available commands
+		logger.extension.debug('Non-command chat input received, no active agent, showing help');
 		telemetryManager.trackEvent('chat.help.shown');
 		
-		// Show helpful guidance instead of routing to agents
+		// Show helpful guidance
 		stream.markdown('👋 **Hello! I am the Docu AI assistant.**\n\n');
 		stream.markdown('I help you create and manage documentation through specific commands. Here\'s how to get started:\n\n');
 		
@@ -334,9 +534,9 @@ async function handleChatRequest(
 		stream.markdown('\n## 📝 **Example Workflow**\n\n');
 		stream.markdown('1. `/agent set prd-creator` - Set the PRD Creator agent\n');
 		stream.markdown('2. `/new "My Product PRD"` - Create a new document\n');
-		stream.markdown('3. `/chat Help me develop a PRD for my card game shop` - Start conversation\n\n');
+		stream.markdown('3. `Help me develop a PRD for my card game shop` - Continue conversation (no /chat needed!)\n\n');
 		
-		stream.markdown('**💬 Tip:** Use `/chat` to have conversations with agents. All interactions now require explicit commands for better control!\n');
+		stream.markdown('**💬 Tip:** Once an agent is active, you can chat directly without using `/chat`!\n');
 
 		const duration = telemetryManager.endPerformanceMetric('chat.request');
 		return { metadata: { command: request.command, type: 'help', duration } };
@@ -728,6 +928,41 @@ function registerCustomCommands(): void {
 		}
 	};
 
+	// Add diagnostic command for conversation state
+	const diagnosticCommand: CommandDefinition = {
+		name: 'diagnostic',
+		description: 'Show diagnostic information about conversation state',
+		usage: '/diagnostic [--conversation] [--agents] [--all]',
+		examples: [
+			'/diagnostic',
+			'/diagnostic --conversation',
+			'/diagnostic --agents',
+			'/diagnostic --all'
+		],
+		flags: [
+			{
+				name: 'conversation',
+				shortName: 'c',
+				description: 'Show conversation session information',
+				type: 'boolean'
+			},
+			{
+				name: 'agents',
+				shortName: 'a',
+				description: 'Show agent information',
+				type: 'boolean'
+			},
+			{
+				name: 'all',
+				description: 'Show all diagnostic information',
+				type: 'boolean'
+			}
+		],
+		handler: async (parsedCommand: ParsedCommand, context: CommandContext) => {
+			return await handleDiagnosticCommand(parsedCommand, context);
+		}
+	};
+
 	commandRouter.registerCommand(newCommand);
 	commandRouter.registerCommand(templatesCommand);
 	commandRouter.registerCommand(updateCommand);
@@ -736,111 +971,13 @@ function registerCustomCommands(): void {
 	commandRouter.registerCommand(summarizeCommand);
 	commandRouter.registerCommand(catalogCommand);
 	commandRouter.registerCommand(chatCommand);
+	commandRouter.registerCommand(diagnosticCommand);
 }
 
-/**
- * Start context gathering conversation for structured templates
- */
-async function startContextGatheringConversation(
-	templateId: string, 
-	title: string, 
-	outputPath: string, 
-	context: CommandContext, 
-	conversationManager: ConversationManager
-): Promise<void> {
-	try {
-		// Check if we're in offline mode
-		const isOffline = offlineManager.isOffline();
-		
-		// Determine appropriate agent and questions based on template
-		const agentConfig = getAgentConfigForTemplate(templateId);
-		if (!agentConfig) {
-			return; // No automatic conversation for this template
-		}
 
-		if (isOffline) {
-			// Provide offline fallback conversation
-			const offlineSessionId = generateOfflineSessionId();
-			await storeDocumentPathForSession(offlineSessionId, outputPath);
-			await startOfflineConversation(templateId, title, outputPath, context, agentConfig, offlineSessionId);
-			return;
-		}
 
-		context.stream.markdown(`\n🚀 **Starting ${agentConfig.name} Context Gathering**\n\n`);
-		context.stream.markdown(`I'll ask you ${agentConfig.questions.length} quick questions to gather context for your ${templateId.toUpperCase()}. You can skip any question by typing "skip".\n\n`);
-
-		// Start structured conversation
-		const conversationContext = {
-			documentType: templateId,
-			workflowPhase: agentConfig.phase,
-			documentPath: outputPath,
-			title: title,
-			workspaceRoot: context.workspaceRoot,
-			extensionContext: context.extensionContext
-		};
-
-		const session = await conversationManager.startConversation(agentConfig.agentName, conversationContext);
-		
-		// Store document path for later retrieval (both online and offline modes)
-		await storeDocumentPathForSession(session.sessionId, outputPath);
-		
-		// Start with first question
-		const firstQuestion = agentConfig.questions[0];
-		context.stream.markdown(`**Question 1/${agentConfig.questions.length}:** ${firstQuestion.text}\n\n`);
-		
-		if (firstQuestion.examples && firstQuestion.examples.length > 0) {
-			context.stream.markdown('💡 **Examples:**\n');
-			for (const example of firstQuestion.examples) {
-				context.stream.markdown(`• ${example}\n`);
-			}
-			context.stream.markdown('\n');
-		}
-
-		// Add interactive buttons for online mode
-		context.stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Answer this question',
-			arguments: [session.sessionId, 0, 'answer']
-		});
-		
-		context.stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Skip this question',
-			arguments: [session.sessionId, 0, 'skip']
-		});
-
-		context.stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Skip all and generate now',
-			arguments: [session.sessionId, -1, 'generate']
-		});
-
-	} catch (error) {
-		logger.command.warn('Failed to start context gathering conversation', { error });
-		
-		// Fallback to offline mode if conversation fails
-		const agentConfig = getAgentConfigForTemplate(templateId);
-		if (agentConfig) {
-			const fallbackSessionId = generateOfflineSessionId();
-			await storeDocumentPathForSession(fallbackSessionId, outputPath);
-			await startOfflineConversation(templateId, title, outputPath, context, agentConfig, fallbackSessionId);
-		} else {
-			context.stream.markdown('\n💡 *You can start working on your document by chatting with the appropriate agent!*\n');
-		}
-	}
-}
 
 /**
- * Generate offline session ID
- */
-function generateOfflineSessionId(): string {
-	return `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-/**
- * Store document path for session
- */
-async function storeDocumentPathForSession(sessionId: string, documentPath: string): Promise<void> {
 	try {
 		const key = `offline_document_${sessionId}`;
 		await globalExtensionContext.globalState.update(key, documentPath);
@@ -849,763 +986,37 @@ async function storeDocumentPathForSession(sessionId: string, documentPath: stri
 	}
 }
 
-/**
- * Start offline conversation fallback for structured templates
- */
-async function startOfflineConversation(
-	templateId: string,
-	title: string,
-	outputPath: string,
-	context: CommandContext,
-	agentConfig: { agentName: string; name: string; phase: string; questions: any[] },
-	sessionId: string
-): Promise<void> {
-	try {
-		context.stream.markdown(`\n📴 **Offline Mode - ${agentConfig.name} Guidance**\n\n`);
-		context.stream.markdown(`Since AI features are currently unavailable, I'll provide structured guidance to help you complete your ${templateId.toUpperCase()} document.\n\n`);
 
-		// Provide structured offline guidance
-		context.stream.markdown(`**Document Structure for ${templateId.toUpperCase()}:**\n\n`);
-		
-		// Generate offline guidance based on template type
-		const offlineGuidance = generateOfflineGuidance(templateId, agentConfig.questions);
-		context.stream.markdown(offlineGuidance);
 
-		// Provide manual workflow suggestions
-		context.stream.markdown(`\n**Manual Workflow:**\n`);
-		context.stream.markdown(`1. Open your document: [${title}](${vscode.Uri.file(outputPath).toString()})\n`);
-		context.stream.markdown(`2. Follow the structure above to fill in each section\n`);
-		context.stream.markdown(`3. Use the examples provided as guidance\n`);
-		context.stream.markdown(`4. When online features return, you can use the ${agentConfig.name} agent for AI assistance\n\n`);
+// Legacy function removed - agent configuration now handled by AgentManager
 
-		// Add helpful buttons for offline mode
-		context.stream.button({
-			command: 'vscode.open',
-			title: 'Open Document',
-			arguments: [vscode.Uri.file(outputPath)]
-		});
+// Legacy function removed - conversation flow now handled by ConversationSessionRouter
 
-		context.stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Start Manual Context Gathering',
-			arguments: [sessionId, 0, 'answer']
-		});
+// Legacy function removed - conversation flow now handled by ConversationSessionRouter
 
-		context.stream.button({
-			command: 'docu.showTemplate',
-			title: 'View Template Details',
-			arguments: [templateId]
-		});
+// Legacy function removed - offline conversation flow now handled by OfflineManager
 
-		context.stream.markdown(`\n💡 *Tip: When AI features are available again, you can chat with the ${agentConfig.name} agent to get personalized assistance!*\n`);
+// Legacy function removed - offline handling now done by OfflineManager
 
-	} catch (error) {
-		logger.command.warn('Failed to start offline conversation', { error });
-		context.stream.markdown('\n📝 *Your document has been created. You can edit it manually and use AI features when they become available.*\n');
-	}
-}
+// Legacy function removed - offline handling now done by OfflineManager
 
-/**
- * Generate offline guidance based on template type and questions
- */
-function generateOfflineGuidance(templateId: string, questions: any[]): string {
-	let guidance = '';
+// Legacy function removed - offline handling now done by OfflineManager
 
-	// Generate section-based guidance from questions
-	questions.forEach((question, index) => {
-		const sectionNumber = index + 1;
-		guidance += `**${sectionNumber}. ${question.section || `Section ${sectionNumber}`}**\n`;
-		guidance += `*Question to consider:* ${question.text}\n\n`;
-		
-		if (question.examples && question.examples.length > 0) {
-			guidance += `*Examples:*\n`;
-			question.examples.slice(0, 2).forEach((example: string) => {
-				guidance += `- ${example}\n`;
-			});
-			guidance += '\n';
-		}
-		
-		guidance += `*Your response:* [TODO: ${question.text}]\n\n`;
-	});
+// Legacy function removed - offline handling now done by OfflineManager
 
-	// Add template-specific additional guidance
-	const additionalGuidance = getAdditionalOfflineGuidance(templateId);
-	if (additionalGuidance) {
-		guidance += `\n**Additional Guidance:**\n${additionalGuidance}\n`;
-	}
+// Legacy function removed - offline handling now done by OfflineManager
 
-	return guidance;
-}
+// Legacy function removed - offline handling now done by OfflineManager
 
-/**
- * Get additional offline guidance for specific templates
- */
-function getAdditionalOfflineGuidance(templateId: string): string {
-	const guidanceMap: Record<string, string> = {
-		'prd': `
-- Start with a clear problem statement
-- Define your target users and their needs
-- Outline the proposed solution approach
-- Include success metrics and constraints
-- Keep it concise but comprehensive`,
-		
-		'requirements': `
-- Use clear, testable requirements
-- Include both functional and non-functional requirements
-- Consider user stories and acceptance criteria
-- Think about edge cases and error scenarios
-- Prioritize requirements by importance`,
-		
-		'design': `
-- Start with high-level architecture
-- Break down into components and interfaces
-- Consider data models and relationships
-- Include error handling strategies
-- Think about scalability and performance`,
-		
-		'specification': `
-- Be precise and unambiguous
-- Include detailed technical specifications
-- Consider implementation constraints
-- Add validation and testing criteria
-- Include examples and use cases`
-	};
+// Legacy function removed - document generation now handled by ConversationManager
 
-	return guidanceMap[templateId] || `
-- Structure your content logically
-- Use clear headings and sections
-- Include examples where helpful
-- Consider your audience and purpose
-- Review and refine as needed`;
-}
+// Legacy function removed - offline document generation now handled by OfflineManager
 
-/**
- * Get agent configuration for template-based context gathering
- */
-function getAgentConfigForTemplate(templateId: string): { agentName: string; name: string; phase: string; questions: any[] } | null {
-	const configs: Record<string, { agentName: string; name: string; phase: string; questions: any[] }> = {
-		'prd': {
-			agentName: 'prd-creator',
-			name: 'PRD Creator',
-			phase: 'prd',
-			questions: [
-				{
-					id: 'problem_definition',
-					text: 'What specific problem or pain point does your product solve?',
-					examples: [
-						'Users struggle with slow authentication processes',
-						'Current data processing takes too long for real-time needs',
-						'Customers can\'t easily find product information'
-					],
-					section: 'executiveSummary'
-				},
-				{
-					id: 'target_users',
-					text: 'Who are your primary target users?',
-					examples: [
-						'Software developers who need API access',
-						'Business analysts creating reports',
-						'E-commerce customers aged 25-45'
-					],
-					section: 'primaryPersona'
-				},
-				{
-					id: 'solution_approach',
-					text: 'What\'s your proposed solution approach?',
-					examples: [
-						'AI-powered recommendation engine',
-						'Real-time data processing pipeline',
-						'Unified authentication service'
-					],
-					section: 'primaryGoal1'
-				},
-				{
-					id: 'success_metrics',
-					text: 'How will you measure success?',
-					examples: [
-						'Reduce processing time by 50%',
-						'Achieve 99.9% uptime',
-						'Increase user satisfaction to 90%'
-					],
-					section: 'successCriteria1'
-				},
-				{
-					id: 'constraints',
-					text: 'What are your main constraints or limitations?',
-					examples: [
-						'Must integrate with existing systems',
-						'Budget limit of $100K',
-						'Launch deadline in 6 months'
-					],
-					section: 'constraint1'
-				}
-			]
-		},
-		'requirements': {
-			agentName: 'requirements-gatherer',
-			name: 'Requirements Gatherer',
-			phase: 'requirements',
-			questions: [
-				{
-					id: 'functional_requirements',
-					text: 'What are the core functional requirements?',
-					examples: [
-						'User registration and authentication',
-						'Product search and filtering',
-						'Order processing and payment'
-					],
-					section: 'functionalRequirements'
-				},
-				{
-					id: 'user_stories',
-					text: 'Describe key user stories or use cases',
-					examples: [
-						'As a customer, I want to search products by category',
-						'As an admin, I want to manage inventory',
-						'As a user, I want to track my orders'
-					],
-					section: 'userStories'
-				},
-				{
-					id: 'performance_requirements',
-					text: 'What are your performance requirements?',
-					examples: [
-						'Page load time under 2 seconds',
-						'Support 1000 concurrent users',
-						'99.9% uptime requirement'
-					],
-					section: 'performanceRequirements'
-				},
-				{
-					id: 'security_requirements',
-					text: 'What security requirements do you have?',
-					examples: [
-						'GDPR compliance required',
-						'Two-factor authentication',
-						'Data encryption at rest and in transit'
-					],
-					section: 'securityRequirements'
-				}
-			]
-		}
-	};
+// Legacy function removed - offline document handling now done by OfflineManager
 
-	return configs[templateId] || null;
-}
+// Legacy function removed - context extraction now handled by ConversationManager
 
-/**
- * Move to next question in context gathering or generate document
- */
-async function moveToNextContextQuestion(
-	sessionId: string, 
-	currentQuestionIndex: number, 
-	userResponse: string | null, 
-	conversationManager: ConversationManager
-): Promise<void> {
-	try {
-		// Check if we're in offline mode
-		const isOffline = offlineManager.isOffline();
-		
-		// Store the response if provided
-		if (userResponse && !isOffline) {
-			await conversationManager.continueConversation(sessionId, userResponse);
-		}
-
-		// Get session to check progress
-		let session = null;
-		if (!isOffline) {
-			session = conversationManager.getActiveSession('prd-creator') || 
-					 conversationManager.getActiveSession('requirements-gatherer') ||
-					 conversationManager.getActiveSession('solution-architect') ||
-					 conversationManager.getActiveSession('specification-writer');
-		}
-		
-		if (!session && !isOffline) {
-			vscode.window.showErrorMessage('Context gathering session not found');
-			return;
-		}
-
-		// Determine template type and get questions
-		const templateId = session?.state.phase === 'prd' ? 'prd' : 
-						 session?.state.phase === 'requirements' ? 'requirements' :
-						 session?.state.phase === 'design' ? 'design' : 'prd';
-		const agentConfig = getAgentConfigForTemplate(templateId);
-		if (!agentConfig) {
-			return;
-		}
-
-		const nextQuestionIndex = currentQuestionIndex + 1;
-		
-		if (nextQuestionIndex >= agentConfig.questions.length) {
-			// All questions completed, generate document
-			if (isOffline) {
-				await handleOfflineDocumentCompletion(sessionId, agentConfig, userResponse);
-			} else {
-				await generateDocumentFromContext(sessionId, conversationManager);
-			}
-			return;
-		}
-
-		// Show next question
-		const nextQuestion = agentConfig.questions[nextQuestionIndex];
-		
-		if (isOffline) {
-			// Handle offline question progression
-			await showOfflineQuestion(nextQuestion, nextQuestionIndex, agentConfig.questions.length, sessionId);
-		} else {
-			// Handle online question progression
-			await showOnlineQuestion(nextQuestion, nextQuestionIndex, agentConfig.questions.length, sessionId);
-		}
-
-	} catch (error) {
-		logger.extension.error('Failed to move to next context question', error instanceof Error ? error : new Error(String(error)));
-		vscode.window.showErrorMessage(`Failed to continue: ${error instanceof Error ? error.message : String(error)}`);
-	}
-}
-
-/**
- * Show question in online mode with interactive buttons
- */
-async function showOnlineQuestion(
-	question: any,
-	questionIndex: number,
-	totalQuestions: number,
-	sessionId: string
-): Promise<void> {
-	// Create a temporary chat participant to show the question
-	const chatParticipant = vscode.chat.createChatParticipant('docu', async (request, context, stream, token) => {
-		stream.markdown(`\n**Question ${questionIndex + 1}/${totalQuestions}:** ${question.text}\n\n`);
-		
-		if (question.examples && question.examples.length > 0) {
-			stream.markdown('💡 **Examples:**\n');
-			for (const example of question.examples) {
-				stream.markdown(`• ${example}\n`);
-			}
-			stream.markdown('\n');
-		}
-
-		// Add interactive buttons
-		stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Answer this question',
-			arguments: [sessionId, questionIndex, 'answer']
-		});
-		
-		stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Skip this question',
-			arguments: [sessionId, questionIndex, 'skip']
-		});
-
-		stream.button({
-			command: 'docu.continueContextGathering',
-			title: 'Skip remaining and generate',
-			arguments: [sessionId, -1, 'generate']
-		});
-	});
-
-	// Show notification to user
-	vscode.window.showInformationMessage(`Question ${questionIndex + 1} ready. Check the chat for details.`);
-}
-
-/**
- * Show question in offline mode with manual guidance
- */
-async function showOfflineQuestion(
-	question: any,
-	questionIndex: number,
-	totalQuestions: number,
-	sessionId: string
-): Promise<void> {
-	const questionText = `Question ${questionIndex + 1}/${totalQuestions}: ${question.text}`;
-	
-	let examplesText = '';
-	if (question.examples && question.examples.length > 0) {
-		examplesText = '\n\nExamples:\n' + question.examples.map((ex: string) => `• ${ex}`).join('\n');
-	}
-
-	const userResponse = await vscode.window.showInputBox({
-		prompt: questionText,
-		placeHolder: 'Type your answer here, or leave empty to skip...',
-		ignoreFocusOut: true,
-		value: '',
-		title: `Offline Context Gathering - Question ${questionIndex + 1}/${totalQuestions}`
-	});
-
-	// Store response in a simple way for offline mode
-	if (userResponse) {
-		await storeOfflineResponse(sessionId, questionIndex, question.id, userResponse);
-	}
-
-	// Continue to next question or complete
-	if (questionIndex + 1 >= totalQuestions) {
-		await handleOfflineDocumentCompletion(sessionId, { questions: [] }, userResponse);
-	} else {
-		// Automatically continue to next question in offline mode
-		const nextQuestionIndex = questionIndex + 1;
-		// This will be handled by the calling function
-	}
-}
-
-/**
- * Handle document completion in offline mode
- */
-async function handleOfflineDocumentCompletion(
-	sessionId: string,
-	agentConfig: any,
-	lastResponse?: string | null
-): Promise<void> {
-	try {
-		// Get stored offline responses
-		const responses = getStoredOfflineResponses(sessionId);
-		
-		// Show completion message
-		const message = `Context gathering completed! ${responses.length} responses collected.`;
-		vscode.window.showInformationMessage(message);
-
-		// Offer to open document for manual editing
-		const action = await vscode.window.showInformationMessage(
-			'Your document is ready for manual editing. Would you like to open it now?',
-			'Open Document',
-			'View Responses',
-			'Later'
-		);
-
-		if (action === 'Open Document') {
-			// Try to find and open the document
-			const documentPath = getDocumentPathFromSession(sessionId);
-			if (documentPath) {
-				await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(documentPath));
-			}
-		} else if (action === 'View Responses') {
-			// Show collected responses
-			await showCollectedResponses(sessionId, responses);
-		}
-
-		// Clean up offline session data
-		clearOfflineSession(sessionId);
-
-	} catch (error) {
-		logger.extension.error('Failed to handle offline document completion', error instanceof Error ? error : new Error(String(error)));
-		vscode.window.showErrorMessage('Failed to complete offline context gathering');
-	}
-}
-
-/**
- * Store offline response in extension context
- */
-async function storeOfflineResponse(
-	sessionId: string,
-	questionIndex: number,
-	questionId: string,
-	response: string
-): Promise<void> {
-	try {
-		const key = `offline_responses_${sessionId}`;
-		const existingResponses = globalExtensionContext.globalState.get(key, []) as any[];
-		
-		existingResponses.push({
-			questionIndex,
-			questionId,
-			response,
-			timestamp: new Date().toISOString()
-		});
-
-		await globalExtensionContext.globalState.update(key, existingResponses);
-	} catch (error) {
-		logger.extension.warn('Failed to store offline response', { error });
-	}
-}
-
-/**
- * Get stored offline responses for a session
- */
-function getStoredOfflineResponses(sessionId: string): any[] {
-	try {
-		const key = `offline_responses_${sessionId}`;
-		return globalExtensionContext.globalState.get(key, []) as any[];
-	} catch (error) {
-		logger.extension.warn('Failed to get stored offline responses', { error });
-		return [];
-	}
-}
-
-/**
- * Get document path from session (simplified for offline mode)
- */
-function getDocumentPathFromSession(sessionId: string): string | null {
-	try {
-		const key = `offline_document_${sessionId}`;
-		return globalExtensionContext.globalState.get(key, null) as string | null;
-	} catch (error) {
-		logger.extension.warn('Failed to get document path from session', { error });
-		return null;
-	}
-}
-
-/**
- * Show collected responses to user
- */
-async function showCollectedResponses(sessionId: string, responses: any[]): Promise<void> {
-	try {
-		let content = '# Collected Responses\n\n';
-		
-		responses.forEach((response, index) => {
-			content += `## Question ${response.questionIndex + 1}\n`;
-			content += `**ID:** ${response.questionId}\n`;
-			content += `**Response:** ${response.response}\n`;
-			content += `**Time:** ${response.timestamp}\n\n`;
-		});
-
-		// Create a new untitled document with the responses
-		const doc = await vscode.workspace.openTextDocument({
-			content,
-			language: 'markdown'
-		});
-		
-		await vscode.window.showTextDocument(doc);
-	} catch (error) {
-		logger.extension.error('Failed to show collected responses', error instanceof Error ? error : new Error(String(error)));
-	}
-}
-
-/**
- * Clear offline session data
- */
-function clearOfflineSession(sessionId: string): void {
-	try {
-		const responseKey = `offline_responses_${sessionId}`;
-		const documentKey = `offline_document_${sessionId}`;
-		
-		globalExtensionContext.globalState.update(responseKey, undefined);
-		globalExtensionContext.globalState.update(documentKey, undefined);
-	} catch (error) {
-		logger.extension.warn('Failed to clear offline session', { error });
-	}
-}
-
-/**
- * Generate document content from gathered context
- */
-async function generateDocumentFromContext(sessionId: string, conversationManager: ConversationManager): Promise<void> {
-	try {
-		// Check if we're in offline mode
-		const isOffline = offlineManager.isOffline();
-		
-		if (isOffline) {
-			// Handle offline document generation
-			await handleOfflineDocumentGeneration(sessionId);
-			return;
-		}
-
-		// Get conversation history to extract context
-		const history = conversationManager.getConversationHistory(sessionId);
-		const session = conversationManager.getActiveSession('prd-creator') || 
-						conversationManager.getActiveSession('requirements-gatherer') ||
-						conversationManager.getActiveSession('solution-architect') ||
-						conversationManager.getActiveSession('specification-writer');
-		
-		if (!session) {
-			vscode.window.showErrorMessage('Session not found for document generation');
-			return;
-		}
-
-		// Extract gathered context from conversation
-		const gatheredContext = extractContextFromHistory(history);
-		
-		// Get the appropriate agent for content generation
-		const agentName = session.agentName;
-		const agent = agentManager.getAgent(agentName);
-		
-		if (!agent) {
-			vscode.window.showErrorMessage(`Agent ${agentName} not found`);
-			return;
-		}
-
-		vscode.window.showInformationMessage('🔄 Generating document content from gathered context...');
-
-		// Create agent request for document generation
-		const agentContext: import('./agents/types').AgentContext = {
-			workspaceRoot: session.state.extractedData.get('workspaceRoot') || '',
-			extensionContext: globalExtensionContext,
-			previousOutputs: [],
-			workflowState: {
-				projectId: 'auto-generated',
-				currentPhase: session.state.phase as import('./agents/types').WorkflowPhase,
-				activeAgent: session.state.agentName || 'prd-creator',
-				documents: {},
-				context: {},
-				history: []
-			},
-			userPreferences: {
-				defaultDirectory: 'docs',
-				defaultAgent: session.state.agentName || 'prd-creator'
-			}
-		};
-
-		// Build prompt with gathered context
-		const contextPrompt = buildContextPrompt(gatheredContext, session.state.phase);
-		
-		// Create a mock ChatRequest for the originalRequest
-		const mockChatRequest = {
-			prompt: contextPrompt,
-			command: 'generate-content',
-			references: [],
-			location: undefined,
-			participant: 'docu',
-			toolReferences: [],
-			toolInvocationToken: undefined,
-			model: undefined
-		} as unknown as vscode.ChatRequest;
-		
-		const agentRequest: import('./agents/types').ChatRequest = {
-			prompt: contextPrompt,
-			command: 'generate-content',
-			parameters: {},
-			originalRequest: mockChatRequest
-		};
-
-		try {
-			// Generate content using the agent
-			const response = await agent.handleRequest(agentRequest, agentContext);
-			
-			if (response.success && response.content) {
-				// Update the document with generated content
-				const documentPath = session.state.extractedData.get('documentPath') || '';
-				await updateDocumentWithGeneratedContent(documentPath, response.content, gatheredContext);
-				
-				vscode.window.showInformationMessage('✅ Document updated with generated content!');
-				
-				// End the conversation
-				await conversationManager.endConversation(sessionId);
-			} else {
-				// Fallback to offline mode if AI generation fails
-				vscode.window.showWarningMessage('AI generation failed. Falling back to manual editing mode.');
-				await handleOfflineDocumentGeneration(sessionId, gatheredContext);
-			}
-		} catch (agentError) {
-			// Fallback to offline mode if agent fails
-			logger.extension.warn('Agent failed, falling back to offline mode', { error: agentError });
-			vscode.window.showWarningMessage('AI features unavailable. Falling back to manual editing mode.');
-			await handleOfflineDocumentGeneration(sessionId, gatheredContext);
-		}
-
-	} catch (error) {
-		logger.extension.error('Failed to generate document from context', error instanceof Error ? error : new Error(String(error)));
-		vscode.window.showErrorMessage(`Failed to generate document: ${error instanceof Error ? error.message : String(error)}`);
-	}
-}
-
-/**
- * Handle document generation in offline mode
- */
-async function handleOfflineDocumentGeneration(sessionId: string, gatheredContext?: Record<string, any>): Promise<void> {
-	try {
-		// Get offline responses if available
-		const offlineResponses = getStoredOfflineResponses(sessionId);
-		const documentPath = getDocumentPathFromSession(sessionId);
-		
-		if (!documentPath) {
-			vscode.window.showErrorMessage('Document path not found for offline generation');
-			return;
-		}
-
-		// Create structured content from responses
-		let content = '# Document Content\n\n';
-		content += '*Generated from offline context gathering*\n\n';
-		
-		if (offlineResponses.length > 0) {
-			content += '## Gathered Information\n\n';
-			offlineResponses.forEach((response, index) => {
-				content += `### ${response.questionId || `Question ${index + 1}`}\n`;
-				content += `${response.response}\n\n`;
-			});
-		}
-
-		if (gatheredContext && gatheredContext.responses) {
-			content += '## Additional Context\n\n';
-			(gatheredContext.responses as string[]).forEach((response, index) => {
-				content += `**Response ${index + 1}:** ${response}\n\n`;
-			});
-		}
-
-		content += '\n---\n\n';
-		content += '*This document was created in offline mode. You can now edit it manually or use AI features when they become available.*\n';
-
-		// Update the document with offline content
-		await updateDocumentWithOfflineContent(documentPath, content);
-		
-		// Open the document for editing
-		await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(documentPath));
-		
-		vscode.window.showInformationMessage('✅ Document updated with offline content. You can now edit it manually.');
-		
-		// Clean up offline session
-		clearOfflineSession(sessionId);
-
-	} catch (error) {
-		logger.extension.error('Failed to handle offline document generation', error instanceof Error ? error : new Error(String(error)));
-		vscode.window.showErrorMessage('Failed to generate offline document content');
-	}
-}
-
-/**
- * Update document with offline content
- */
-async function updateDocumentWithOfflineContent(documentPath: string, content: string): Promise<void> {
-	try {
-		// Read existing document
-		const uri = vscode.Uri.file(documentPath);
-		let existingContent = '';
-		
-		try {
-			const document = await vscode.workspace.openTextDocument(uri);
-			existingContent = document.getText();
-		} catch (error) {
-			// Document doesn't exist or can't be read, will create new
-		}
-
-		// Append or replace content
-		let newContent = content;
-		if (existingContent.trim()) {
-			newContent = existingContent + '\n\n' + content;
-		}
-
-		// Write updated content
-		const edit = new vscode.WorkspaceEdit();
-		edit.createFile(uri, { overwrite: true });
-		edit.insert(uri, new vscode.Position(0, 0), newContent);
-		
-		await vscode.workspace.applyEdit(edit);
-		
-	} catch (error) {
-		logger.extension.error('Failed to update document with offline content', error instanceof Error ? error : new Error(String(error)));
-		throw error;
-	}
-}
-
-/**
- * Extract structured context from conversation history
- */
-function extractContextFromHistory(history: any[]): Record<string, any> {
-	const context: Record<string, any> = {};
-	const responses: string[] = [];
-	
-	// Simple extraction - in a real implementation, this would be more sophisticated
-	for (const turn of history) {
-		if (turn.type === 'response' && turn.content) {
-			responses.push(turn.content);
-		}
-	}
-	
-	context.responses = responses;
-	return context;
-}
-
-/**
- * Build context prompt for agent
- */
-function buildContextPrompt(gatheredContext: Record<string, any>, phase: string): string {
+// Legacy function removed - context prompts now handled by agents
 	const responses = (gatheredContext.responses as string[]) || [];
 	
 	if (phase === 'prd') {
@@ -1621,82 +1032,11 @@ Please create detailed sections for Executive Summary, Product Objectives, User 
 	
 	if (phase === 'requirements') {
 		return `Generate detailed requirements based on this context:
-Functional Requirements: ${responses[0] || 'Not specified'}
-User Stories: ${responses[1] || 'Not specified'}
-Performance Requirements: ${responses[2] || 'Not specified'}
-Security Requirements: ${responses[3] || 'Not specified'}
+// Legacy function body removed
 
-Please create structured requirements with clear acceptance criteria.`;
-	}
-	
-	return 'Generate appropriate content based on the gathered context.';
-}
+// Legacy function removed - document updates now handled by ConversationManager
 
-/**
- * Update document with generated content
- */
-async function updateDocumentWithGeneratedContent(
-	documentPath: string, 
-	generatedContent: string, 
-	gatheredContext: Record<string, any>
-): Promise<void> {
-	try {
-		// Read current document
-		const document = await vscode.workspace.openTextDocument(documentPath);
-		const currentContent = document.getText();
-		
-		// Replace placeholders with generated content
-		let updatedContent = currentContent;
-		const responses = (gatheredContext.responses as string[]) || [];
-		
-		// Simple placeholder replacement - in a real implementation, 
-		// this would be more sophisticated and section-specific
-		updatedContent = updatedContent.replace(/\[TODO: Brief overview.*?\]/g, responses[0] || '[Generated content]');
-		updatedContent = updatedContent.replace(/\[TODO: Define primary goal\]/g, responses[2] || '[Generated goal]');
-		updatedContent = updatedContent.replace(/\[TODO: Define success criteria\]/g, responses[3] || '[Generated criteria]');
-		
-		// Write updated content
-		const edit = new vscode.WorkspaceEdit();
-		edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), updatedContent);
-		await vscode.workspace.applyEdit(edit);
-		
-		// Save the document
-		await document.save();
-		
-	} catch (error) {
-		logger.extension.error('Failed to update document with generated content', error instanceof Error ? error : new Error(String(error)));
-		throw error;
-	}
-}
 
-/**
- * Determine if a conversation should be started for the given template and flags
- */
-function shouldStartConversation(templateId: string, withPlaceholders: boolean, flags: Record<string, any>): boolean {
-	// Check for explicit conversation flags
-	if (flags['with-conversation'] || flags['wc']) {
-		return true;
-	}
-	
-	// Check for explicit no-conversation flags
-	if (flags['no-conversation'] || flags['nc']) {
-		return false;
-	}
-	
-	// Auto-start for structured templates with placeholders
-	if (withPlaceholders) {
-		return true;
-	}
-	
-	// Auto-start for specific templates that benefit from conversations
-	const conversationTemplates = ['prd', 'requirements', 'design', 'specification'];
-	if (conversationTemplates.includes(templateId)) {
-		return true;
-	}
-	
-	// Default to no conversation for basic templates
-	return false;
-}
 
 /**
  * Handle the /new command
@@ -1765,7 +1105,7 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 		
 		if (withPlaceholders) {
 			// Get the template to add placeholder values for required variables
-			const template = templateManager.getTemplate(templateId);
+			const template = await templateService.getTemplate(templateId);
 			if (template) {
 				// Add placeholder values for required variables that are missing
 				for (const variable of template.variables) {
@@ -1859,19 +1199,44 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				}
 			}
 
-			// Auto-start context gathering conversation for structured templates or when appropriate
-			if (conversationManager && shouldStartConversation(templateId, withPlaceholders, parsedCommand.flags)) {
-				await startContextGatheringConversation(templateId, title, outputPath, context, conversationManager);
-			}
-
-
-
 			const duration = telemetryManager.endPerformanceMetric('command.new');
 			logger.command.info('New command completed successfully', { title, templateId, duration });
 			telemetryManager.trackCommand('new', true, duration);
 			telemetryManager.trackTemplateUsage(templateId, 'create', true);
 			
-			return { success: true, data: { path: outputPath, templateId } };
+			// Prepare conversation configuration for continuation using consolidated manager
+			const shouldContinue = conversationManager.shouldContinueWithConversation('new', parsedCommand.flags, templateId);
+			let conversationConfig = null;
+			
+			if (shouldContinue) {
+				conversationConfig = conversationManager.getConversationConfig('new', templateId);
+				if (conversationConfig) {
+					// Fill in the specific values
+					conversationConfig.documentPath = outputPath;
+					conversationConfig.title = title;
+					conversationConfig.conversationContext.documentPath = outputPath;
+					conversationConfig.conversationContext.title = title;
+					conversationConfig.conversationContext.workspaceRoot = context.workspaceRoot;
+					conversationConfig.conversationContext.extensionContext = context.extensionContext;
+				}
+			}
+			
+			// Show tips if not starting conversation automatically
+			if (!shouldContinue) {
+				const tipProvider = CommandTipProvider.getInstance();
+				const tips = tipProvider.getTipsForCommand('new', templateId, parsedCommand.flags);
+				const outputCoordinator = OutputCoordinator.getInstance();
+				outputCoordinator.addTips('new-command-tips', tips);
+			}
+
+			return { 
+				success: true, 
+				data: { path: outputPath, templateId },
+				shouldContinueConversation: shouldContinue,
+				conversationConfig: conversationConfig,
+				agentName: conversationConfig?.agentName,
+				documentPath: outputPath
+			};
 		} else {
 			const duration = performance.now() - startTime;
 			logger.command.error('New command failed', undefined, { title, templateId, error: result.error });
@@ -1991,27 +1356,39 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				}
 			} else {
 				context.stream.markdown(`❌ **Error listing templates:** ${result.error || 'Unknown error'}`);
-				return { success: false, error: result.error };
+				return { 
+					success: false, 
+					error: result.error,
+					shouldContinueConversation: false
+				};
 			}
 
 		} else if (subcommand === 'show') {
 			const templateId = parsedCommand.arguments[0];
 			if (!templateId) {
 				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** `/templates show <template-id>`');
-				return { success: false, error: 'Template ID is required' };
+				return { 
+					success: false, 
+					error: 'Template ID is required',
+					shouldContinueConversation: false
+				};
 			}
 
 			// Get template details
-			const template = templateManager.getTemplate(templateId);
+			const template = await templateService.getTemplate(templateId);
 			if (!template) {
 				context.stream.markdown(`❌ **Error:** Template '${templateId}' not found`);
-				return { success: false, error: 'Template not found' };
+				return { 
+					success: false, 
+					error: 'Template not found',
+					shouldContinueConversation: false
+				};
 			}
 
 			context.stream.markdown(`## 📄 Template: ${template.name}\n\n`);
 			context.stream.markdown(`**ID:** \`${template.id}\`\n`);
 			context.stream.markdown(`**Description:** ${template.description}\n`);
-			context.stream.markdown(`**Built-in:** ${templateManager.getTemplates().find(t => t.id === templateId)?.builtIn ? '✅ Yes' : '❌ No'}\n\n`);
+			context.stream.markdown(`**Built-in:** ${templateService.listTemplates().find(t => t.id === templateId) ? '✅ Yes' : '❌ No'}\n\n`);
 
 			if (template.variables.length > 0) {
 				context.stream.markdown('### Variables\n\n');
@@ -2040,7 +1417,11 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 			const templateId = parsedCommand.arguments[0];
 			if (!templateId) {
 				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** `/templates open <template-id> [--mode <edit|view>]`');
-				return { success: false, error: 'Template ID is required' };
+				return { 
+					success: false, 
+					error: 'Template ID is required',
+					shouldContinueConversation: false
+				};
 			}
 
 			const mode = (parsedCommand.flags.mode as string) || (parsedCommand.flags.m as string) || 'view';
@@ -2070,14 +1451,22 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				}
 			} else {
 				context.stream.markdown(`❌ **Error opening template:** ${result.error}`);
-				return { success: false, error: result.error };
+				return { 
+					success: false, 
+					error: result.error,
+					shouldContinueConversation: false
+				};
 			}
 
 		} else if (subcommand === 'validate') {
 			const templateId = parsedCommand.arguments[0];
 			if (!templateId) {
 				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** `/templates validate <template-id>`');
-				return { success: false, error: 'Template ID is required' };
+				return { 
+					success: false, 
+					error: 'Template ID is required',
+					shouldContinueConversation: false
+				};
 			}
 
 			const toolContext = {
@@ -2126,14 +1515,22 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				}
 			} else {
 				context.stream.markdown(`❌ **Error validating template:** ${result.error}`);
-				return { success: false, error: result.error };
+				return { 
+					success: false, 
+					error: result.error,
+					shouldContinueConversation: false
+				};
 			}
 
 		} else if (subcommand === 'create') {
 			const templateId = parsedCommand.arguments[0];
 			if (!templateId) {
 				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** `/templates create <template-id> [--name <name>] [--description <desc>] [--interactive]`');
-				return { success: false, error: 'Template ID is required' };
+				return { 
+					success: false, 
+					error: 'Template ID is required',
+					shouldContinueConversation: false
+				};
 			}
 
 			const name = (parsedCommand.flags.name as string) || (parsedCommand.flags.n as string);
@@ -2167,24 +1564,39 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				}
 
 				// Reload templates to make the new template available
-				await templateManager.reloadTemplates();
+				await templateService.reloadTemplates();
 				context.stream.markdown(`\n🔄 *Templates reloaded - new template is now available*\n`);
 			} else {
 				context.stream.markdown(`❌ **Error creating template:** ${result.error}`);
-				return { success: false, error: result.error };
+				return { 
+					success: false, 
+					error: result.error,
+					shouldContinueConversation: false
+				};
 			}
 
 		} else {
 			context.stream.markdown(`❌ **Error:** Unknown subcommand '${subcommand}'\n\n**Available subcommands:** list, show, open, validate, create`);
-			return { success: false, error: 'Unknown subcommand' };
+			return { 
+				success: false, 
+				error: 'Unknown subcommand',
+				shouldContinueConversation: false
+			};
 		}
 
-		return { success: true };
+		return { 
+			success: true,
+			shouldContinueConversation: false
+		};
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
 	}
 }/*
 *
@@ -2277,7 +1689,30 @@ async function handleUpdateCommand(parsedCommand: ParsedCommand, context: Comman
 			context.stream.markdown(`- Mode: ${mode}\n`);
 			context.stream.markdown(`- Changed: ${result.data?.changed ? '✅ Yes' : '❌ No'}\n`);
 
-			return { success: true, data: { path: filePath, section: sectionHeader, mode, changed: result.data?.changed } };
+			// Check if conversation continuation is requested using consolidated manager
+			const shouldContinue = conversationManager.shouldContinueWithConversation('update', parsedCommand.flags);
+			let conversationConfig = null;
+			
+			if (shouldContinue) {
+				conversationConfig = conversationManager.getConversationConfig('update');
+				if (conversationConfig) {
+					conversationConfig.documentPath = filePath;
+					conversationConfig.title = `Review of ${path.basename(filePath)}`;
+					conversationConfig.conversationContext.documentPath = filePath;
+					conversationConfig.conversationContext.title = conversationConfig.title;
+					conversationConfig.conversationContext.workspaceRoot = context.workspaceRoot;
+					conversationConfig.conversationContext.extensionContext = context.extensionContext;
+				}
+			}
+
+			return { 
+				success: true, 
+				data: { path: filePath, section: sectionHeader, mode, changed: result.data?.changed },
+				shouldContinueConversation: shouldContinue,
+				conversationConfig: conversationConfig,
+				agentName: conversationConfig?.agentName,
+				documentPath: filePath
+			};
 		} else {
 			context.stream.markdown(`❌ **Error updating document:** ${result.error}`);
 			
@@ -2311,14 +1746,22 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 
 		if (!filePath) {
 			context.stream.markdown('❌ **Error:** File path is required\n\n**Usage:** `/review --file <path> [--level <level>] [--fix]`');
-			return { success: false, error: 'File path is required' };
+			return { 
+				success: false, 
+				error: 'File path is required',
+				shouldContinueConversation: false
+			};
 		}
 
 		// Validate review level
 		const validLevels = ['light', 'normal', 'strict'];
 		if (!validLevels.includes(level)) {
 			context.stream.markdown(`❌ **Error:** Invalid review level '${level}'. Valid levels are: ${validLevels.join(', ')}`);
-			return { success: false, error: 'Invalid review level' };
+			return { 
+				success: false, 
+				error: 'Invalid review level',
+				shouldContinueConversation: false
+			};
 		}
 
 		context.stream.markdown(`🔍 Reviewing document: **${filePath}**\n`);
@@ -2389,6 +1832,14 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 				}
 			}
 
+			// Check if there are issues that might need follow-up
+			const issuesFound = result.data?.issuesFound || 0;
+			const shouldContinue = issuesFound > 0 && !autoFix;
+			
+			if (shouldContinue) {
+				context.stream.markdown('\n💬 **Would you like me to help fix any of these issues or provide more detailed explanations?**\n');
+			}
+
 			return { 
 				success: true, 
 				data: { 
@@ -2397,7 +1848,16 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 					autoFix,
 					issuesFound: result.data?.issuesFound || 0,
 					fixesApplied: result.data?.fixesApplied || 0
-				} 
+				},
+				shouldContinueConversation: shouldContinue,
+				conversationContext: {
+					command: 'review',
+					filePath,
+					level,
+					autoFix,
+					issuesFound,
+					agent: 'quality-reviewer'
+				}
 			};
 		} else {
 			context.stream.markdown(`❌ **Error during review:** ${result.message}`);
@@ -2410,13 +1870,21 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 				context.stream.markdown('- Verify you have read permissions for the file\n');
 			}
 
-			return { success: false, error: result.message };
+			return { 
+				success: false, 
+				error: result.message,
+				shouldContinueConversation: false
+			};
 		}
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
 	}
 }/*
 *
@@ -2457,7 +1925,11 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 			context.stream.markdown(`🎯 **Current active agent:** ${agents.find(a => a.active)?.name || 'None'}\n\n`);
 			context.stream.markdown('💡 *Use `/agent set <name>` to switch agents*\n');
 
-			return { success: true, data: { agents, count: agents.length } };
+			return { 
+				success: true, 
+				data: { agents, count: agents.length },
+				shouldContinueConversation: false
+			};
 
 		} else if (subcommand === 'set') {
 			const agentName = parsedCommand.arguments[0];
@@ -2469,46 +1941,70 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 			const success = agentManager.setCurrentAgent(agentName);
 			if (success) {
 				const agent = agentManager.getAgent(agentName);
-				context.stream.markdown(`✅ **Agent switched successfully!**\n\n`);
-				context.stream.markdown(`🤖 **Active agent:** ${agentName}\n`);
-				context.stream.markdown(`📋 **Workflow phase:** ${agent?.workflowPhase}\n`);
-				context.stream.markdown(`🛠️ **Available tools:** ${agent?.allowedTools.join(', ')}\n\n`);
 				
-				// Provide context about what this agent does
-				const agents = agentManager.listAgents();
-				const agentInfo = agents.find(a => a.name === agentName);
-				if (agentInfo) {
-					context.stream.markdown(`**About this agent:**\n${agentInfo.description}\n\n`);
+				// Check if auto-chat should be enabled after agent set
+				const config = vscode.workspace.getConfiguration('docu.autoChat');
+				const enableAfterAgentSet = config.get('enableAfterAgentSet', true);
+				
+				// Enable auto-chat mode if configured
+				const autoChatManager = conversationSessionRouter.getAutoChatManager();
+				if (autoChatManager && enableAfterAgentSet) {
+					autoChatManager.enableAutoChat(agentName);
+					
+					// Show auto-chat prompt
+					autoChatManager.showAutoChatPrompt(context.stream);
+				} else {
+					// Fallback display if auto-chat manager not available
+					context.stream.markdown(`✅ **Agent switched successfully!**\n\n`);
+					context.stream.markdown(`🤖 **Active agent:** ${agentName}\n`);
+					context.stream.markdown(`📋 **Workflow phase:** ${agent?.workflowPhase}\n`);
+					context.stream.markdown(`🛠️ **Available tools:** ${agent?.allowedTools.join(', ')}\n\n`);
+					
+					// Provide context about what this agent does
+					const agents = agentManager.listAgents();
+					const agentInfo = agents.find(a => a.name === agentName);
+					if (agentInfo) {
+						context.stream.markdown(`**About this agent:**\n${agentInfo.description}\n\n`);
+					}
+
+					// Suggest next steps based on the agent
+					context.stream.markdown('**Suggested next steps:**\n');
+					switch (agent?.workflowPhase) {
+						case 'prd':
+							context.stream.markdown('- Start with `/new "Product Name"` to create a PRD\n');
+							context.stream.markdown('- Use conversational prompts to explore your product idea\n');
+							break;
+						case 'requirements':
+							context.stream.markdown('- Create requirements with `/new "Requirements" --template requirements`\n');
+							context.stream.markdown('- Update sections with `/update --file requirements.md --section "Requirements"`\n');
+							break;
+						case 'design':
+							context.stream.markdown('- Create design document with `/new "Design" --template design`\n');
+							context.stream.markdown('- Focus on architecture and technical decisions\n');
+							break;
+						case 'implementation':
+							context.stream.markdown('- Review documents with `/review --file <path>`\n');
+							context.stream.markdown('- Create implementation plans and specifications\n');
+							break;
+					}
 				}
 
-				// Suggest next steps based on the agent
-				context.stream.markdown('**Suggested next steps:**\n');
-				switch (agent?.workflowPhase) {
-					case 'prd':
-						context.stream.markdown('- Start with `/new "Product Name"` to create a PRD\n');
-						context.stream.markdown('- Use conversational prompts to explore your product idea\n');
-						break;
-					case 'requirements':
-						context.stream.markdown('- Create requirements with `/new "Requirements" --template requirements`\n');
-						context.stream.markdown('- Update sections with `/update --file requirements.md --section "Requirements"`\n');
-						break;
-					case 'design':
-						context.stream.markdown('- Create design document with `/new "Design" --template design`\n');
-						context.stream.markdown('- Focus on architecture and technical decisions\n');
-						break;
-					case 'implementation':
-						context.stream.markdown('- Review documents with `/review --file <path>`\n');
-						context.stream.markdown('- Create implementation plans and specifications\n');
-						break;
-				}
-
-				return { success: true, data: { agentName, phase: agent?.workflowPhase } };
+				return { 
+					success: true, 
+					data: { agentName, phase: agent?.workflowPhase },
+					shouldContinueConversation: false,
+					autoChatEnabled: true
+				};
 			} else {
 				const availableAgents = agentManager.listAgents().map(a => a.name);
 				context.stream.markdown(`❌ **Error:** Agent '${agentName}' not found\n\n`);
 				context.stream.markdown(`**Available agents:** ${availableAgents.join(', ')}\n\n`);
 				context.stream.markdown('💡 *Use `/agent list` to see all available agents*\n');
-				return { success: false, error: 'Agent not found' };
+				return { 
+					success: false, 
+					error: 'Agent not found',
+					shouldContinueConversation: false
+				};
 			}
 
 		} else if (subcommand === 'current') {
@@ -2535,23 +2031,39 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 					context.stream.markdown(`- Documents: ${Object.keys(workflowState.documents).length} tracked\n\n`);
 				}
 
-				return { success: true, data: { agent: currentAgent.name, phase: currentAgent.workflowPhase } };
+				return { 
+					success: true, 
+					data: { agent: currentAgent.name, phase: currentAgent.workflowPhase },
+					shouldContinueConversation: false
+				};
 			} else {
 				context.stream.markdown('❌ **No active agent set**\n\n');
 				context.stream.markdown('💡 *Use `/agent set <name>` to activate an agent*\n');
 				context.stream.markdown('📋 *Use `/agent list` to see available agents*\n');
-				return { success: false, error: 'No active agent' };
+				return { 
+					success: false, 
+					error: 'No active agent',
+					shouldContinueConversation: false
+				};
 			}
 
 		} else {
 			context.stream.markdown(`❌ **Error:** Unknown subcommand '${subcommand}'\n\n**Available subcommands:** list, set, current`);
-			return { success: false, error: 'Unknown subcommand' };
+			return { 
+				success: false, 
+				error: 'Unknown subcommand',
+				shouldContinueConversation: false
+			};
 		}
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
 	}
 }
 
@@ -2565,7 +2077,11 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 
 		if (!globPattern) {
 			context.stream.markdown('❌ **Error:** Glob pattern is required\n\n**Usage:** `/summarize --glob <pattern> [--output <path>]`');
-			return { success: false, error: 'Glob pattern is required' };
+			return { 
+				success: false, 
+				error: 'Glob pattern is required',
+				shouldContinueConversation: false
+			};
 		}
 
 		context.stream.markdown(`📊 Generating summary for pattern: **${globPattern}**\n`);
@@ -2584,7 +2100,11 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 
 		if (!listResult.success || !listResult.data?.files) {
 			context.stream.markdown(`❌ **Error:** ${listResult.error || 'No files found matching pattern'}`);
-			return { success: false, error: listResult.error };
+			return { 
+				success: false, 
+				error: listResult.error,
+				shouldContinueConversation: false
+			};
 		}
 
 		const files = listResult.data.files;
@@ -2592,7 +2112,11 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 
 		if (files.length === 0) {
 			context.stream.markdown('ℹ️ No files found matching the pattern.');
-			return { success: true, data: { filesProcessed: 0 } };
+			return { 
+				success: true, 
+				data: { filesProcessed: 0 },
+				shouldContinueConversation: false
+			};
 		}
 
 		// Process files asynchronously to prevent UI blocking
@@ -2658,15 +2182,125 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 					filesProcessed: summaries.length, 
 					outputPath,
 					totalWords: summaries.reduce((sum, s) => sum + s.wordCount, 0)
-				} 
+				},
+				shouldContinueConversation: false
 			};
 		} else {
 			context.stream.markdown(`❌ **Error writing summary:** ${writeResult.error}`);
-			return { success: false, error: writeResult.error };
+			return { 
+				success: false, 
+				error: writeResult.error,
+				shouldContinueConversation: false
+			};
 		}
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
+	}
+}
+
+/**
+ * Handle the /diagnostic command
+ */
+async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
+	try {
+		const showConversation = parsedCommand.flags.conversation || parsedCommand.flags.c || parsedCommand.flags.all;
+		const showAgents = parsedCommand.flags.agents || parsedCommand.flags.a || parsedCommand.flags.all;
+		const showAll = parsedCommand.flags.all;
+
+		context.stream.markdown('# 🔍 Docu Diagnostic Information\n\n');
+
+		// Show conversation session information
+		if (showConversation || showAll) {
+			context.stream.markdown('## 💬 Conversation Sessions\n\n');
+			
+			const sessionState = conversationSessionRouter.getSessionState();
+			
+			if (sessionState.activeSessionId) {
+				context.stream.markdown(`**Active Session:** ${sessionState.activeSessionId}\n\n`);
+				
+				const metadata = conversationSessionRouter.getSessionMetadata(sessionState.activeSessionId);
+				if (metadata) {
+					context.stream.markdown('**Session Details:**\n');
+					context.stream.markdown(`- Agent: ${metadata.agentName}\n`);
+					context.stream.markdown(`- Document: ${metadata.documentPath || 'None'}\n`);
+					context.stream.markdown(`- Template: ${metadata.templateId || 'None'}\n`);
+					context.stream.markdown(`- Started: ${metadata.startedAt.toLocaleString()}\n`);
+					context.stream.markdown(`- Last Activity: ${metadata.lastActivity.toLocaleString()}\n`);
+					context.stream.markdown(`- Questions: ${metadata.questionCount}\n`);
+					context.stream.markdown(`- Responses: ${metadata.responseCount}\n\n`);
+				}
+			} else {
+				context.stream.markdown('**No active conversation session**\n\n');
+			}
+
+			if (sessionState.sessionsByAgent.size > 0) {
+				context.stream.markdown('**Sessions by Agent:**\n');
+				for (const [agent, sessionId] of sessionState.sessionsByAgent.entries()) {
+					context.stream.markdown(`- ${agent}: ${sessionId}\n`);
+				}
+				context.stream.markdown('\n');
+			}
+
+			if (sessionState.sessionMetadata.size > 0) {
+				context.stream.markdown(`**Total Sessions:** ${sessionState.sessionMetadata.size}\n\n`);
+			}
+		}
+
+		// Show agent information
+		if (showAgents || showAll) {
+			context.stream.markdown('## 🤖 Agent Information\n\n');
+			
+			const currentAgent = agentManager.getCurrentAgent();
+			if (currentAgent) {
+				context.stream.markdown(`**Current Agent:** ${currentAgent.name}\n`);
+				context.stream.markdown(`**Workflow Phase:** ${currentAgent.workflowPhase}\n\n`);
+			} else {
+				context.stream.markdown('**No active agent**\n\n');
+			}
+
+			const availableAgents = agentManager.listAgents();
+			context.stream.markdown('**Available Agents:**\n');
+			for (const agent of availableAgents) {
+				const isCurrent = currentAgent?.name === agent.name;
+				const marker = isCurrent ? '→' : ' ';
+				context.stream.markdown(`${marker} **${agent.name}**: ${agent.description}\n`);
+			}
+			context.stream.markdown('\n');
+		}
+
+		// Show system information if showing all
+		if (showAll) {
+			context.stream.markdown('## ⚙️ System Information\n\n');
+			
+			const isOffline = offlineManager.isOffline();
+			context.stream.markdown(`**Offline Mode:** ${isOffline ? 'Active' : 'Inactive'}\n`);
+			
+			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'None';
+			context.stream.markdown(`**Workspace:** ${workspaceRoot}\n`);
+			
+			context.stream.markdown(`**Extension Version:** ${globalExtensionContext.extension.packageJSON.version}\n\n`);
+		}
+
+		// Show helpful commands
+		context.stream.markdown('## 🛠️ Helpful Commands\n\n');
+		context.stream.markdown('- `/agent list` - List all available agents\n');
+		context.stream.markdown('- `/agent current` - Show current active agent\n');
+		context.stream.markdown('- `/agent set <name>` - Set active agent\n');
+		context.stream.markdown('- `/chat <message>` - Start conversation\n');
+		context.stream.markdown('- `/help` - Show command help\n\n');
+
+		return { success: true };
+
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+		logger.extension.error('Diagnostic command failed', error instanceof Error ? error : new Error(errorMessage));
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
 		return { success: false, error: errorMessage };
 	}
@@ -2685,11 +2319,25 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			context.stream.markdown('- `/chat Help me develop a PRD for my product`\n');
 			context.stream.markdown('- `/chat What are the key requirements for an e-commerce platform?`\n');
 			context.stream.markdown('- `/chat Review my document structure and suggest improvements`\n');
-			return { success: false, error: 'Message is required' };
+			return { 
+				success: false, 
+				error: 'Message is required',
+				shouldContinueConversation: false
+			};
 		}
 
-		// Check if there's an active agent
+		// Provide conversation state feedback using consolidated manager
 		const currentAgent = agentManager.getCurrentAgent();
+		
+		if (currentAgent) {
+			const outputCoordinator = OutputCoordinator.getInstance();
+			outputCoordinator.addSecondaryFeedback('conversation-state', {
+				type: 'conversation',
+				message: `Active conversation with ${currentAgent.name} agent`,
+				priority: 5,
+				source: 'conversation-state'
+			});
+		}
 		if (!currentAgent) {
 			context.stream.markdown('❌ **No active agent set**\n\n');
 			context.stream.markdown('You need to set an agent before starting a conversation.\n\n');
@@ -2701,7 +2349,11 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			}
 			
 			context.stream.markdown('\n💡 *Use `/agent set <name>` to activate an agent, then try your chat command again.*\n');
-			return { success: false, error: 'No active agent' };
+			return { 
+				success: false, 
+				error: 'No active agent',
+				shouldContinueConversation: false
+			};
 		}
 
 		// Check offline mode
@@ -2714,7 +2366,11 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			const offlineGuidance = getOfflineAgentGuidance(currentAgent.name, message);
 			context.stream.markdown(offlineGuidance);
 			
-			return { success: true, data: { mode: 'offline', agent: currentAgent.name } };
+			return { 
+				success: true, 
+				data: { mode: 'offline', agent: currentAgent.name },
+				shouldContinueConversation: false
+			};
 		}
 
 		// Process the chat message with the current agent
@@ -2749,7 +2405,16 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 				});
 			}
 
-			return { success: true, data: { agent: currentAgent.name, responseLength: agentResponse.content?.length || 0 } };
+			return { 
+				success: true, 
+				data: { agent: currentAgent.name, responseLength: agentResponse.content?.length || 0 },
+				shouldContinueConversation: true,
+				conversationContext: {
+					command: 'chat',
+					agent: currentAgent.name,
+					lastMessage: message
+				}
+			};
 			
 		} catch (agentError) {
 			logger.extension.error('Agent interaction failed', agentError instanceof Error ? agentError : new Error(String(agentError)));
@@ -2760,13 +2425,21 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			context.stream.markdown('- `/agent set <agent-name>` - Switch to a different agent\n');
 			context.stream.markdown('- `/help` - Get help with commands\n');
 
-			return { success: false, error: agentError instanceof Error ? agentError.message : String(agentError) };
+			return { 
+				success: false, 
+				error: agentError instanceof Error ? agentError.message : String(agentError),
+				shouldContinueConversation: false
+			};
 		}
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
 	}
 }
 
@@ -2919,7 +2592,11 @@ async function handleCatalogCommand(parsedCommand: ParsedCommand, context: Comma
 
 		if (!listResult.success || !listResult.data?.files) {
 			context.stream.markdown(`❌ **Error:** ${listResult.error || 'No files found matching pattern'}`);
-			return { success: false, error: listResult.error };
+			return { 
+				success: false, 
+				error: listResult.error,
+				shouldContinueConversation: false
+			};
 		}
 
 		const files = listResult.data.files;
@@ -2927,7 +2604,11 @@ async function handleCatalogCommand(parsedCommand: ParsedCommand, context: Comma
 
 		if (files.length === 0) {
 			context.stream.markdown('ℹ️ No files found matching the pattern.');
-			return { success: true, data: { filesProcessed: 0 } };
+			return { 
+				success: true, 
+				data: { filesProcessed: 0 },
+				shouldContinueConversation: false
+			};
 		}
 
 		// Process files to extract metadata
@@ -3015,17 +2696,26 @@ async function handleCatalogCommand(parsedCommand: ParsedCommand, context: Comma
 					filesProcessed: catalogEntries.length, 
 					outputPath,
 					totalSize: catalogEntries.reduce((sum, e) => sum + e.size, 0)
-				} 
+				},
+				shouldContinueConversation: false
 			};
 		} else {
 			context.stream.markdown(`❌ **Error writing catalog:** ${writeResult.error}`);
-			return { success: false, error: writeResult.error };
+			return { 
+				success: false, 
+				error: writeResult.error,
+				shouldContinueConversation: false
+			};
 		}
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
 	}
 }
 
@@ -3254,8 +2944,8 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 		}
 
 		// Reload templates if template directory changed
-		if (templateManager) {
-			await templateManager.loadUserTemplates();
+		if (templateService) {
+			await templateService.loadUserTemplates();
 		}
 
 		// Reload agent configurations if config directory changed
@@ -3284,7 +2974,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 
 		try {
 			if (event.type === 'template') {
-				await templateManager.loadUserTemplates();
+				await templateService.loadUserTemplates();
 				if (config.enableDebugLogging) {
 					console.log('Templates reloaded');
 				}
@@ -3301,70 +2991,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 		}
 	});
 
-	// Register context gathering continuation command
-	const continueContextGatheringCommand = vscode.commands.registerCommand('docu.continueContextGathering', async (sessionId: string, questionIndex: number, action: string) => {
-		try {
-			// Check if we're in offline mode
-			const isOffline = offlineManager.isOffline();
-			
-			if (!conversationManager && !isOffline) {
-				vscode.window.showErrorMessage('Conversation manager not available');
-				return;
-			}
-
-			if (action === 'generate') {
-				// Skip all remaining questions and generate document
-				if (isOffline) {
-					await handleOfflineDocumentCompletion(sessionId, { questions: [] });
-				} else {
-					await generateDocumentFromContext(sessionId, conversationManager!);
-				}
-				return;
-			}
-
-			if (action === 'skip') {
-				// Skip current question and move to next
-				if (isOffline) {
-					// In offline mode, just move to next question without storing response
-					await moveToNextContextQuestion(sessionId, questionIndex, null, conversationManager!);
-				} else {
-					await moveToNextContextQuestion(sessionId, questionIndex, null, conversationManager!);
-				}
-				return;
-			}
-
-			if (action === 'answer') {
-				// Prompt user for answer
-				const userResponse = await vscode.window.showInputBox({
-					prompt: 'Please provide your answer',
-					placeHolder: 'Type your answer here...',
-					ignoreFocusOut: true
-				});
-
-				if (userResponse) {
-					if (isOffline) {
-						// Store response offline and continue
-						await storeOfflineResponse(sessionId, questionIndex, `question_${questionIndex}`, userResponse);
-						await moveToNextContextQuestion(sessionId, questionIndex, userResponse, conversationManager!);
-					} else {
-						await moveToNextContextQuestion(sessionId, questionIndex, userResponse, conversationManager!);
-					}
-				}
-				return;
-			}
-
-		} catch (error) {
-			logger.extension.error('Failed to continue context gathering', error instanceof Error ? error : new Error(String(error)));
-			
-			// Provide helpful error message based on mode
-			const isOffline = offlineManager.isOffline();
-			const errorMsg = isOffline 
-				? 'Failed to continue offline context gathering. You can still edit your document manually.'
-				: `Failed to continue context gathering: ${error instanceof Error ? error.message : String(error)}`;
-			
-			vscode.window.showErrorMessage(errorMsg);
-		}
-	});
+	// Legacy context gathering command removed - conversation flow now handled by ConversationSessionRouter
 
 	// Register conversation continuation command
 	const continueConversationCommand = vscode.commands.registerCommand('docu.continueConversation', async (sessionId: string, responseType: string) => {
@@ -3406,7 +3033,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 		}
 	});
 
-	context.subscriptions.push(fileChangeCommand, continueContextGatheringCommand, continueConversationCommand);
+	context.subscriptions.push(fileChangeCommand, continueConversationCommand);
 
 	// Register configuration management commands
 	const showConfigCommand = vscode.commands.registerCommand('docu.showConfiguration', () => {

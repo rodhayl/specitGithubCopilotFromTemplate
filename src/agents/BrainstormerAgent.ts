@@ -40,7 +40,7 @@ Remember: Your goal is to facilitate creative thinking and help users explore th
         );
     }
 
-    async handleLegacyRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
+    async handleDirectRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
         try {
             // Check if there's a PRD to use as context
             let prdContext = '';

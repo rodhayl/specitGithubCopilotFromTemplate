@@ -40,8 +40,43 @@ Focus on creating comprehensive design.md documents that bridge the gap between 
     allowedTools = ['readFile', 'writeFile', 'insertSection', 'applyTemplate'];
     workflowPhase = 'design' as const;
 
-    async handleLegacyRequest(request: any, context: AgentContext): Promise<AgentResponse> {
-        return await this.handleRequest(request, context);
+    async handleDirectRequest(request: any, context: AgentContext): Promise<AgentResponse> {
+        try {
+            const prompt = request.prompt?.trim() || '';
+            
+            // Handle architecture design requests
+            if (prompt.includes('architecture') || prompt.includes('design') || prompt.includes('system')) {
+                return this.createResponse(
+                    `I'm the Solution Architect agent. I help design technical architectures and system solutions.\n\n` +
+                    `I can help you:\n` +
+                    `- Design system architecture\n` +
+                    `- Choose appropriate technologies\n` +
+                    `- Plan scalability and performance\n` +
+                    `- Define integration patterns\n\n` +
+                    `What architectural challenge are you working on?`,
+                    [],
+                    [
+                        'Design system architecture',
+                        'Choose technologies',
+                        'Plan for scalability'
+                    ]
+                );
+            }
+            
+            // Default response
+            return this.createResponse(
+                `I'm here to help with system architecture and technical design. What would you like to work on?`,
+                [],
+                ['Tell me about your system', 'Design architecture', 'Get technical guidance']
+            );
+            
+        } catch (error) {
+            return this.createResponse(
+                `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                [],
+                ['Try again', 'Get help']
+            );
+        }
     }
 
     async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {

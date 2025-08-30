@@ -1,149 +1,103 @@
-// Jest setup file for global test configuration
-import 'jest';
+// Mock vscode module for all tests
+jest.mock('vscode', () => ({
+	workspace: {
+		getConfiguration: jest.fn(() => ({
+			get: jest.fn(),
+			update: jest.fn(),
+			has: jest.fn()
+		})),
+		onDidChangeConfiguration: jest.fn(),
+		workspaceFolders: [{ uri: { fsPath: '/test/workspace' } }],
+		openTextDocument: jest.fn(),
+		applyEdit: jest.fn(),
+		fs: {
+			readFile: jest.fn(),
+			writeFile: jest.fn(),
+			stat: jest.fn(),
+			createDirectory: jest.fn()
+		}
+	},
+	window: {
+		showInformationMessage: jest.fn(),
+		showWarningMessage: jest.fn(),
+		showErrorMessage: jest.fn(),
+		showQuickPick: jest.fn(),
+		showInputBox: jest.fn(),
+		createOutputChannel: jest.fn()
+	},
+	Uri: {
+		file: jest.fn((path) => ({ fsPath: path, scheme: 'file' })),
+		joinPath: jest.fn((base, ...paths) => ({ fsPath: `${base.fsPath}/${paths.join('/')}`, scheme: 'file' })),
+		parse: jest.fn((uri) => ({ fsPath: uri, scheme: 'file' }))
+	},
+	ExtensionContext: jest.fn(),
+	ExtensionMode: {
+		Test: 3,
+		Development: 2,
+		Production: 1
+	},
+	EventEmitter: jest.fn(() => ({
+		event: jest.fn(),
+		fire: jest.fn(),
+		dispose: jest.fn()
+	})),
+	extensions: {
+		getExtension: jest.fn()
+	},
+	authentication: {
+		getSession: jest.fn()
+	},
+	lm: {
+		selectChatModels: jest.fn()
+	},
+	commands: {
+		registerCommand: jest.fn(),
+		executeCommand: jest.fn()
+	},
+	languages: {
+		createDiagnosticCollection: jest.fn()
+	},
+	StatusBarAlignment: {
+		Left: 1,
+		Right: 2
+	},
+	ConfigurationTarget: {
+		Global: 1,
+		Workspace: 2,
+		WorkspaceFolder: 3
+	},
+	WorkspaceEdit: jest.fn(() => ({
+		createFile: jest.fn(),
+		replace: jest.fn(),
+		insert: jest.fn(),
+		delete: jest.fn()
+	})),
+	Range: jest.fn((startLine, startChar, endLine, endChar) => ({
+		start: { line: startLine, character: startChar },
+		end: { line: endLine, character: endChar }
+	})),
+	Position: jest.fn((line, character) => ({ line, character })),
+	env: {
+		isTelemetryEnabled: true,
+		machineId: 'test-machine-id-12345'
+	}
+}), { virtual: true });
 
-// Global test timeout
-jest.setTimeout(10000);
-
-// Global VSCode mocking
-jest.mock('vscode', () => {
-  const mockWorkspace = {
-    openTextDocument: jest.fn(),
-    applyEdit: jest.fn(),
-    fs: {
-      createDirectory: jest.fn(),
-      writeFile: jest.fn(),
-      readFile: jest.fn()
-    },
-    workspaceFolders: [],
-    getConfiguration: jest.fn()
-  };
-
-  const mockUri = {
-    file: jest.fn(),
-    parse: jest.fn(),
-    joinPath: jest.fn(),
-    fsPath: '/test/path'
-  };
-
-  const MockRange = jest.fn().mockImplementation((start: any, end: any) => ({
-    start,
-    end
-  }));
-
-  const MockPosition = jest.fn().mockImplementation((line: number, character: number) => ({
-    line,
-    character
-  }));
-
-  const MockWorkspaceEdit = jest.fn().mockImplementation(() => ({
-    createFile: jest.fn(),
-    replace: jest.fn(),
-    insert: jest.fn(),
-    delete: jest.fn()
-  }));
-
-  return {
-    workspace: mockWorkspace,
-    Uri: mockUri,
-    Range: MockRange,
-    Position: MockPosition,
-    WorkspaceEdit: MockWorkspaceEdit,
-    window: {
-      showInformationMessage: jest.fn(),
-      showWarningMessage: jest.fn(),
-      showErrorMessage: jest.fn(),
-      createOutputChannel: jest.fn(() => ({
-        appendLine: jest.fn(),
-        show: jest.fn(),
-        clear: jest.fn()
-      })),
-      createWebviewPanel: jest.fn()
-    },
-    commands: {
-      registerCommand: jest.fn(),
-      executeCommand: jest.fn()
-    },
-    extensions: {
-      getExtension: jest.fn()
-    },
-    authentication: {
-      getSession: jest.fn()
-    },
-    lm: {
-      selectChatModels: jest.fn()
-    },
-    LanguageModelError: class LanguageModelError extends Error {
-      constructor(message: string, public code: string) {
-        super(message);
-      }
-    },
-    ViewColumn: {
-      One: 1
-    },
-    EventEmitter: jest.fn().mockImplementation(() => ({
-      event: jest.fn(),
-      fire: jest.fn(),
-      dispose: jest.fn()
-    })),
-    Disposable: jest.fn().mockImplementation(() => ({
-      dispose: jest.fn()
-    })),
-    
-    // ExtensionMode enum
-    ExtensionMode: {
-      Production: 1,
-      Development: 2,
-      Test: 3
-    },
-    
-    // Environment API
-    env: {
-      isTelemetryEnabled: true,
-      machineId: 'test-machine-id',
-      sessionId: 'test-session-id',
-      language: 'en',
-      shell: '/bin/bash'
-    }
-  };
-}, { virtual: true });
-
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
-  // Uncomment to ignore specific console methods during tests
-  // log: jest.fn(),
-  // debug: jest.fn(),
-  // info: jest.fn(),
-  // warn: jest.fn(),
-  // error: jest.fn(),
-};
-
-// Global test utilities
-declare global {
-  namespace jest {
-    interface Matchers<R> {
-      toBeValidExtensionResponse(): R;
-    }
-  }
-}
-
-// Custom Jest matchers for extension testing
-expect.extend({
-  toBeValidExtensionResponse(received: any) {
-    const pass = received && 
-                 typeof received === 'object' && 
-                 'content' in received;
-    
-    if (pass) {
-      return {
-        message: () => `expected ${received} not to be a valid extension response`,
-        pass: true,
-      };
-    } else {
-      return {
-        message: () => `expected ${received} to be a valid extension response with content property`,
-        pass: false,
-      };
-    }
-  },
-});
+// Mock Logger for tests to avoid initialization issues
+jest.mock('../logging/Logger', () => ({
+	Logger: {
+		initialize: jest.fn(),
+		getInstance: jest.fn(() => ({
+			info: jest.fn(),
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+			extension: {
+				info: jest.fn(),
+				error: jest.fn(),
+				warn: jest.fn(),
+				debug: jest.fn()
+			}
+		}))
+	}
+}));

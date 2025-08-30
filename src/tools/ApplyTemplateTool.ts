@@ -105,7 +105,7 @@ export class ApplyTemplateTool extends BaseTool {
             // Try to render template, handle missing variables gracefully
             let result;
             try {
-                result = this.templateManager.renderTemplate(params.templateId, renderContext);
+                result = await this.templateManager.renderTemplate(params.templateId, renderContext);
             } catch (templateError) {
                 if (templateError instanceof Error && templateError.message.includes('Missing required variables')) {
                     // Extract missing variables from error message
@@ -163,11 +163,11 @@ export class ApplyTemplateTool extends BaseTool {
 
                 // Create front matter + content
                 let fileContent = '';
-                if (Object.keys(result.frontMatter).length > 0) {
+                if (result.frontMatter && Object.keys(result.frontMatter).length > 0) {
                     const yaml = require('js-yaml');
-                    fileContent = '---\n' + yaml.dump(result.frontMatter) + '---\n\n' + result.content;
+                    fileContent = '---\n' + yaml.dump(result.frontMatter) + '---\n\n' + (result.content || '');
                 } else {
-                    fileContent = result.content;
+                    fileContent = result.content || '';
                 }
 
                 // Write file

@@ -9,6 +9,9 @@
   "engines": {
     "vscode": "^1.97.0"
   },
+  "extensionDependencies": [
+    "github.copilot-chat"
+  ],
   "categories": [
     "Other",
     "Documentation",
@@ -25,7 +28,8 @@
     "design"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onLanguage:*"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -57,6 +61,11 @@
       {
         "command": "docu.showOutput",
         "title": "Show Output Channel",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.test",
+        "title": "Test Extension",
         "category": "Docu"
       },
       {
@@ -233,6 +242,44 @@
           "description": "Skip model availability check during extension startup (models will be checked on first use)",
           "scope": "workspace"
         },
+        "docu.autoChat.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable auto-chat mode for seamless conversation flow after agent commands",
+          "scope": "workspace"
+        },
+        "docu.autoChat.timeoutMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 120,
+          "description": "Auto-chat session timeout in minutes",
+          "scope": "workspace"
+        },
+        "docu.autoChat.enableDocumentUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically update document files during conversations",
+          "scope": "workspace"
+        },
+        "docu.autoChat.showProgressIndicators": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show document update progress during conversations",
+          "scope": "workspace"
+        },
+        "docu.autoChat.enableAfterAgentSet": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically enable chat mode after setting an agent",
+          "scope": "workspace"
+        },
+        "docu.autoChat.enableAfterDocumentCreation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically enable chat mode after creating documents with --with-conversation flag",
+          "scope": "workspace"
+        },
         "docu.logging.level": {
           "type": "string",
           "default": "info",
@@ -341,6 +388,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:vscode": "vscode-test",
+    "test:conversation-flow": "jest --testPathPatterns=\"(CommandConversationFlow|ConversationErrorHandling|OnlineOfflineConversation)\" --verbose",
     "package": "vsce package",
     "publish": "vsce publish"
   },

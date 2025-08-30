@@ -11,14 +11,18 @@ class MockTemplateManager extends TemplateManager {
             name: 'Product Requirements Document',
             description: 'Template for creating PRDs',
             builtIn: true,
-            variables: []
+            variables: [],
+            content: '# {{title}}\n\nContent here',
+            frontMatter: {}
         },
         {
             id: 'user-template',
             name: 'User Template',
             description: 'User-defined template',
             builtIn: false,
-            variables: []
+            variables: [],
+            content: '# {{title}}\n\nUser content',
+            frontMatter: {}
         }
     ];
 

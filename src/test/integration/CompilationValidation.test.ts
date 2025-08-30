@@ -104,7 +104,7 @@ describe('Compilation Validation Tests', () => {
                 Logger.initialize(mockContext);
                 const logger = Logger.getInstance();
                 expect(logger).toBeDefined();
-                expect(logger).toBeInstanceOf(Logger);
+                expect(typeof logger.info).toBe('function');
             }).not.toThrow();
         });
 

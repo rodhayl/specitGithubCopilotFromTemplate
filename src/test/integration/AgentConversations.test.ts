@@ -232,8 +232,8 @@ describe('Agent Conversations Integration Tests', () => {
             assert.ok(agentConfig, 'Should have agent config for PRD template');
             assert.strictEqual(agentConfig.agentName, 'prd-creator');
             
-            // Simulate starting conversation
-            await simulateStartContextGatheringConversation(
+            // Simulate starting conversation with new system
+            await simulateConversationFlow(
                 templateId, 
                 title, 
                 outputPath, 
@@ -625,7 +625,7 @@ function getAgentConfigForTemplate(templateId: string) {
     return agentConfigs[templateId];
 }
 
-async function simulateStartContextGatheringConversation(
+async function simulateConversationFlow(
     templateId: string,
     title: string,
     outputPath: string,
