@@ -27,32 +27,41 @@ import { ConversationSessionRouter } from './conversation/ConversationSessionRou
 import { LLMService } from './llm/LLMService';
 import { SettingsWebviewProvider } from './config/SettingsWebviewProvider';
 import { SettingsCommand } from './commands/SettingsCommand';
+import { StateManager } from './state/StateManager';
 
-// Consolidated manager instances - single source of truth
-let templateService: TemplateService;
-let toolManager: ToolManager;
-let commandRouter: CommandRouter;
-let agentManager: AgentManager;
-let configManager: ConfigurationManager;
-let errorHandler: ErrorHandler;
-let offlineManager: OfflineManager;
-let securityManager: SecurityManager;
-let logger: Logger;
-let telemetryManager: TelemetryManager;
-let debugManager: DebugManager;
-let conversationManager: ConversationManager;
-let conversationFlowHandler: ConversationFlowHandler;
-let conversationSessionRouter: ConversationSessionRouter;
-let llmService: LLMService;
-let settingsProvider: SettingsWebviewProvider;
+// Centralized state management
+let stateManager: StateManager;
 let globalExtensionContext: vscode.ExtensionContext;
+
+// Component accessors (using StateManager)
+const getTemplateService = () => stateManager.getComponent<TemplateService>('templateService')!;
+const getToolManager = () => stateManager.getComponent<ToolManager>('toolManager')!;
+const getCommandRouter = () => stateManager.getComponent<CommandRouter>('commandRouter')!;
+const getAgentManager = () => stateManager.getComponent<AgentManager>('agentManager')!;
+const getConfigManager = () => stateManager.getComponent<ConfigurationManager>('configManager')!;
+const getErrorHandler = () => stateManager.getComponent<ErrorHandler>('errorHandler')!;
+const getOfflineManager = () => stateManager.getComponent<OfflineManager>('offlineManager')!;
+const getSecurityManager = () => stateManager.getComponent<SecurityManager>('securityManager')!;
+const getLogger = () => stateManager.getComponent<Logger>('logger')!;
+const getTelemetryManager = () => stateManager.getComponent<TelemetryManager>('telemetryManager')!;
+const getDebugManager = () => stateManager.getComponent<DebugManager>('debugManager')!;
+const getConversationManager = () => stateManager.getComponent<ConversationManager>('conversationManager')!;
+const getConversationFlowHandler = () => stateManager.getComponent<ConversationFlowHandler>('conversationFlowHandler')!;
+const getConversationSessionRouter = () => stateManager.getComponent<ConversationSessionRouter>('conversationSessionRouter')!;
+const getLLMService = () => stateManager.getComponent<LLMService>('llmService')!;
+const getSettingsProvider = () => stateManager.getComponent<SettingsWebviewProvider>('settingsProvider')!;
+const getOutputCoordinator = () => stateManager.getComponent<OutputCoordinator>('outputCoordinator')!;
 
 export async function activate(context: vscode.ExtensionContext) {
 	// Store global extension context
 	globalExtensionContext = context;
 	
+	// Initialize StateManager first for centralized state coordination
+	stateManager = StateManager.getInstance();
+	
 	// Initialize logging system first
-	logger = Logger.initialize(context);
+	const logger = Logger.initialize(context);
+	stateManager.registerComponent('logger', logger);
 	logger.extension.info('Docu extension activation started');
 	
 	// Show activation message to user for debugging
@@ -60,24 +69,31 @@ export async function activate(context: vscode.ExtensionContext) {
 	console.log('DOCU EXTENSION: Activation started');
 
 	// Initialize telemetry and debugging
-	telemetryManager = TelemetryManager.initialize(context);
-	debugManager = DebugManager.initialize(context);
+	const telemetryManager = TelemetryManager.initialize(context);
+	const debugManager = DebugManager.initialize(context);
+	stateManager.registerComponent('telemetryManager', telemetryManager);
+	stateManager.registerComponent('debugManager', debugManager);
 
 	// Initialize error handling and offline management
-	errorHandler = ErrorHandler.getInstance();
-	offlineManager = OfflineManager.getInstance();
+	const errorHandler = ErrorHandler.getInstance();
+	const offlineManager = OfflineManager.getInstance();
+	stateManager.registerComponent('errorHandler', errorHandler);
+	stateManager.registerComponent('offlineManager', offlineManager);
 
 	// Track activation start
 	telemetryManager.startPerformanceMetric('extension.activation');
 	debugManager.addDebugInfo('extension', 'info', 'Extension activation started');
 
 	// Initialize configuration manager
-	configManager = new ConfigurationManager(context);
+	const configManager = new ConfigurationManager(context);
+	stateManager.registerComponent('configManager', configManager);
 
 	// Initialize security manager
 	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+	let securityManager: SecurityManager | undefined;
 	if (workspaceRoot) {
 		securityManager = new SecurityManager(workspaceRoot);
+		stateManager.registerComponent('securityManager', securityManager);
 		
 		// Validate workspace security
 		const securityValidation = await securityManager.validateWorkspaceState();
@@ -111,16 +127,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	// Initialize consolidated template service
-	templateService = TemplateService.getInstance();
+	const templateService = TemplateService.getInstance();
 	templateService.initialize(context);
 	await templateService.loadUserTemplates();
+	stateManager.registerComponent('templateService', templateService);
 
 	// Initialize tool system with template service
-	toolManager = new ToolManager(templateService);
+	const toolManager = new ToolManager(templateService);
+	stateManager.registerComponent('toolManager', toolManager);
 
 	// Initialize agent manager
-	agentManager = new AgentManager(context);
+	const agentManager = new AgentManager(context);
 	await agentManager.loadConfigurations();
+	stateManager.registerComponent('agentManager', agentManager);
 
 	// Initialize consolidated conversation system
 	const questionEngine = new QuestionEngine();
@@ -129,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const workflowOrchestrator = new WorkflowOrchestrator();
 	const progressTracker = new ProgressTracker();
 	
-	conversationManager = new ConversationManager(
+	const conversationManager = new ConversationManager(
 		questionEngine,
 		responseProcessor,
 		contentCapture,
@@ -139,36 +158,42 @@ export async function activate(context: vscode.ExtensionContext) {
 		offlineManager,
 		agentManager
 	);
+	stateManager.registerComponent('conversationManager', conversationManager);
 	
-	conversationFlowHandler = new ConversationFlowHandler(
+	const conversationFlowHandler = new ConversationFlowHandler(
 		conversationManager,
 		agentManager,
 		offlineManager
 	);
+	stateManager.registerComponent('conversationFlowHandler', conversationFlowHandler);
 
 	// Initialize conversation session router
-	conversationSessionRouter = new ConversationSessionRouter(
+	const conversationSessionRouter = new ConversationSessionRouter(
 		conversationManager,
 		agentManager,
 		context,
 		offlineManager
 	);
+	stateManager.registerComponent('conversationSessionRouter', conversationSessionRouter);
 
 	// Set session router on conversation flow handler
 	conversationFlowHandler.setSessionRouter(conversationSessionRouter);
 
-	// Set up auto-chat integration for NewCommandHandler
+	// Get auto-chat components from the conversation session router
 	const autoChatManager = conversationSessionRouter.getAutoChatManager();
 	const documentUpdateEngine = conversationSessionRouter.getDocumentUpdateEngine();
 	
-	if (autoChatManager && documentUpdateEngine) {
-		// Get the NewCommandHandler instance and set up auto-chat integration
-		// This will be done in the command registration section
+	// Register auto-chat components with StateManager
+	if (autoChatManager) {
+		stateManager.registerComponent('autoChatManager', autoChatManager);
+	}
+	if (documentUpdateEngine) {
+		stateManager.registerComponent('documentUpdateEngine', documentUpdateEngine);
 	}
 
 	// Initialize LLM service
 	const preferredModel = configManager.get('preferredModel') as string;
-	llmService = new LLMService({ preferredModel: preferredModel || undefined });
+	const llmService = new LLMService({ preferredModel: preferredModel || undefined });
 	try {
 		await llmService.initialize();
 		logger.extension.info('LLM Service initialized successfully');
@@ -183,9 +208,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		});
 	}
+	stateManager.registerComponent('llmService', llmService);
 
 	// Initialize settings webview provider
-	settingsProvider = new SettingsWebviewProvider(context.extensionUri, agentManager, llmService);
+	const settingsProvider = new SettingsWebviewProvider(context.extensionUri, agentManager, llmService);
+	stateManager.registerComponent('settingsProvider', settingsProvider);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(SettingsWebviewProvider.viewType, settingsProvider)
 	);
@@ -232,21 +259,46 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// Initialize OutputCoordinator
+	const outputCoordinator = OutputCoordinator.getInstance();
+	stateManager.registerComponent('outputCoordinator', outputCoordinator);
+
 	// Initialize command router with consolidated conversation manager
-	commandRouter = new CommandRouter();
+	const agentManagerForCommandRouter = stateManager.getComponent('agentManager');
+	const commandRouter = new CommandRouter(agentManagerForCommandRouter as any);
+	stateManager.registerComponent('commandRouter', commandRouter);
 	
 	// Set conversation handlers on command router (using consolidated manager)
 	commandRouter.setConversationHandlers(
-		conversationFlowHandler,
-		conversationManager
+		stateManager.getComponent('conversationFlowHandler') as any,
+		stateManager.getComponent('conversationManager') as any
 	);
+
+	// Initialize ConversationBridge for improved command-to-conversation transitions
+	if ((commandRouter as any).conversationBridge) {
+		const commandRouterForConversationBridge = stateManager.getComponent('commandRouter');
+		if (commandRouterForConversationBridge) (commandRouterForConversationBridge as any).conversationBridge.initialize(
+			stateManager.getComponent('conversationFlowHandler') as any,
+			stateManager.getComponent('conversationManager') as any,
+			stateManager.getComponent('agentManager') as any,
+			stateManager.getComponent('outputCoordinator') as any
+		);
+		const loggerForConversationBridgeSuccess = stateManager.getComponent('logger');
+		if (loggerForConversationBridgeSuccess) (loggerForConversationBridgeSuccess as any).extension.info('ConversationBridge initialized successfully');
+	} else {
+		const loggerForConversationBridgeWarn = stateManager.getComponent('logger');
+		if (loggerForConversationBridgeWarn) (loggerForConversationBridgeWarn as any).extension.warn('ConversationBridge not available - using fallback conversation handling');
+	}
 
 	// Set up auto-chat integration
 	if (autoChatManager && documentUpdateEngine) {
-		commandRouter.setAutoChatIntegration(autoChatManager, documentUpdateEngine);
-		logger.extension.info('Auto-chat integration configured successfully');
+		const commandRouterForAutoChat = stateManager.getComponent('commandRouter');
+		if (commandRouterForAutoChat) (commandRouterForAutoChat as any).setAutoChatIntegration(autoChatManager, documentUpdateEngine);
+		const loggerForAutoChatSuccess = stateManager.getComponent('logger');
+		if (loggerForAutoChatSuccess) (loggerForAutoChatSuccess as any).extension.info('Auto-chat integration configured successfully');
 	} else {
-		logger.extension.warn('Auto-chat integration not available - some features may be limited');
+		const loggerForAutoChatWarn = stateManager.getComponent('logger');
+		if (loggerForAutoChatWarn) (loggerForAutoChatWarn as any).extension.warn('Auto-chat integration not available - some features may be limited');
 	}
 	
 	registerCustomCommands();
@@ -256,7 +308,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the @docu chat participant
 	try {
-		logger.extension.info('Registering chat participant');
+		const loggerForChatParticipantRegistration = stateManager.getComponent('logger');
+		if (loggerForChatParticipantRegistration) (loggerForChatParticipantRegistration as any).extension.info('Registering chat participant');
 		console.log('DOCU EXTENSION: About to create chat participant');
 		
 		// Check if chat API is available
@@ -296,13 +349,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		};
 
 		context.subscriptions.push(participant);
-		logger.extension.info('Chat participant registered successfully', { participantId: 'docu' });
+		const loggerForChatParticipant = stateManager.getComponent('logger');
+		if (loggerForChatParticipant) (loggerForChatParticipant as any).extension.info('Chat participant registered successfully', { participantId: 'docu' });
 		console.log('DOCU EXTENSION: Chat participant registered successfully and added to subscriptions');
 		vscode.window.showInformationMessage('Docu chat participant registered successfully!');
 		
 	} catch (participantError) {
 		const error = participantError instanceof Error ? participantError : new Error(String(participantError));
-		logger.extension.error('Failed to register chat participant', error);
+		const loggerForChatParticipantError = stateManager.getComponent('logger');
+		if (loggerForChatParticipantError) (loggerForChatParticipantError as any).extension.error('Failed to register chat participant', error);
 		console.error('DOCU EXTENSION: Failed to register chat participant:', error);
 		
 		// Show error to user
@@ -316,28 +371,35 @@ export async function activate(context: vscode.ExtensionContext) {
 		});
 		
 		// Don't throw - allow extension to continue activating
-		telemetryManager.trackError(error, { operation: 'chat-participant-registration' });
+		const telemetryManagerForChatParticipantError = stateManager.getComponent('telemetryManager');
+		if (telemetryManagerForChatParticipantError) (telemetryManagerForChatParticipantError as any).trackError(error, { operation: 'chat-participant-registration' });
 	}
 
 	// Complete activation
-	const activationDuration = telemetryManager.endPerformanceMetric('extension.activation');
-	logger.extension.info('Docu extension activation completed', { duration: activationDuration });
-	debugManager.addDebugInfo('extension', 'info', 'Extension activation completed', { duration: activationDuration });
-	telemetryManager.trackEvent('extension.activated', { success: true }, { duration: activationDuration || 0 });
+	const telemetryManagerForActivationDuration = stateManager.getComponent('telemetryManager');
+	const activationDuration = telemetryManagerForActivationDuration ? (telemetryManagerForActivationDuration as any).endPerformanceMetric('extension.activation') : 0;
+	const loggerForActivation = stateManager.getComponent('logger');
+		if (loggerForActivation) (loggerForActivation as any).extension.info('Docu extension activation completed', { duration: activationDuration });
+	const debugManagerForActivation = stateManager.getComponent('debugManager');
+		if (debugManagerForActivation) (debugManagerForActivation as any).addDebugInfo('extension', 'info', 'Extension activation completed', { duration: activationDuration });
+	const telemetryManagerForActivation = stateManager.getComponent('telemetryManager');
+		if (telemetryManagerForActivation) (telemetryManagerForActivation as any).trackEvent('extension.activated', { success: true }, { duration: activationDuration || 0 });
 
 	// Register debug commands
 	registerDebugCommands(context);
 
 	// Register settings command
+	// const settingsProvider = stateManager.getComponent('settingsProvider'); // Already declared above
 	context.subscriptions.push(
-		SettingsCommand.register(context, settingsProvider)
+		SettingsCommand.register(context, settingsProvider as SettingsWebviewProvider)
 	);
 
 	// Register a test command to verify extension is working
 	context.subscriptions.push(
 		vscode.commands.registerCommand('docu.test', () => {
 			vscode.window.showInformationMessage('Docu extension is active and working!');
-			logger.extension.info('Test command executed successfully');
+			const loggerForTestCommand = stateManager.getComponent('logger');
+		if (loggerForTestCommand) (loggerForTestCommand as any).extension.info('Test command executed successfully');
 		})
 	);
 }
@@ -349,14 +411,17 @@ async function handleChatRequest(
 	token: vscode.CancellationToken
 ): Promise<vscode.ChatResult> {
 	const startTime = performance.now();
-	logger.extension.info('Chat request received', { 
+	const loggerForChatRequest = stateManager.getComponent('logger');
+		if (loggerForChatRequest) (loggerForChatRequest as any).extension.info('Chat request received', { 
 		prompt: request.prompt.substring(0, 100),
 		command: request.command
 	});
-	telemetryManager.startPerformanceMetric('chat.request');
+	const telemetryManagerForChatRequest = stateManager.getComponent('telemetryManager');
+		if (telemetryManagerForChatRequest) (telemetryManagerForChatRequest as any).startPerformanceMetric('chat.request');
 	
 	// Add debug information about the request
-	debugManager.addDebugInfo('chat', 'info', 'Chat request received', {
+	const debugManagerForChat = stateManager.getComponent('debugManager');
+		if (debugManagerForChat) (debugManagerForChat as any).addDebugInfo('chat', 'info', 'Chat request received', {
 		prompt: request.prompt.substring(0, 100),
 		command: request.command,
 		timestamp: new Date().toISOString()
@@ -367,17 +432,22 @@ async function handleChatRequest(
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
 		// Ensure model availability (especially if startup check was skipped)
-		await offlineManager.ensureModelAvailability();
+		const offlineManagerForModel = stateManager.getComponent('offlineManager');
+		if (offlineManagerForModel) await (offlineManagerForModel as any).ensureModelAvailability();
 		
 		// Check offline mode status
-		if (offlineManager.isOffline()) {
-			logger.extension.warn('Chat request in offline mode');
+		const offlineManagerForOffline = stateManager.getComponent('offlineManager');
+		const loggerForOffline = stateManager.getComponent('logger');
+		if (offlineManagerForOffline && (offlineManagerForOffline as any).isOffline()) {
+			if (loggerForOffline) (loggerForOffline as any).extension.warn('Chat request in offline mode');
 			stream.markdown('⚠️ **Offline Mode Active** - Some AI features are unavailable.\n\n');
 		}
 
 		// Check if this is a command
-		if (commandRouter.isCommand(prompt)) {
-			logger.extension.info('Processing command', { prompt });
+		const commandRouterForIsCommand = stateManager.getComponent('commandRouter');
+		if (commandRouterForIsCommand && (commandRouterForIsCommand as any).isCommand(prompt)) {
+			const loggerForProcessingCommand = stateManager.getComponent('logger');
+		if (loggerForProcessingCommand) (loggerForProcessingCommand as any).extension.info('Processing command', { prompt });
 			
 			const commandContext: CommandContext = {
 				request,
@@ -388,9 +458,11 @@ async function handleChatRequest(
 			};
 
 			try {
-				const result = await commandRouter.routeCommand(prompt, commandContext);
+				const commandRouterForRoute = stateManager.getComponent('commandRouter');
+		const result = commandRouterForRoute ? await (commandRouterForRoute as any).routeCommand(prompt, commandContext) : { success: false, error: 'Command router not available' };
 				
-				logger.extension.info('Command execution result', { success: result.success, error: result.error });
+				const loggerForCommandResult = stateManager.getComponent('logger');
+		if (loggerForCommandResult) (loggerForCommandResult as any).extension.info('Command execution result', { success: result.success, error: result.error });
 				
 				if (!result.success && result.error) {
 					stream.markdown(`❌ **Error:** ${result.error}`);
@@ -404,25 +476,32 @@ async function handleChatRequest(
 					}
 				}
 
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
-				logger.extension.info('Chat command processed', { command: result.success, duration });
+				const telemetryManagerForDuration1 = stateManager.getComponent('telemetryManager');
+			const duration = telemetryManagerForDuration1 ? (telemetryManagerForDuration1 as any).endPerformanceMetric('chat.request') : 0;
+				const loggerForChatCommand = stateManager.getComponent('logger');
+		if (loggerForChatCommand) (loggerForChatCommand as any).extension.info('Chat command processed', { command: result.success, duration });
 				return { metadata: { command: request.command, success: result.success } };
 			} catch (commandError) {
-				logger.extension.error('Command execution failed', commandError instanceof Error ? commandError : new Error(String(commandError)));
+				const loggerForCommandError = stateManager.getComponent('logger');
+			if (loggerForCommandError) (loggerForCommandError as any).extension.error('Command execution failed', commandError instanceof Error ? commandError : new Error(String(commandError)));
 				stream.markdown(`❌ **Command execution failed:** ${commandError instanceof Error ? commandError.message : String(commandError)}`);
 				
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
+				const telemetryManagerForDuration2 = stateManager.getComponent('telemetryManager');
+		const duration = telemetryManagerForDuration2 ? (telemetryManagerForDuration2 as any).endPerformanceMetric('chat.request') : 0;
 				return { metadata: { command: request.command, success: false, error: commandError } };
 			}
 		}
 
 		// Handle non-command input - use conversation session routing
-		logger.extension.info('Processing non-command input', { prompt: prompt.substring(0, 100) });
+		const loggerForNonCommand = stateManager.getComponent('logger');
+		if (loggerForNonCommand) (loggerForNonCommand as any).extension.info('Processing non-command input', { prompt: prompt.substring(0, 100) });
 		
 		try {
 			// Check if we're in offline mode
-			if (offlineManager.isOffline()) {
-				const currentAgent = agentManager.getCurrentAgent();
+			const offlineManager = stateManager.getComponent('offlineManager');
+		if (offlineManager && (offlineManager as any).isOffline()) {
+			const agentManagerForOffline = stateManager.getComponent('agentManager');
+			const currentAgent = agentManagerForOffline ? (agentManagerForOffline as any).getCurrentAgent() : null;
 				if (currentAgent) {
 					stream.markdown(`🤖 **${currentAgent.name} (Offline Mode)**\n\n`);
 					stream.markdown('**Your message:** ' + prompt + '\n\n');
@@ -431,7 +510,8 @@ async function handleChatRequest(
 					const offlineGuidance = getOfflineAgentGuidance(currentAgent.name, prompt);
 					stream.markdown(offlineGuidance);
 					
-					const duration = telemetryManager.endPerformanceMetric('chat.request');
+					const telemetryManagerForDuration3 = stateManager.getComponent('telemetryManager');
+	const duration = telemetryManagerForDuration3 ? (telemetryManagerForDuration3 as any).endPerformanceMetric('chat.request') : 0;
 					return { metadata: { agent: currentAgent.name, mode: 'offline', duration } };
 				}
 			}
@@ -445,9 +525,11 @@ async function handleChatRequest(
 				extensionContext: context as any
 			};
 
-			const routingResult = await conversationSessionRouter.routeUserInput(prompt, commandContext);
-			
-			logger.extension.info('User input routed', { 
+			const conversationRouter = stateManager.getComponent('conversationSessionRouter');
+		const routingResult = conversationRouter ? await (conversationRouter as any).routeUserInput(prompt, commandContext) : { routedTo: 'error', error: 'Router not available' };
+
+		const loggerForRouting = stateManager.getComponent('logger');
+		if (loggerForRouting) (loggerForRouting as any).extension.info('User input routed', { 
 				routedTo: routingResult.routedTo,
 				sessionId: routingResult.sessionId,
 				agentName: routingResult.agentName
@@ -467,8 +549,9 @@ async function handleChatRequest(
 					stream.markdown('\n✅ **Conversation completed** - You can start a new conversation or use commands.\n');
 				}
 
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
-				telemetryManager.trackEvent('chat.conversation.continued', { sessionId: routingResult.sessionId });
+				const telemetryManagerForContinued = stateManager.getComponent('telemetryManager');
+			const duration = telemetryManagerForContinued ? (telemetryManagerForContinued as any).endPerformanceMetric('chat.request') : 0;
+			if (telemetryManagerForContinued) (telemetryManagerForContinued as any).trackEvent('chat.conversation.continued', { sessionId: routingResult.sessionId });
 				return { metadata: { type: 'conversation', sessionId: routingResult.sessionId, duration } };
 
 			} else if (routingResult.routedTo === 'agent') {
@@ -477,8 +560,9 @@ async function handleChatRequest(
 					stream.markdown(routingResult.response);
 				}
 
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
-				telemetryManager.trackEvent('chat.agent.conversation', { agent: routingResult.agentName });
+				const telemetryManagerForAgent = stateManager.getComponent('telemetryManager');
+			const duration = telemetryManagerForAgent ? (telemetryManagerForAgent as any).endPerformanceMetric('chat.request') : 0;
+			if (telemetryManagerForAgent) (telemetryManagerForAgent as any).trackEvent('chat.agent.conversation', { agent: routingResult.agentName });
 				return { metadata: { type: 'agent', agent: routingResult.agentName, duration } };
 
 			} else if (routingResult.routedTo === 'error') {
@@ -489,12 +573,14 @@ async function handleChatRequest(
 				stream.markdown('- `/agent set <agent-name>` - Set an active agent\n');
 				stream.markdown('- `/help` - Get help with commands\n');
 
-				const duration = telemetryManager.endPerformanceMetric('chat.request');
+				const telemetryManagerForError = stateManager.getComponent('telemetryManager');
+			const duration = telemetryManagerForError ? (telemetryManagerForError as any).endPerformanceMetric('chat.request') : 0;
 				return { metadata: { type: 'error', error: routingResult.error, duration } };
 			}
 
 		} catch (routingError) {
-			logger.extension.error('Conversation routing failed', routingError instanceof Error ? routingError : new Error(String(routingError)));
+			const loggerForRouting = stateManager.getComponent('logger');
+		if (loggerForRouting) (loggerForRouting as any).extension.error('Conversation routing failed', routingError instanceof Error ? routingError : new Error(String(routingError)));
 			
 			stream.markdown(`❌ **Routing Error:** ${routingError instanceof Error ? routingError.message : String(routingError)}\n\n`);
 			stream.markdown('**What you can try:**\n');
@@ -502,13 +588,16 @@ async function handleChatRequest(
 			stream.markdown('- `/agent set <agent-name>` - Switch to a different agent\n');
 			stream.markdown('- `/help` - Get help with commands\n');
 
-			const duration = telemetryManager.endPerformanceMetric('chat.request');
+			const telemetryManagerForRoutingError = stateManager.getComponent('telemetryManager');
+			const duration = telemetryManagerForRoutingError ? (telemetryManagerForRoutingError as any).endPerformanceMetric('chat.request') : 0;
 			return { metadata: { type: 'routing-error', error: true, duration } };
 		}
 		
 		// No active agent - show help and available commands
-		logger.extension.debug('Non-command chat input received, no active agent, showing help');
-		telemetryManager.trackEvent('chat.help.shown');
+		const loggerForDebug = stateManager.getComponent('logger');
+	const telemetryManagerForHelpEvent = stateManager.getComponent('telemetryManager');
+	if (loggerForDebug) (loggerForDebug as any).extension.debug('Non-command chat input received, no active agent, showing help');
+	if (telemetryManagerForHelpEvent) (telemetryManagerForHelpEvent as any).trackEvent('chat.help.shown');
 		
 		// Show helpful guidance
 		stream.markdown('👋 **Hello! I am the Docu AI assistant.**\n\n');
@@ -526,7 +615,8 @@ async function handleChatRequest(
 		stream.markdown('After setting an agent with `/agent set <name>`, you can have conversations to develop your documents. Available agents:\n\n');
 		
 		// Show available agents
-		const agents = agentManager.listAgents();
+		const agentManagerForList = stateManager.getComponent('agentManager');
+	const agents = agentManagerForList ? (agentManagerForList as any).listAgents() : [];
 		for (const agentInfo of agents) {
 			stream.markdown(`- **${agentInfo.name}** - ${agentInfo.description}\n`);
 		}
@@ -538,60 +628,133 @@ async function handleChatRequest(
 		
 		stream.markdown('**💬 Tip:** Once an agent is active, you can chat directly without using `/chat`!\n');
 
-		const duration = telemetryManager.endPerformanceMetric('chat.request');
+		const telemetryManagerForHelpDuration = stateManager.getComponent('telemetryManager');
+		const duration = telemetryManagerForHelpDuration ? (telemetryManagerForHelpDuration as any).endPerformanceMetric('chat.request') : 0;
 		return { metadata: { command: request.command, type: 'help', duration } };
 	} catch (error) {
 		const duration = performance.now() - startTime;
 		
-		// Handle error with comprehensive error handling
+		// Enhanced error handling with automatic recovery
 		const err = error instanceof Error ? error : new Error(String(error));
-		logger.extension.error('Chat request failed', err, { prompt: request.prompt.substring(0, 100) });
-		telemetryManager.trackError(err, { operation: 'chat-request', prompt: request.prompt.substring(0, 100) });
+		const { ErrorHandler } = await import('./error/ErrorHandler.js');
+		const errorHandler = ErrorHandler.getInstance();
 		
-		const errorReport = await errorHandler.handleError(err, {
+		const errorContext = ErrorHandler.createContext('chat-request', {
+			userInput: request.prompt.substring(0, 100),
+			agentName: request.command || 'unknown'
+		});
+		
+		// Attempt recovery for chat requests (they're often recoverable)
+		const errorReport = await errorHandler.handleErrorWithRecovery(err, errorContext, 2);
+		
+		// Log error with enhanced context
+		const loggerForError = stateManager.getComponent('logger');
+		const telemetryManagerForError = stateManager.getComponent('telemetry');
+		if (loggerForError) (loggerForError as any).extension.error('Chat request failed', err, { 
+			prompt: request.prompt.substring(0, 100),
+			errorCategory: errorReport.severity,
+			recoveryAttempted: errorReport.userMessage.includes('recovered')
+		});
+		if (telemetryManagerForError) (telemetryManagerForError as any).trackError(err, { 
+			operation: 'chat-request', 
+			prompt: request.prompt.substring(0, 100),
+			errorSeverity: errorReport.severity
+		});
+		
+		const errorHandlerForReport = stateManager.getComponent('errorHandler');
+		const legacyErrorReport = errorHandlerForReport ? await (errorHandlerForReport as any).handleError(err, {
 			operation: 'chat-request',
 			userInput: request.prompt,
 			timestamp: new Date()
-		});
+		}) : null;
 
-		stream.markdown(`❌ **Error:** ${errorReport.userMessage}`);
+		// Use the enhanced error report for better user experience
+		const displayErrorReport = errorReport || {
+			userMessage: err.message,
+			severity: 'medium' as const,
+			recoveryOptions: [],
+			technicalDetails: err.message
+		};
+
+		// Show user-friendly error message with severity-based formatting
+		const errorIcon = displayErrorReport.severity === 'critical' ? '🚨' : 
+						 displayErrorReport.severity === 'high' ? '⚠️' : 
+						 displayErrorReport.severity === 'medium' ? '❌' : 'ℹ️';
+
+		stream.markdown(`${errorIcon} **Error:** ${displayErrorReport.userMessage}`);
 		
-		if (errorReport.recoveryOptions.length > 0) {
-			stream.markdown('\n**What you can try:**\n');
-			for (const option of errorReport.recoveryOptions) {
-				stream.markdown(`- ${option.description}\n`);
+		// Show technical details only for high/critical errors or if recovery was attempted
+		if (displayErrorReport.severity === 'high' || displayErrorReport.severity === 'critical' || 
+			displayErrorReport.userMessage.includes('recovered')) {
+			stream.markdown(`\n\n**Technical Details:** ${displayErrorReport.technicalDetails}`);
+		}
+		
+		// Show recovery options if available
+		if (displayErrorReport.recoveryOptions && displayErrorReport.recoveryOptions.length > 0) {
+			stream.markdown('\n\n**What you can try:**\n');
+			for (const option of displayErrorReport.recoveryOptions) {
+				stream.markdown(`- ${option.description || option.label}\n`);
 			}
 		}
+		
+		// Add contextual help for common error scenarios
+		if (err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('timeout')) {
+			stream.markdown('\n\n💡 **Tip:** This appears to be a network-related issue. The system may have automatically attempted recovery.');
+		} else if (err.message.toLowerCase().includes('agent') || err.message.toLowerCase().includes('model')) {
+			stream.markdown('\n\n💡 **Tip:** Try setting a different agent with `/agent set <agent-name>` or check your AI service configuration.');
+		}
 
-		telemetryManager.endPerformanceMetric('chat.request');
-		return { metadata: { command: request.command, error: true, severity: errorReport.severity, duration } };
+		const telemetryManagerForEnd = stateManager.getComponent('telemetryManager');
+		if (telemetryManagerForEnd) (telemetryManagerForEnd as any).endPerformanceMetric('chat.request');
+		return { 
+			metadata: { 
+				command: request.command, 
+				error: true, 
+				severity: displayErrorReport.severity, 
+				duration,
+				recoveryAttempted: displayErrorReport.userMessage.includes('recovered'),
+				canRetry: displayErrorReport.recoveryOptions?.some((opt: any) => opt.label?.toLowerCase().includes('retry')) || false
+			} 
+		};
 	}
 }
 
 export function deactivate() {
-	logger?.extension.info('Docu extension deactivation started');
-	telemetryManager?.trackEvent('extension.deactivating');
+	const logger = stateManager?.getComponent('logger');
+	const telemetryManager = stateManager?.getComponent('telemetryManager');
+	
+	if (logger) (logger as any).extension.info('Docu extension deactivation started');
+	if (telemetryManager) (telemetryManager as any).trackEvent('extension.deactivating');
 
-	// Clean up managers
-	if (configManager) {
-		configManager.dispose();
-	}
+	// Clean up managers through StateManager
+	if (stateManager) {
+		const configManager = stateManager.getComponent('configManager');
+		if (configManager) {
+			(configManager as any).dispose();
+		}
 
-	if (errorHandler) {
-		errorHandler.clearHistory();
-	}
+		const errorHandler = stateManager.getComponent('errorHandler');
+		if (errorHandler) {
+			(errorHandler as any).clearHistory();
+		}
 
-	if (telemetryManager) {
-		telemetryManager.dispose();
-	}
+		if (telemetryManager) {
+			(telemetryManager as any).dispose();
+		}
 
-	if (debugManager) {
-		debugManager.dispose();
-	}
+		const debugManager = stateManager.getComponent('debugManager');
+		if (debugManager) {
+			(debugManager as any).dispose();
+		}
 
-	if (logger) {
-		logger.extension.info('Docu extension deactivated');
-		logger.dispose();
+		const loggerForDeactivate = stateManager.getComponent('logger');
+		if (loggerForDeactivate) {
+			(loggerForDeactivate as any).extension.info('Docu extension deactivated');
+			(loggerForDeactivate as any).dispose();
+		}
+		
+		// Dispose StateManager itself
+		stateManager.dispose();
 	}
 }
 
@@ -963,15 +1126,19 @@ function registerCustomCommands(): void {
 		}
 	};
 
-	commandRouter.registerCommand(newCommand);
-	commandRouter.registerCommand(templatesCommand);
-	commandRouter.registerCommand(updateCommand);
-	commandRouter.registerCommand(reviewCommand);
-	commandRouter.registerCommand(agentCommand);
-	commandRouter.registerCommand(summarizeCommand);
-	commandRouter.registerCommand(catalogCommand);
-	commandRouter.registerCommand(chatCommand);
-	commandRouter.registerCommand(diagnosticCommand);
+	const commandRouterForRegister = stateManager.getComponent('commandRouter');
+	if (commandRouterForRegister) {
+		(commandRouterForRegister as any).registerCommand(newCommand);
+		(commandRouterForRegister as any).registerCommand(templatesCommand);
+		(commandRouterForRegister as any).registerCommand(updateCommand);
+		(commandRouterForRegister as any).registerCommand(reviewCommand);
+		(commandRouterForRegister as any).registerCommand(agentCommand);
+		(commandRouterForRegister as any).registerCommand(summarizeCommand);
+		(commandRouterForRegister as any).registerCommand(catalogCommand);
+		(commandRouterForRegister as any).registerCommand(chatCommand);
+	}
+	const commandRouterForDiagnostic = stateManager.getComponent('commandRouter');
+	if (commandRouterForDiagnostic) (commandRouterForDiagnostic as any).registerCommand(diagnosticCommand);
 }
 
 
@@ -1043,18 +1210,23 @@ Please create detailed sections for Executive Summary, Product Objectives, User 
  */
 async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandContext): Promise<any> {
 	const startTime = performance.now();
-	logger.command.info('Handling /new command', { title: parsedCommand.arguments[0] });
-	telemetryManager.startPerformanceMetric('command.new');
+	const loggerForNew = stateManager.getComponent('logger');
+	const telemetryManagerForNew = stateManager.getComponent('telemetryManager');
+	if (loggerForNew) (loggerForNew as any).command.info('Handling /new command', { title: parsedCommand.arguments[0] });
+	if (telemetryManagerForNew) (telemetryManagerForNew as any).startPerformanceMetric('command.new');
 
 	try {
-		logger.command.info('New command started', { arguments: parsedCommand.arguments, flags: parsedCommand.flags });
+		const loggerForStart = stateManager.getComponent('logger');
+		if (loggerForStart) (loggerForStart as any).command.info('New command started', { arguments: parsedCommand.arguments, flags: parsedCommand.flags });
 		
 		// Get the title from arguments
 		const title = parsedCommand.arguments[0];
 		if (!title) {
 			const error = 'Document title is required';
-			logger.command.warn('New command failed: missing title');
-			telemetryManager.trackCommand('new', false, performance.now() - startTime, error);
+			const loggerForWarn = stateManager.getComponent('logger');
+			const telemetryManagerForWarn = stateManager.getComponent('telemetryManager');
+			if (loggerForWarn) (loggerForWarn as any).command.warn('New command failed: missing title');
+			if (telemetryManagerForWarn) (telemetryManagerForWarn as any).trackCommand('new', false, performance.now() - startTime, error);
 			context.stream.markdown('❌ **Error:** Document title is required\n\n**Usage:** `/new <title> [--template <template-id>] [--path <output-path>]`');
 			return { success: false, error };
 		}
@@ -1105,7 +1277,8 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 		
 		if (withPlaceholders) {
 			// Get the template to add placeholder values for required variables
-			const template = await templateService.getTemplate(templateId);
+			const templateServiceForPlaceholders = stateManager.getComponent('templateService');
+			const template = templateServiceForPlaceholders ? await (templateServiceForPlaceholders as any).getTemplate(templateId) : null;
 			if (template) {
 				// Add placeholder values for required variables that are missing
 				for (const variable of template.variables) {
@@ -1156,15 +1329,18 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			cancellationToken: context.token
 		};
 
-		logger.command.info('Executing applyTemplate tool', { templateId, outputPath, variables });
+		const loggerForExecute = stateManager.getComponent('logger');
+		const toolManagerForExecute = stateManager.getComponent('toolManager');
+		if (loggerForExecute) (loggerForExecute as any).command.info('Executing applyTemplate tool', { templateId, outputPath, variables });
 		
-		const result = await toolManager.executeTool('applyTemplate', {
+		const result = toolManagerForExecute ? await (toolManagerForExecute as any).executeTool('applyTemplate', {
 			templateId: templateId,
 			variables: JSON.stringify(variables),
 			outputPath: outputPath
-		}, toolContext);
+		}, toolContext) : { success: false, error: 'Tool manager not available' };
 		
-		logger.command.info('ApplyTemplate tool result', { success: result.success, error: result.error });
+		const loggerForApply = stateManager.getComponent('logger');
+		if (loggerForApply) (loggerForApply as any).command.info('ApplyTemplate tool result', { success: result.success, error: result.error });
 
 		if (result.success) {
 			context.stream.markdown('✅ **Document created successfully!**\n\n');
@@ -1175,13 +1351,15 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			context.stream.markdown(`📖 [Open ${relativePath}](${fileUri.toString()})\n\n`);
 			
 			// Also open the file automatically if autoSaveDocuments is enabled
-			const config = configManager.getConfiguration();
-			if (config.autoSaveDocuments) {
-				const openResult = await toolManager.executeTool('openInEditor', {
+			const configManager = stateManager.getComponent('configManager');
+			const config = configManager ? (configManager as any).getConfiguration() : null;
+			if (config && config.autoSaveDocuments) {
+				const toolManagerForOpen = stateManager.getComponent('toolManager');
+				const openResult = toolManagerForOpen ? await (toolManagerForOpen as any).executeTool('openInEditor', {
 					path: relativePath,
 					preview: false,
 					viewColumn: 1
-				}, toolContext);
+				}, toolContext) : { success: false, error: 'Tool manager not available' };
 				
 				if (openResult.success) {
 					context.stream.markdown('✨ *File opened in editor*\n\n');
@@ -1199,17 +1377,22 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				}
 			}
 
-			const duration = telemetryManager.endPerformanceMetric('command.new');
-			logger.command.info('New command completed successfully', { title, templateId, duration });
-			telemetryManager.trackCommand('new', true, duration);
-			telemetryManager.trackTemplateUsage(templateId, 'create', true);
+			const telemetryManager = stateManager.getComponent('telemetryManager');
+			const loggerForSuccess = stateManager.getComponent('logger');
+			const duration = telemetryManager ? (telemetryManager as any).endPerformanceMetric('command.new') : 0;
+			if (loggerForSuccess) (loggerForSuccess as any).command.info('New command completed successfully', { title, templateId, duration });
+			if (telemetryManager) {
+				(telemetryManager as any).trackCommand('new', true, duration);
+				(telemetryManager as any).trackTemplateUsage(templateId, 'create', true);
+			}
 			
 			// Prepare conversation configuration for continuation using consolidated manager
-			const shouldContinue = conversationManager.shouldContinueWithConversation('new', parsedCommand.flags, templateId);
+			const conversationManager = stateManager.getComponent('conversationManager');
+			const shouldContinue = conversationManager ? (conversationManager as any).shouldContinueWithConversation('new', parsedCommand.flags, templateId) : false;
 			let conversationConfig = null;
 			
-			if (shouldContinue) {
-				conversationConfig = conversationManager.getConversationConfig('new', templateId);
+			if (shouldContinue && conversationManager) {
+				conversationConfig = (conversationManager as any).getConversationConfig('new', templateId);
 				if (conversationConfig) {
 					// Fill in the specific values
 					conversationConfig.documentPath = outputPath;
@@ -1239,8 +1422,10 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			};
 		} else {
 			const duration = performance.now() - startTime;
-			logger.command.error('New command failed', undefined, { title, templateId, error: result.error });
-			telemetryManager.trackCommand('new', false, duration, result.error);
+			const logger = stateManager.getComponent('logger');
+			const telemetryManager = stateManager.getComponent('telemetryManager');
+			if (logger) (logger as any).command.error('New command failed', undefined, { title, templateId, error: result.error });
+			if (telemetryManager) (telemetryManager as any).trackCommand('new', false, duration, result.error);
 			
 			// Enhanced error handling for different error types
 			if (result.metadata?.workspaceRequired || result.error?.includes('workspace')) {
@@ -1283,12 +1468,64 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 
 	} catch (error) {
 		const duration = performance.now() - startTime;
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-		logger.command.error('New command exception', error instanceof Error ? error : new Error(errorMessage), { title: parsedCommand.arguments[0] });
-		telemetryManager.trackCommand('new', false, duration, errorMessage);
-		telemetryManager.trackError(error instanceof Error ? error : new Error(errorMessage), { command: 'new' });
-		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
-		return { success: false, error: errorMessage };
+		const err = error instanceof Error ? error : new Error(String(error));
+		
+		// Enhanced error handling with recovery
+		const { ErrorHandler } = await import('./error/ErrorHandler.js');
+		const errorHandler = ErrorHandler.getInstance();
+		const errorContext = ErrorHandler.createContext('new-command', {
+			userInput: parsedCommand.arguments[0],
+			filePath: parsedCommand.flags.path as string
+		});
+		
+		const errorReport = await errorHandler.handleErrorWithRecovery(err, errorContext, 1);
+		
+		// Log with enhanced context
+		const logger = stateManager.getComponent('logger');
+		const telemetryManager = stateManager.getComponent('telemetryManager');
+		if (logger) (logger as any).command.error('New command exception', err, { 
+			title: parsedCommand.arguments[0],
+			errorSeverity: errorReport.severity,
+			recoveryAttempted: errorReport.userMessage.includes('recovered')
+		});
+		if (telemetryManager) {
+			(telemetryManager as any).trackCommand('new', false, duration, errorReport.userMessage);
+			(telemetryManager as any).trackError(err, { 
+				command: 'new',
+				errorSeverity: errorReport.severity
+			});
+		}
+		
+		// Show user-friendly error with recovery options
+		const errorIcon = errorReport.severity === 'critical' ? '🚨' : 
+						 errorReport.severity === 'high' ? '⚠️' : '❌';
+		
+		context.stream.markdown(`${errorIcon} **Error:** ${errorReport.userMessage}`);
+		
+		// Show recovery options if available
+		if (errorReport.recoveryOptions && errorReport.recoveryOptions.length > 0) {
+			context.stream.markdown('\n\n**What you can try:**\n');
+			for (const option of errorReport.recoveryOptions) {
+				context.stream.markdown(`- ${option.description || option.label}\n`);
+			}
+		}
+		
+		// Add specific guidance for new command errors
+		if (err.message.toLowerCase().includes('workspace')) {
+			context.stream.markdown('\n\n💡 **Tip:** Open a folder in VS Code first, then try creating the document again.');
+		} else if (err.message.toLowerCase().includes('template')) {
+			context.stream.markdown('\n\n💡 **Tip:** Try using the basic template: `/new "Your Title" --template basic`');
+		}
+		
+		return { 
+			success: false, 
+			error: errorReport.userMessage,
+			metadata: {
+				errorSeverity: errorReport.severity,
+				recoveryAttempted: errorReport.userMessage.includes('recovered'),
+				canRetry: errorReport.recoveryOptions?.some((opt: any) => opt.label?.toLowerCase().includes('retry')) || false
+			}
+		};
 	}
 }
 
@@ -1311,7 +1548,12 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				cancellationToken: context.token
 			};
 
-			const result = await toolManager.executeTool('listTemplates', {
+			const toolManagerForList = stateManager.getComponent('toolManager');
+		if (!toolManagerForList) {
+			context.stream.markdown('❌ **Error:** Tool manager not available');
+			return { success: false, error: 'Tool manager not available' };
+		}
+		const result = await (toolManagerForList as any).executeTool('listTemplates', {
 				agentName: agentFilter,
 				includeVariables: verbose
 			}, toolContext);
@@ -1375,7 +1617,12 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 			}
 
 			// Get template details
-			const template = await templateService.getTemplate(templateId);
+			const templateService = stateManager.getComponent('templateService');
+			if (!templateService) {
+				context.stream.markdown('❌ **Error:** Template service not available');
+				return { success: false, error: 'Template service not available', shouldContinueConversation: false };
+			}
+			const template = await (templateService as any).getTemplate(templateId);
 			if (!template) {
 				context.stream.markdown(`❌ **Error:** Template '${templateId}' not found`);
 				return { 
@@ -1388,7 +1635,8 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 			context.stream.markdown(`## 📄 Template: ${template.name}\n\n`);
 			context.stream.markdown(`**ID:** \`${template.id}\`\n`);
 			context.stream.markdown(`**Description:** ${template.description}\n`);
-			context.stream.markdown(`**Built-in:** ${templateService.listTemplates().find(t => t.id === templateId) ? '✅ Yes' : '❌ No'}\n\n`);
+			const templateServiceForList = stateManager.getComponent('templateService');
+			context.stream.markdown(`**Built-in:** ${templateServiceForList ? (templateServiceForList as any).listTemplates().find((t: any) => t.id === templateId) ? '✅ Yes' : '❌ No' : 'Unknown'}\n\n`);
 
 			if (template.variables.length > 0) {
 				context.stream.markdown('### Variables\n\n');
@@ -1432,10 +1680,11 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				cancellationToken: context.token
 			};
 
-			const result = await toolManager.executeTool('openTemplate', {
+			const toolManagerForOpen = stateManager.getComponent('toolManager');
+			const result = toolManagerForOpen ? await (toolManagerForOpen as any).executeTool('openTemplate', {
 				templateId: templateId,
 				mode: mode
-			}, toolContext);
+			}, toolContext) : { success: false, error: 'Tool manager not available' };
 
 			if (result.success) {
 				context.stream.markdown(`✅ **Template opened successfully!**\n\n`);
@@ -1475,9 +1724,10 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				cancellationToken: context.token
 			};
 
-			const result = await toolManager.executeTool('validateTemplate', {
+			const toolManagerForValidate = stateManager.getComponent('toolManager');
+			const result = toolManagerForValidate ? await (toolManagerForValidate as any).executeTool('validateTemplate', {
 				templateId: templateId
-			}, toolContext);
+			}, toolContext) : { success: false, error: 'Tool manager not available' };
 
 			if (result.success && result.data) {
 				const { valid, issues, summary } = result.data;
@@ -1543,12 +1793,13 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				cancellationToken: context.token
 			};
 
-			const result = await toolManager.executeTool('createTemplate', {
+			const toolManagerForCreate = stateManager.getComponent('toolManager');
+			const result = toolManagerForCreate ? await (toolManagerForCreate as any).executeTool('createTemplate', {
 				id: templateId,
 				name: name,
 				description: description,
 				interactive: interactive
-			}, toolContext);
+			}, toolContext) : { success: false, error: 'Tool manager not available' };
 
 			if (result.success && result.data) {
 				context.stream.markdown(`✅ **Template created successfully!**\n\n`);
@@ -1564,7 +1815,10 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				}
 
 				// Reload templates to make the new template available
-				await templateService.reloadTemplates();
+				const templateServiceForReload = stateManager.getComponent('templateService');
+				if (templateServiceForReload) {
+					await (templateServiceForReload as any).reloadTemplates();
+				}
 				context.stream.markdown(`\n🔄 *Templates reloaded - new template is now available*\n`);
 			} else {
 				context.stream.markdown(`❌ **Error creating template:** ${result.error}`);
@@ -1644,12 +1898,13 @@ async function handleUpdateCommand(parsedCommand: ParsedCommand, context: Comman
 		};
 
 		// Execute the insertSection tool
-		const result = await toolManager.executeTool('insertSection', {
+		const toolManagerForInsert = stateManager.getComponent('toolManager');
+		const result = toolManagerForInsert ? await (toolManagerForInsert as any).executeTool('insertSection', {
 			path: filePath,
 			header: sectionHeader,
 			mode: mode,
 			content: content
-		}, toolContext);
+		}, toolContext) : { success: false, error: 'Tool manager not available' };
 
 		if (result.success) {
 			context.stream.markdown('✅ **Document updated successfully!**\n\n');
@@ -1668,13 +1923,15 @@ async function handleUpdateCommand(parsedCommand: ParsedCommand, context: Comman
 				context.stream.markdown(`📖 [Open ${relativePath}](${fileUri.toString()})\n\n`);
 				
 				// Also open the file automatically if autoSaveDocuments is enabled
-				const config = configManager.getConfiguration();
+				const configManagerForConfig = stateManager.getComponent('configManager');
+				const config = configManagerForConfig ? (configManagerForConfig as any).getConfiguration() : {};
 				if (config.autoSaveDocuments) {
-					const openResult = await toolManager.executeTool('openInEditor', {
+					const toolManagerForOpen = stateManager.getComponent('toolManager');
+					const openResult = toolManagerForOpen ? await (toolManagerForOpen as any).executeTool('openInEditor', {
 						path: relativePath,
 						preview: false,
 						viewColumn: 1
-					}, toolContext);
+					}, toolContext) : { success: false };
 					
 					if (openResult.success) {
 						context.stream.markdown('✨ *File opened in editor*\n\n');
@@ -1690,11 +1947,12 @@ async function handleUpdateCommand(parsedCommand: ParsedCommand, context: Comman
 			context.stream.markdown(`- Changed: ${result.data?.changed ? '✅ Yes' : '❌ No'}\n`);
 
 			// Check if conversation continuation is requested using consolidated manager
-			const shouldContinue = conversationManager.shouldContinueWithConversation('update', parsedCommand.flags);
+			const conversationManagerForContinue = stateManager.getComponent('conversationManager');
+			const shouldContinue = conversationManagerForContinue ? (conversationManagerForContinue as any).shouldContinueWithConversation('update', parsedCommand.flags) : false;
 			let conversationConfig = null;
 			
 			if (shouldContinue) {
-				conversationConfig = conversationManager.getConversationConfig('update');
+				conversationConfig = conversationManagerForContinue ? (conversationManagerForContinue as any).getConversationConfig('update') : null;
 				if (conversationConfig) {
 					conversationConfig.documentPath = filePath;
 					conversationConfig.title = `Review of ${path.basename(filePath)}`;
@@ -1798,7 +2056,7 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 				history: []
 			},
 			extensionContext: context.extensionContext,
-			toolManager: toolManager,
+			toolManager: stateManager.getComponent('toolManager'),
 			toolContext: {
 				workspaceRoot: context.workspaceRoot,
 				extensionContext: context.extensionContext,
@@ -1821,11 +2079,12 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 				context.stream.markdown(`\n📖 [Open ${relativePath}](${fileUri.toString()})\n`);
 				
 				// Open the file in preview mode for review
-				const openResult = await toolManager.executeTool('openInEditor', {
+				const toolManagerForOpen = stateManager.getComponent('toolManager');
+				const openResult = toolManagerForOpen ? await (toolManagerForOpen as any).executeTool('openInEditor', {
 					path: relativePath,
 					preview: true,
 					viewColumn: 2
-				}, agentContext);
+				}, agentContext) : { success: false };
 				
 				if (openResult.success) {
 					context.stream.markdown('✨ *File opened in preview mode for review*\n');
@@ -1895,7 +2154,8 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 		const subcommand = parsedCommand.subcommand || 'list';
 
 		if (subcommand === 'list') {
-			const agents = agentManager.listAgents();
+			const agentManagerForList = stateManager.getComponent('agentManager');
+		const agents = agentManagerForList ? (agentManagerForList as any).listAgents() : [];
 			
 			context.stream.markdown('## 🤖 Available Agents\n\n');
 			
@@ -1909,7 +2169,7 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 			};
 
 			for (const phase of phases) {
-				const phaseAgents = agents.filter(agent => agent.phase === phase);
+				const phaseAgents = agents.filter((agent: any) => agent.phase === phase);
 				if (phaseAgents.length > 0) {
 					context.stream.markdown(`### 📋 ${phaseNames[phase as keyof typeof phaseNames]}\n\n`);
 					
@@ -1922,7 +2182,7 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 			}
 
 			context.stream.markdown(`\n📊 **Total agents:** ${agents.length}\n`);
-			context.stream.markdown(`🎯 **Current active agent:** ${agents.find(a => a.active)?.name || 'None'}\n\n`);
+			context.stream.markdown(`🎯 **Current active agent:** ${agents.find((a: any) => a.active)?.name || 'None'}\n\n`);
 			context.stream.markdown('💡 *Use `/agent set <name>` to switch agents*\n');
 
 			return { 
@@ -1938,16 +2198,18 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 				return { success: false, error: 'Agent name is required' };
 			}
 
-			const success = agentManager.setCurrentAgent(agentName);
+			const agentManagerForSet = stateManager.getComponent('agentManager');
+			const success = agentManagerForSet ? (agentManagerForSet as any).setCurrentAgent(agentName) : false;
 			if (success) {
-				const agent = agentManager.getAgent(agentName);
+				const agent = agentManagerForSet ? (agentManagerForSet as any).getAgent(agentName) : null;
 				
 				// Check if auto-chat should be enabled after agent set
 				const config = vscode.workspace.getConfiguration('docu.autoChat');
 				const enableAfterAgentSet = config.get('enableAfterAgentSet', true);
 				
 				// Enable auto-chat mode if configured
-				const autoChatManager = conversationSessionRouter.getAutoChatManager();
+				const conversationRouter = stateManager.getComponent('conversationSessionRouter');
+				const autoChatManager = conversationRouter ? (conversationRouter as any).getAutoChatManager() : null;
 				if (autoChatManager && enableAfterAgentSet) {
 					autoChatManager.enableAutoChat(agentName);
 					
@@ -1961,8 +2223,9 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 					context.stream.markdown(`🛠️ **Available tools:** ${agent?.allowedTools.join(', ')}\n\n`);
 					
 					// Provide context about what this agent does
-					const agents = agentManager.listAgents();
-					const agentInfo = agents.find(a => a.name === agentName);
+					const agentManagerForDiag = stateManager.getComponent('agentManager');
+			const agents = agentManagerForDiag ? (agentManagerForDiag as any).listAgents() : [];
+					const agentInfo = agents.find((a: any) => a.name === agentName);
 					if (agentInfo) {
 						context.stream.markdown(`**About this agent:**\n${agentInfo.description}\n\n`);
 					}
@@ -1996,7 +2259,8 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 					autoChatEnabled: true
 				};
 			} else {
-				const availableAgents = agentManager.listAgents().map(a => a.name);
+				const agentManagerForList = stateManager.getComponent('agentManager');
+				const availableAgents = agentManagerForList ? (agentManagerForList as any).listAgents().map((a: any) => a.name) : [];
 				context.stream.markdown(`❌ **Error:** Agent '${agentName}' not found\n\n`);
 				context.stream.markdown(`**Available agents:** ${availableAgents.join(', ')}\n\n`);
 				context.stream.markdown('💡 *Use `/agent list` to see all available agents*\n');
@@ -2008,10 +2272,11 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 			}
 
 		} else if (subcommand === 'current') {
-			const currentAgent = agentManager.getCurrentAgent();
+			const agentManager = stateManager.getComponent('agentManager');
+			const currentAgent = (agentManager as any).getCurrentAgent();
 			if (currentAgent) {
-				const agents = agentManager.listAgents();
-				const agentInfo = agents.find(a => a.name === currentAgent.name);
+				const agents = (agentManager as any).listAgents();
+			const agentInfo = agents.find((a: any) => a.name === currentAgent.name);
 				
 				context.stream.markdown(`## 🎯 Current Active Agent\n\n`);
 				context.stream.markdown(`**Name:** ${currentAgent.name}\n`);
@@ -2023,7 +2288,7 @@ async function handleAgentCommand(parsedCommand: ParsedCommand, context: Command
 				}
 
 				// Show workflow state
-				const workflowState = agentManager['workflowState']; // Access private property for demo
+				const workflowState = (agentManager as any)['workflowState']; // Access private property for demo
 				if (workflowState) {
 					context.stream.markdown(`**Workflow State:**\n`);
 					context.stream.markdown(`- Project ID: ${workflowState.projectId}\n`);
@@ -2094,7 +2359,17 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 			cancellationToken: context.token
 		};
 
-		const listResult = await toolManager.executeTool('listFiles', {
+		const toolManager = stateManager.getComponent('toolManager');
+		if (!toolManager) {
+			context.stream.markdown(`❌ **Error:** Tool manager not available`);
+			return { 
+				success: false, 
+				error: 'Tool manager not available',
+				shouldContinueConversation: false
+			};
+		}
+
+		const listResult = await (toolManager as any).executeTool('listFiles', {
 			glob: globPattern
 		}, toolContext);
 
@@ -2130,9 +2405,9 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 				context.stream.markdown(`📖 Processing ${processedCount}/${files.length}: ${file.path}\n`);
 
 				// Read file content
-				const readResult = await toolManager.executeTool('readFile', {
-					path: file.path
-				}, toolContext);
+			const readResult = await (toolManager as any).executeTool('readFile', {
+				path: file.path
+			}, toolContext);
 
 				if (readResult.success && readResult.data) {
 					const content = readResult.data.content;
@@ -2154,11 +2429,11 @@ async function handleSummarizeCommand(parsedCommand: ParsedCommand, context: Com
 		const summaryContent = generateSummaryDocument(summaries, globPattern);
 
 		// Write summary file
-		const writeResult = await toolManager.executeTool('writeFile', {
+		const writeResult = toolManager ? await (toolManager as any).executeTool('writeFile', {
 			path: outputPath,
 			content: summaryContent,
 			createIfMissing: true
-		}, toolContext);
+		}, toolContext) : { success: false, error: 'Tool manager not available' };
 
 		if (writeResult.success) {
 			context.stream.markdown(`\n✅ **Summary generated successfully!**\n\n`);
@@ -2220,12 +2495,13 @@ async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: Co
 		if (showConversation || showAll) {
 			context.stream.markdown('## 💬 Conversation Sessions\n\n');
 			
-			const sessionState = conversationSessionRouter.getSessionState();
+			const conversationSessionRouter = stateManager.getComponent('conversationSessionRouter');
+			const sessionState = (conversationSessionRouter as any).getSessionState();
 			
 			if (sessionState.activeSessionId) {
 				context.stream.markdown(`**Active Session:** ${sessionState.activeSessionId}\n\n`);
 				
-				const metadata = conversationSessionRouter.getSessionMetadata(sessionState.activeSessionId);
+				const metadata = (conversationSessionRouter as any).getSessionMetadata(sessionState.activeSessionId);
 				if (metadata) {
 					context.stream.markdown('**Session Details:**\n');
 					context.stream.markdown(`- Agent: ${metadata.agentName}\n`);
@@ -2257,7 +2533,8 @@ async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: Co
 		if (showAgents || showAll) {
 			context.stream.markdown('## 🤖 Agent Information\n\n');
 			
-			const currentAgent = agentManager.getCurrentAgent();
+			const agentManager = stateManager.getComponent('agentManager');
+			const currentAgent = (agentManager as any).getCurrentAgent();
 			if (currentAgent) {
 				context.stream.markdown(`**Current Agent:** ${currentAgent.name}\n`);
 				context.stream.markdown(`**Workflow Phase:** ${currentAgent.workflowPhase}\n\n`);
@@ -2265,7 +2542,7 @@ async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: Co
 				context.stream.markdown('**No active agent**\n\n');
 			}
 
-			const availableAgents = agentManager.listAgents();
+			const availableAgents = (agentManager as any).listAgents();
 			context.stream.markdown('**Available Agents:**\n');
 			for (const agent of availableAgents) {
 				const isCurrent = currentAgent?.name === agent.name;
@@ -2279,7 +2556,8 @@ async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: Co
 		if (showAll) {
 			context.stream.markdown('## ⚙️ System Information\n\n');
 			
-			const isOffline = offlineManager.isOffline();
+			const offlineManager = stateManager.getComponent('offlineManager');
+			const isOffline = (offlineManager as any).isOffline();
 			context.stream.markdown(`**Offline Mode:** ${isOffline ? 'Active' : 'Inactive'}\n`);
 			
 			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'None';
@@ -2300,7 +2578,7 @@ async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: Co
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-		logger.extension.error('Diagnostic command failed', error instanceof Error ? error : new Error(errorMessage));
+		(stateManager.getComponent('logger') as any).extension.error('Diagnostic command failed', error instanceof Error ? error : new Error(errorMessage));
 		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
 		return { success: false, error: errorMessage };
 	}
@@ -2327,7 +2605,8 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 		}
 
 		// Provide conversation state feedback using consolidated manager
-		const currentAgent = agentManager.getCurrentAgent();
+		const agentManager = stateManager.getComponent('agentManager');
+		const currentAgent = (agentManager as any).getCurrentAgent();
 		
 		if (currentAgent) {
 			const outputCoordinator = OutputCoordinator.getInstance();
@@ -2343,7 +2622,8 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			context.stream.markdown('You need to set an agent before starting a conversation.\n\n');
 			context.stream.markdown('**Available agents:**\n');
 			
-			const agents = agentManager.listAgents();
+			const agentManagerForChat = stateManager.getComponent('agentManager');
+			const agents = agentManagerForChat ? (agentManagerForChat as any).listAgents() : [];
 			for (const agentInfo of agents) {
 				context.stream.markdown(`- **${agentInfo.name}** - ${agentInfo.description}\n`);
 			}
@@ -2357,7 +2637,8 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 		}
 
 		// Check offline mode
-		if (offlineManager.isOffline()) {
+		const offlineManager = stateManager.getComponent('offlineManager');
+		if (offlineManager && (offlineManager as any).isOffline()) {
 			context.stream.markdown('⚠️ **Offline Mode Active** - AI features are unavailable.\n\n');
 			context.stream.markdown('**Your message:** ' + message + '\n\n');
 			context.stream.markdown('**Offline guidance for ' + currentAgent.name + ':**\n\n');
@@ -2374,12 +2655,13 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 		}
 
 		// Process the chat message with the current agent
-		logger.extension.info('Processing chat command with agent', { agent: currentAgent.name, message: message.substring(0, 100) });
-		telemetryManager.trackEvent('chat.agent.interaction', { agent: currentAgent.name });
+		(stateManager.getComponent('logger') as any).extension.info('Processing chat command with agent', { agent: currentAgent.name, message: message.substring(0, 100) });
+		(stateManager.getComponent('telemetryManager') as any).trackEvent('chat.agent.interaction', { agent: currentAgent.name });
 		
 		try {
 			// Build agent context
-			const agentContext = agentManager.buildAgentContext(context.request);
+			const agentManager = stateManager.getComponent('agentManager');
+			const agentContext = (agentManager as any).buildAgentContext(context.request);
 			
 			// Convert to Agent ChatRequest
 			const agentRequest: import('./agents/types').ChatRequest = {
@@ -2400,7 +2682,7 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			// Add follow-up suggestions if available
 			if (agentResponse.followupSuggestions && agentResponse.followupSuggestions.length > 0) {
 				context.stream.markdown('\n\n**Suggestions:**\n');
-				agentResponse.followupSuggestions.forEach(suggestion => {
+				agentResponse.followupSuggestions.forEach((suggestion: any) => {
 					context.stream.markdown(`- ${suggestion}\n`);
 				});
 			}
@@ -2417,7 +2699,7 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			};
 			
 		} catch (agentError) {
-			logger.extension.error('Agent interaction failed', agentError instanceof Error ? agentError : new Error(String(agentError)));
+			(stateManager.getComponent('logger') as any).extension.error('Agent interaction failed', agentError instanceof Error ? agentError : new Error(String(agentError)));
 			
 			context.stream.markdown(`❌ **Agent Error:** ${agentError instanceof Error ? agentError.message : String(agentError)}\n\n`);
 			context.stream.markdown('**What you can try:**\n');
@@ -2586,7 +2868,13 @@ async function handleCatalogCommand(parsedCommand: ParsedCommand, context: Comma
 			cancellationToken: context.token
 		};
 
-		const listResult = await toolManager.executeTool('listFiles', {
+		const toolManager = stateManager.getComponent('toolManager');
+		if (!toolManager) {
+			context.stream.markdown('❌ **Error:** Tool manager not available');
+			return { success: false, error: 'Tool manager not available', shouldContinueConversation: false };
+		}
+
+		const listResult = await (toolManager as any).executeTool('listFiles', {
 			glob: globPattern
 		}, toolContext);
 
@@ -2629,7 +2917,7 @@ async function handleCatalogCommand(parsedCommand: ParsedCommand, context: Comma
 				context.stream.markdown(`📖 Processing ${processedCount}/${files.length}: ${file.path}\n`);
 
 				// Read file content to extract metadata
-				const readResult = await toolManager.executeTool('readFile', {
+				const readResult = await (toolManager as any).executeTool('readFile', {
 					path: file.path
 				}, toolContext);
 
@@ -2668,7 +2956,7 @@ async function handleCatalogCommand(parsedCommand: ParsedCommand, context: Comma
 		const catalogContent = generateCatalogDocument(catalogEntries, globPattern);
 
 		// Write catalog file
-		const writeResult = await toolManager.executeTool('writeFile', {
+		const writeResult = await (toolManager as any).executeTool('writeFile', {
 			path: outputPath,
 			content: catalogContent,
 			createIfMissing: true
@@ -2930,27 +3218,29 @@ function formatBytes(bytes: number): string {
  */
 function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 	// Listen for configuration changes
-	const configDisposable = configManager.onConfigurationChanged(async (config) => {
+	const configDisposable = (stateManager.getComponent('configManager') as any).onConfigurationChanged(async (config: any) => {
 		if (config.enableDebugLogging) {
 			console.log('Docu configuration updated:', config);
 		}
 
 		// Update agent manager with new default agent
-		if (agentManager.getCurrentAgent()?.name !== config.defaultAgent) {
-			const success = agentManager.setCurrentAgent(config.defaultAgent);
+		const agentManager = stateManager.getComponent('agentManager');
+		if (agentManager && (agentManager as any).getCurrentAgent()?.name !== config.defaultAgent) {
+			const success = (agentManager as any).setCurrentAgent(config.defaultAgent);
 			if (!success && config.enableDebugLogging) {
 				console.warn(`Could not set default agent to ${config.defaultAgent}`);
 			}
 		}
 
 		// Reload templates if template directory changed
+		const templateService = stateManager.getComponent('templateService');
 		if (templateService) {
-			await templateService.loadUserTemplates();
+			await (templateService as any).loadUserTemplates();
 		}
 
 		// Reload agent configurations if config directory changed
 		if (agentManager) {
-			await agentManager.loadConfigurations();
+			await (agentManager as any).loadConfigurations();
 		}
 	});
 
@@ -2962,7 +3252,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 		action: 'created' | 'changed' | 'deleted';
 		uri: string;
 	}) => {
-		const config = configManager.getConfiguration();
+		const config = (stateManager.getComponent('configManager') as any).getConfiguration();
 		
 		if (!config.enableHotReload) {
 			return;
@@ -2974,14 +3264,20 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 
 		try {
 			if (event.type === 'template') {
-				await templateService.loadUserTemplates();
-				if (config.enableDebugLogging) {
-					console.log('Templates reloaded');
+				const templateService = stateManager.getComponent('templateService');
+				if (templateService) {
+					await (templateService as any).loadUserTemplates();
+					if (config.enableDebugLogging) {
+						console.log('Templates reloaded');
+					}
 				}
 			} else if (event.type === 'agent-config') {
-				await agentManager.loadConfigurations();
-				if (config.enableDebugLogging) {
-					console.log('Agent configurations reloaded');
+				const agentManager = stateManager.getComponent('agentManager');
+				if (agentManager) {
+					await (agentManager as any).loadConfigurations();
+					if (config.enableDebugLogging) {
+						console.log('Agent configurations reloaded');
+					}
 				}
 			}
 		} catch (error) {
@@ -2996,10 +3292,11 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 	// Register conversation continuation command
 	const continueConversationCommand = vscode.commands.registerCommand('docu.continueConversation', async (sessionId: string, responseType: string) => {
 		try {
-			if (!conversationManager) {
-				vscode.window.showErrorMessage('Conversation manager not available');
-				return;
-			}
+			const conversationManager = stateManager.getComponent('conversationManager');
+		if (!conversationManager) {
+			vscode.window.showErrorMessage('Conversation manager not available');
+			return;
+		}
 
 			let userResponse = '';
 			switch (responseType) {
@@ -3023,12 +3320,12 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 			}
 
 			if (userResponse) {
-				const response = await conversationManager.continueConversation(sessionId, userResponse);
+				const response = await (conversationManager as any).continueConversation(sessionId, userResponse);
 				// The response will be handled by the conversation system
 				vscode.window.showInformationMessage('Response recorded. Continue the conversation in the chat.');
 			}
 		} catch (error) {
-			logger.extension.error('Failed to continue conversation', error instanceof Error ? error : new Error(String(error)));
+			(stateManager.getComponent('logger') as any).extension.error('Failed to continue conversation', error instanceof Error ? error : new Error(String(error)));
 			vscode.window.showErrorMessage(`Failed to continue conversation: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	});
@@ -3037,7 +3334,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 
 	// Register configuration management commands
 	const showConfigCommand = vscode.commands.registerCommand('docu.showConfiguration', () => {
-		const config = configManager.getConfiguration();
+		const config = (stateManager.getComponent('configManager') as any).getConfiguration();
 		const panel = vscode.window.createWebviewPanel(
 			'docuConfig',
 			'Docu Configuration',
@@ -3049,7 +3346,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 	});
 
 	const exportConfigCommand = vscode.commands.registerCommand('docu.exportConfiguration', async () => {
-		const configJson = configManager.exportConfiguration();
+		const configJson = (stateManager.getComponent('configManager') as any).exportConfiguration();
 		const doc = await vscode.workspace.openTextDocument({
 			content: configJson,
 			language: 'json'
@@ -3066,7 +3363,7 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 		);
 
 		if (result === 'Reset') {
-			await configManager.resetToDefaults();
+			await (stateManager.getComponent('configManager') as any).resetToDefaults();
 			vscode.window.showInformationMessage('Docu configuration has been reset to defaults.');
 		}
 	});
@@ -3247,27 +3544,27 @@ function generateFileIconLink(filePath: string, workspaceRoot: string): string {
 function registerDebugCommands(context: vscode.ExtensionContext): void {
 	// Show diagnostics panel
 	const showDiagnosticsCommand = vscode.commands.registerCommand('docu.showDiagnostics', async () => {
-		logger.extension.info('Showing diagnostics panel');
-		await debugManager.showDiagnosticsPanel();
+		(stateManager.getComponent('logger') as any).extension.info('Showing diagnostics panel');
+		await (stateManager.getComponent('debugManager') as any).showDiagnosticsPanel();
 	});
 
 	// Export diagnostics
 	const exportDiagnosticsCommand = vscode.commands.registerCommand('docu.exportDiagnostics', async () => {
-		logger.extension.info('Exporting diagnostics');
-		await debugManager.exportDiagnostics();
+		(stateManager.getComponent('logger') as any).extension.info('Exporting diagnostics');
+		await (stateManager.getComponent('debugManager') as any).exportDiagnostics();
 	});
 
 	// Show output channel
 	const showOutputCommand = vscode.commands.registerCommand('docu.showOutput', () => {
-		logger.extension.info('Showing output channel');
-		logger.showOutputChannel();
+		(stateManager.getComponent('logger') as any).extension.info('Showing output channel');
+		(stateManager.getComponent('logger') as any).showOutputChannel();
 	});
 
 	// Clear logs
 	const clearLogsCommand = vscode.commands.registerCommand('docu.clearLogs', () => {
-		logger.extension.info('Clearing logs');
-		logger.clearLogs();
-		debugManager.clearDebugInfo();
+		(stateManager.getComponent('logger') as any).extension.info('Clearing logs');
+		(stateManager.getComponent('logger') as any).clearLogs();
+		(stateManager.getComponent('debugManager') as any).clearDebugInfo();
 		vscode.window.showInformationMessage('Docu logs cleared');
 	});
 
@@ -3278,16 +3575,16 @@ function registerDebugCommands(context: vscode.ExtensionContext): void {
 		const newLevel: 'info' | 'debug' = currentLevel === 'debug' ? 'info' : 'debug';
 		
 		config.update('level', newLevel, vscode.ConfigurationTarget.Workspace);
-		logger.updateConfiguration();
+		(stateManager.getComponent('logger') as any).updateConfiguration();
 		
-		logger.extension.info(`Debug mode ${newLevel === 'debug' ? 'enabled' : 'disabled'}`);
+		(stateManager.getComponent('logger') as any).extension.info(`Debug mode ${newLevel === 'debug' ? 'enabled' : 'disabled'}`);
 		vscode.window.showInformationMessage(`Docu debug mode ${newLevel === 'debug' ? 'enabled' : 'disabled'}`);
 	});
 
 	// Check offline mode status
 	const checkOfflineStatusCommand = vscode.commands.registerCommand('docu.checkOfflineStatus', async () => {
-		logger.extension.info('Checking offline mode status');
-		const status = offlineManager.getDetailedStatus();
+		(stateManager.getComponent('logger') as any).extension.info('Checking offline mode status');
+		const status = (stateManager.getComponent('offlineManager') as any).getDetailedStatus();
 		const statusMessage = `Offline Mode: ${status.isOffline ? 'ACTIVE' : 'INACTIVE'}
 Reason: ${status.reason}
 Last Check: ${status.lastCheck.toLocaleString()}
@@ -3299,10 +3596,10 @@ ${status.modelStatus.lastError ? `Last Error: ${status.modelStatus.lastError} ($
 
 	// Force offline mode check
 	const forceOfflineCheckCommand = vscode.commands.registerCommand('docu.forceOfflineCheck', async () => {
-		logger.extension.info('Forcing offline mode check');
+		(stateManager.getComponent('logger') as any).extension.info('Forcing offline mode check');
 		vscode.window.showInformationMessage('Checking model availability...');
 		
-		const result = await offlineManager.checkModelAvailability(true);
+		const result = await (stateManager.getComponent('offlineManager') as any).checkModelAvailability(true);
 		const resultMessage = `Model Check Result:
 Available: ${result.available}
 Models Found: ${result.models.length}
@@ -3314,11 +3611,11 @@ ${result.retryAfter ? `Retry After: ${result.retryAfter}ms` : ''}`;
 
 	// Toggle offline mode
 	const toggleOfflineModeCommand = vscode.commands.registerCommand('docu.toggleOfflineMode', async () => {
-		const status = offlineManager.getDetailedStatus();
+		const status = (stateManager.getComponent('offlineManager') as any).getDetailedStatus();
 		const newMode = !status.isOffline;
 		
-		offlineManager.setOfflineMode(newMode, `Manually toggled via debug command`);
-		logger.extension.info(`Offline mode ${newMode ? 'enabled' : 'disabled'} via debug command`);
+		(stateManager.getComponent('offlineManager') as any).setOfflineMode(newMode, `Manually toggled via debug command`);
+		(stateManager.getComponent('logger') as any).extension.info(`Offline mode ${newMode ? 'enabled' : 'disabled'} via debug command`);
 		vscode.window.showInformationMessage(`Docu offline mode ${newMode ? 'enabled' : 'disabled'}`);
 	});
 
@@ -3333,6 +3630,6 @@ ${result.retryAfter ? `Retry After: ${result.retryAfter}ms` : ''}`;
 		toggleOfflineModeCommand
 	);
 
-	logger.extension.debug('Debug commands registered');
+	(stateManager.getComponent('logger') as any).extension.debug('Debug commands registered');
 }
 

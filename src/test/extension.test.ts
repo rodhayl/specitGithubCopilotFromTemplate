@@ -2,7 +2,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
-// Import all test suites
+// Note: vscode module mocking is handled by individual test files
+
+// Import all test suites after mocking
 import './unit/TemplateManager.test';
 import './unit/SecurityManager.test';
 import './unit/ErrorHandler.test';
@@ -15,6 +17,10 @@ describe('Docu Extension Test Suite', () => {
 	let mockExtension: any;
 
 	beforeEach(() => {
+		// Clear all mocks before each test
+		jest.clearAllMocks();
+		jest.clearAllTimers();
+		
 		// Mock extension with proper package.json structure
 		mockExtension = {
 			id: 'docu.vscode-docu-extension',
@@ -50,6 +56,15 @@ describe('Docu Extension Test Suite', () => {
 
 		// Mock the getExtension method to return our mock
 		(vscode.extensions.getExtension as jest.Mock).mockReturnValue(mockExtension);
+	});
+	
+	afterEach(() => {
+		// Clean up after each test
+		jest.clearAllMocks();
+		jest.clearAllTimers();
+		
+		// Reset any module mocks if needed
+		jest.resetModules();
 	});
 
 	vscode.window.showInformationMessage('Starting Docu extension tests...');

@@ -76,19 +76,17 @@ describe('TemplateManager Unit Tests', () => {
 
     test('Should render template with variables', async () => {
         const result = await templateManager.renderTemplate('basic', {
-            variables: {
-                title: 'Test Document',
-                content: 'This is test content'
-            },
-            currentDate: new Date('2024-01-01'),
-            workspaceRoot: '/test/workspace',
-            userInfo: { name: 'Test User' }
+            title: 'Test Document',
+            description: 'This is test content',
+            author: 'Test User',
+            created: '2024-01-01'
         });
 
         assert.ok(result, 'Should return render result');
+        assert.ok(result.success, 'Should render successfully');
         assert.ok(result.content?.includes('Test Document'), 'Should substitute title variable');
-        assert.ok(result.content?.includes('This is test content'), 'Should substitute content variable');
-        assert.ok(result.content?.includes('2024-01-01'), 'Should substitute current date');
+        assert.ok(result.content?.includes('This is test content'), 'Should substitute description variable');
+        assert.ok(result.content?.includes('2024-01-01'), 'Should substitute created date');
         assert.strictEqual(result.frontMatter?.title, 'Test Document');
         assert.strictEqual(result.frontMatter?.author, 'Test User');
     });
@@ -105,16 +103,17 @@ describe('TemplateManager Unit Tests', () => {
 
     test('Should use default values for optional variables', async () => {
         const result = await templateManager.renderTemplate('basic', {
-            variables: {
-                title: 'Test Document'
-                // Missing optional variables should use defaults
-            },
-            currentDate: new Date('2024-01-01'),
-            workspaceRoot: '/test/workspace'
+            title: 'Test Document'
+            // Missing optional variables should use defaults
         });
 
         assert.ok(result, 'Should return render result');
-        assert.ok(result.content?.includes('Add your content here...'), 'Should use default content');
+        if (!result.success) {
+            console.log('Render failed:', result.error);
+            console.log('Missing variables:', result.missingVariables);
+        }
+        assert.ok(result.success, 'Should render successfully');
+        assert.ok(result.content?.includes('<!-- Add your content here -->'), 'Should use default content');
     });
 
     test('Should filter templates by agent', () => {

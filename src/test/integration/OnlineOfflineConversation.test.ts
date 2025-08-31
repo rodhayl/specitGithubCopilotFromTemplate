@@ -2,20 +2,53 @@ import { ConversationManager } from '../../conversation/ConversationManager';
 import { AgentManager } from '../../agents/AgentManager';
 import { CommandResult } from '../../commands/types';
 
-// Mock dependencies
-jest.mock('../../conversation/ConversationManager');
+// Mock dependencies with proper class structure preservation
+jest.mock('../../conversation/ConversationManager', () => {
+	return {
+		ConversationManager: jest.fn().mockImplementation(() => {
+			return {
+				startConversation: jest.fn(),
+				continueConversation: jest.fn(),
+				startContinuation: jest.fn(),
+				shouldStartConversation: jest.fn(),
+				handleError: jest.fn(),
+				attemptRecovery: jest.fn()
+			};
+		})
+	};
+});
+
 jest.mock('../../agents/AgentManager');
 
+// Create a mock instance that will be returned by getInstance
+const mockConversationManagerInstance = {
+	startConversation: jest.fn(),
+	continueConversation: jest.fn(),
+	startContinuation: jest.fn(),
+	shouldStartConversation: jest.fn(),
+	handleError: jest.fn(),
+	attemptRecovery: jest.fn()
+};
+
+// Mock the static getInstance method
+ConversationManager.getInstance = jest.fn().mockReturnValue(mockConversationManagerInstance);
+
 describe('Online/Offline Conversation Handling', () => {
-	let conversationManager: ConversationManager;
+	let conversationManager: any;
 	let mockAgentManager: jest.Mocked<AgentManager>;
 
 	beforeEach(() => {
-		// Create mocks
+		// Reset all mocks
+		jest.clearAllMocks();
+		
+		// Get the mocked instance
 		conversationManager = ConversationManager.getInstance();
-		jest.spyOn(conversationManager, 'startConversation').mockImplementation(jest.fn());
-		jest.spyOn(conversationManager, 'continueConversation').mockImplementation(jest.fn());
-		jest.spyOn(conversationManager, 'startContinuation').mockImplementation(jest.fn());
+		
+		// Verify the instance is properly mocked
+		expect(conversationManager).toBeDefined();
+		expect(typeof conversationManager.startConversation).toBe('function');
+		expect(typeof conversationManager.continueConversation).toBe('function');
+		expect(typeof conversationManager.startContinuation).toBe('function');
 
 		mockAgentManager = {
 			setCurrentAgent: jest.fn(),
@@ -36,8 +69,8 @@ describe('Online/Offline Conversation Handling', () => {
 				requestsAssistance: true
 			};
 
-			const mockStartContinuation = jest.spyOn(conversationManager, 'startContinuation');
-			mockStartContinuation.mockResolvedValue('online-session');
+			// Configure the mock to return expected value
+			conversationManager.startContinuation.mockResolvedValue('online-session');
 
 			const sessionId = await conversationManager.startContinuation(
 				'new',
@@ -46,12 +79,12 @@ describe('Online/Offline Conversation Handling', () => {
 			);
 
 			expect(sessionId).toBe('online-session');
-			expect(mockStartContinuation).toHaveBeenCalledWith('new', commandResult, userContext);
+			expect(conversationManager.startContinuation).toHaveBeenCalledWith('new', commandResult, userContext);
 		});
 
 		it('should handle conversation continuation when online', async () => {
-			const mockShouldStart = jest.spyOn(conversationManager, 'shouldStartConversation');
-			mockShouldStart.mockReturnValue({
+			// Configure the mock to return expected decision
+			conversationManager.shouldStartConversation.mockReturnValue({
 				shouldContinue: true,
 				agentName: 'document-assistant',
 				initialPrompt: 'I\'ve created your document! How can I help?',
@@ -84,8 +117,7 @@ describe('Online/Offline Conversation Handling', () => {
 			};
 
 			// Simulate offline behavior
-			const mockStartContinuation = jest.spyOn(conversationManager, 'startContinuation');
-			mockStartContinuation.mockRejectedValue(new Error('Service unavailable'));
+			conversationManager.startContinuation.mockRejectedValue(new Error('Service unavailable'));
 
 			try {
 				await conversationManager.startContinuation('new', commandResult, userContext);
@@ -109,8 +141,7 @@ describe('Online/Offline Conversation Handling', () => {
 			};
 
 			// Simulate network unavailable
-			const mockStartContinuation = jest.spyOn(conversationManager, 'startContinuation');
-			mockStartContinuation.mockRejectedValue(new Error('Network unavailable'));
+			conversationManager.startContinuation.mockRejectedValue(new Error('Network unavailable'));
 
 			try {
 				await conversationManager.startContinuation('new', commandResult, userContext);
@@ -136,8 +167,7 @@ describe('Online/Offline Conversation Handling', () => {
 			};
 
 			// Simulate going offline during conversation
-			const mockStartContinuation = jest.spyOn(conversationManager, 'startContinuation');
-			mockStartContinuation.mockRejectedValue(new Error('Connection timeout'));
+			conversationManager.startContinuation.mockRejectedValue(new Error('Connection timeout'));
 
 			try {
 				await conversationManager.startContinuation('new', commandResult, userContext);
@@ -161,8 +191,7 @@ describe('Online/Offline Conversation Handling', () => {
 			};
 
 			// Simulate intermittent failures
-			const mockStartContinuation = jest.spyOn(conversationManager, 'startContinuation');
-			mockStartContinuation.mockRejectedValue(new Error('Connection timeout'));
+			conversationManager.startContinuation.mockRejectedValue(new Error('Connection timeout'));
 
 			try {
 				await conversationManager.startContinuation('new', commandResult, userContext);
@@ -175,8 +204,8 @@ describe('Online/Offline Conversation Handling', () => {
 
 	describe('Context Preservation', () => {
 		it('should preserve conversation context across different scenarios', () => {
-			const mockShouldStart = jest.spyOn(conversationManager, 'shouldStartConversation');
-			mockShouldStart.mockReturnValue({
+			// Configure the mock to return expected context
+			conversationManager.shouldStartConversation.mockReturnValue({
 				shouldContinue: true,
 				agentName: 'document-assistant',
 				initialPrompt: 'I\'ve created your PRD document! How can I help?',
@@ -195,10 +224,8 @@ describe('Online/Offline Conversation Handling', () => {
 		});
 
 		it('should handle different template types correctly', () => {
-			const mockShouldStart = jest.spyOn(conversationManager, 'shouldStartConversation');
-			
 			// Test PRD template
-			mockShouldStart.mockReturnValue({
+			conversationManager.shouldStartConversation.mockReturnValue({
 				shouldContinue: true,
 				agentName: 'document-assistant',
 				initialPrompt: 'PRD document created',
@@ -216,8 +243,8 @@ describe('Online/Offline Conversation Handling', () => {
 		});
 
 		it('should provide fallback for unknown templates', () => {
-			const mockShouldStart = jest.spyOn(conversationManager, 'shouldStartConversation');
-			mockShouldStart.mockReturnValue({
+			// Configure mock for unknown template fallback
+			conversationManager.shouldStartConversation.mockReturnValue({
 				shouldContinue: false,
 				reason: 'No conversation mapping found for command',
 				confidence: 0
@@ -235,10 +262,8 @@ describe('Online/Offline Conversation Handling', () => {
 
 	describe('Conversation Decision Logic', () => {
 		it('should make appropriate conversation decisions based on context', () => {
-			const mockShouldStart = jest.spyOn(conversationManager, 'shouldStartConversation');
-			
 			// Test successful command with assistance request
-			mockShouldStart.mockReturnValue({
+			conversationManager.shouldStartConversation.mockReturnValueOnce({
 				shouldContinue: true,
 				agentName: 'document-assistant',
 				reason: 'User requested assistance',
@@ -253,7 +278,7 @@ describe('Online/Offline Conversation Handling', () => {
 			expect(decision1.shouldContinue).toBe(true);
 
 			// Test command without assistance request
-			mockShouldStart.mockReturnValue({
+			conversationManager.shouldStartConversation.mockReturnValueOnce({
 				shouldContinue: false,
 				reason: 'No assistance requested',
 				confidence: 0
@@ -268,10 +293,8 @@ describe('Online/Offline Conversation Handling', () => {
 		});
 
 		it('should handle different command contexts correctly', () => {
-			const mockShouldStart = jest.spyOn(conversationManager, 'shouldStartConversation');
-			
 			// Test mapped command
-			mockShouldStart.mockReturnValue({
+			conversationManager.shouldStartConversation.mockReturnValueOnce({
 				shouldContinue: true,
 				agentName: 'document-assistant',
 				reason: 'Command mapped to conversation',
@@ -286,7 +309,7 @@ describe('Online/Offline Conversation Handling', () => {
 			expect(mappedDecision.shouldContinue).toBe(true);
 
 			// Test unmapped command
-			mockShouldStart.mockReturnValue({
+			conversationManager.shouldStartConversation.mockReturnValueOnce({
 				shouldContinue: false,
 				reason: 'No conversation mapping found for command',
 				confidence: 0

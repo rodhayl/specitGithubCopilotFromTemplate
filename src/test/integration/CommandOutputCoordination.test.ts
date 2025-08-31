@@ -24,8 +24,8 @@ jest.mock('vscode', () => ({
 
 // Mock coordinators
 jest.mock('../../commands/OutputCoordinator');
-jest.mock('../../commands/FeedbackCoordinator');
 jest.mock('../../templates/TemplateService');
+// Note: FeedbackCoordinator was removed as part of code consolidation
 
 describe('Command Output Coordination Integration', () => {
     let commandRouter: CommandRouter;
@@ -68,7 +68,14 @@ describe('Command Output Coordination Integration', () => {
 
         (OutputCoordinator.getInstance as jest.Mock).mockReturnValue(mockOutputCoordinator);
 
-        commandRouter = new CommandRouter();
+        // Create mock agent manager for CommandRouter
+        const mockAgentManager = {
+            listAgents: jest.fn().mockReturnValue([]),
+            getAgent: jest.fn().mockReturnValue(null),
+            loadConfigurations: jest.fn().mockResolvedValue(undefined)
+        } as any;
+        
+        commandRouter = new CommandRouter(mockAgentManager);
     });
 
     describe('Command execution with coordination', () => {

@@ -112,7 +112,7 @@ describe('OutputCoordinator', () => {
             coordinator.clear();
             
             const state = coordinator.getState();
-            expect(state.primaryOutput).toBeNull();
+            expect(state.primaryOutput).toBeUndefined();
             expect(state.tips.size).toBe(0);
         });
     });

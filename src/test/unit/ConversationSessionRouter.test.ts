@@ -19,6 +19,10 @@ describe('ConversationSessionRouter', () => {
     let mockContext: CommandContext;
 
     beforeEach(() => {
+        // Clear all mocks and timers
+        jest.clearAllMocks();
+        jest.clearAllTimers();
+        
         // Create mocks
         mockConversationManager = {
             getSession: jest.fn(),
@@ -50,6 +54,21 @@ describe('ConversationSessionRouter', () => {
             workspaceRoot: '/test/workspace',
             extensionContext: {} as any
         };
+    });
+
+    afterEach(() => {
+        // Clean up resources
+        jest.clearAllMocks();
+        jest.clearAllTimers();
+        
+        // Clean up router state
+        if (router) {
+            try {
+                router.clearActiveSession();
+            } catch (error) {
+                // Ignore cleanup errors
+            }
+        }
     });
 
     describe('routeUserInput', () => {

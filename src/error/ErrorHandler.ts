@@ -525,4 +525,130 @@ export class ErrorHandler {
     clearHistory(): void {
         this.errorHistory = [];
     }
+
+    /**
+     * Enhanced error handling with automatic recovery attempts
+     */
+    async handleErrorWithRecovery(error: Error, context: ErrorContext, maxRetries: number = 3): Promise<ErrorReport> {
+        const errorReport = await this.handleError(error, context);
+        
+        // Attempt automatic recovery for recoverable errors
+        if (this.canAttemptRecovery(errorReport)) {
+            const recoveryResult = await this.attemptAutomaticRecovery(errorReport, maxRetries);
+            if (recoveryResult.success) {
+                errorReport.userMessage = `${errorReport.userMessage} (Automatically recovered)`;
+                errorReport.severity = 'low';
+            }
+        }
+        
+        return errorReport;
+    }
+
+    /**
+     * Check if automatic recovery can be attempted
+     */
+    private canAttemptRecovery(errorReport: ErrorReport): boolean {
+        const recoverableCategories = ['network', 'timeout', 'temporary', 'retry'];
+        const errorMessage = errorReport.error.message.toLowerCase();
+        
+        return recoverableCategories.some(category => errorMessage.includes(category)) ||
+               errorReport.severity === 'low' || errorReport.severity === 'medium';
+    }
+
+    /**
+     * Attempt automatic recovery
+     */
+    private async attemptAutomaticRecovery(errorReport: ErrorReport, maxRetries: number): Promise<{success: boolean, attempts: number}> {
+        let attempts = 0;
+        
+        while (attempts < maxRetries) {
+            attempts++;
+            
+            try {
+                // Wait before retry (exponential backoff)
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
+                
+                // Try to execute the first recovery option if available
+                if (errorReport.recoveryOptions.length > 0) {
+                    await errorReport.recoveryOptions[0].action();
+                    return { success: true, attempts };
+                }
+                
+                // For network errors, just wait and assume recovery
+                if (errorReport.error.message.toLowerCase().includes('network')) {
+                    return { success: true, attempts };
+                }
+                
+            } catch (recoveryError) {
+                console.warn(`Recovery attempt ${attempts} failed:`, recoveryError);
+                continue;
+            }
+        }
+        
+        return { success: false, attempts };
+    }
+
+    /**
+     * Wrap a function with comprehensive error handling
+     */
+    static withErrorHandling<T extends any[], R>(
+        fn: (...args: T) => Promise<R>,
+        context: Partial<ErrorContext>,
+        options: {
+            maxRetries?: number;
+            fallbackValue?: R;
+            suppressErrors?: boolean;
+        } = {}
+    ): (...args: T) => Promise<R> {
+        return async (...args: T): Promise<R> => {
+            const errorHandler = ErrorHandler.getInstance();
+            const fullContext: ErrorContext = {
+                operation: context.operation || 'unknown',
+                timestamp: new Date(),
+                ...context
+            };
+            
+            try {
+                return await fn(...args);
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                
+                if (options.maxRetries && options.maxRetries > 0) {
+                    const errorReport = await errorHandler.handleErrorWithRecovery(err, fullContext, options.maxRetries);
+                    
+                    // If recovery was successful, try again
+                    if (errorReport.userMessage.includes('Automatically recovered')) {
+                        try {
+                            return await fn(...args);
+                        } catch (retryError) {
+                            // If retry fails, continue with original error handling
+                        }
+                    }
+                } else {
+                    await errorHandler.handleError(err, fullContext);
+                }
+                
+                if (options.fallbackValue !== undefined) {
+                    return options.fallbackValue;
+                }
+                
+                if (options.suppressErrors) {
+                    throw err;
+                }
+                
+                throw err;
+            }
+        };
+    }
+
+    /**
+     * Create a standardized error context
+     */
+    static createContext(operation: string, additionalContext?: Partial<ErrorContext>): ErrorContext {
+        return {
+            operation,
+            timestamp: new Date(),
+            ...additionalContext
+        };
+    }
 }

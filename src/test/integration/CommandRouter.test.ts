@@ -11,7 +11,14 @@ describe('CommandRouter Integration Tests', () => {
     let mockContext: CommandContext;
 
     beforeAll(() => {
-        commandRouter = new CommandRouter();
+        // Create mock agent manager for CommandRouter
+        const mockAgentManager = {
+            listAgents: jest.fn().mockReturnValue([]),
+            getAgent: jest.fn().mockReturnValue(null),
+            loadConfigurations: jest.fn().mockResolvedValue(undefined)
+        } as any;
+        
+        commandRouter = new CommandRouter(mockAgentManager);
         mockContext = VSCodeAPIMocks.createMockCommandContext();
     });
 

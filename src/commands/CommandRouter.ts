@@ -8,6 +8,8 @@ import { AgentUtils } from '../utils/AgentUtils';
 import { ConversationManager } from '../conversation/ConversationManager';
 import { ErrorHandler, ErrorCategory, withErrorHandling } from '../utils/ErrorHandler';
 import { PerformanceMonitor, withPerformanceMonitoring } from '../utils/PerformanceMonitor';
+import { ConversationBridge } from '../conversation/ConversationBridge';
+import { ErrorHandler as EnhancedErrorHandler } from '../error/ErrorHandler';
 
 export type { CommandContext } from './types';
 
@@ -17,11 +19,14 @@ export class CommandRouter {
     private conversationManager?: ConversationManager;
     private outputCoordinator: OutputCoordinator;
     private newCommandHandler: NewCommandHandler;
+    private conversationBridge?: ConversationBridge;
+    private agentManager: import('../agents/AgentManager').AgentManager;
 
-    constructor() {
+    constructor(agentManager: import('../agents/AgentManager').AgentManager) {
         this.parser = new CommandParser();
         this.outputCoordinator = OutputCoordinator.getInstance();
         this.newCommandHandler = new NewCommandHandler();
+        this.agentManager = agentManager;
         this.registerBuiltInCommands();
     }
 
@@ -34,6 +39,16 @@ export class CommandRouter {
     ): void {
         this.conversationFlowHandler = flowHandler;
         this.conversationManager = conversationManager;
+        
+        // Initialize ConversationBridge if all dependencies are available
+        if (this.conversationFlowHandler && this.conversationManager && this.agentManager) {
+            this.conversationBridge = ConversationBridge.initialize(
+                this.conversationFlowHandler,
+                this.conversationManager,
+                this.agentManager,
+                this.outputCoordinator
+            );
+        }
     }
 
     /**
@@ -58,12 +73,13 @@ export class CommandRouter {
      * Route and execute a command
      */
     async routeCommand(input: string, context: CommandContext): Promise<CommandResult> {
+        let parsedCommand: ParsedCommand | undefined;
         try {
             // Clear previous output state
             this.outputCoordinator.clear();
 
             // Parse the command
-            const parsedCommand = this.parser.parseCommand(input);
+            parsedCommand = this.parser.parseCommand(input);
 
             // Validate the command
             const validation = this.parser.validateCommand(parsedCommand);
@@ -84,19 +100,19 @@ export class CommandRouter {
             }
 
             // Find and execute the command handler
-            const commandDef = this.parser.getCommands().find(cmd => cmd.name === parsedCommand.command);
+            const commandDef = this.parser.getCommands().find(cmd => cmd.name === parsedCommand?.command);
             if (!commandDef) {
                 this.outputCoordinator.registerPrimaryOutput('command-router', {
                     type: 'error',
                     title: 'Command Not Found',
-                    message: `Command '${parsedCommand.command}' is not recognized.`,
+                    message: `Command '${parsedCommand?.command || 'unknown'}' is not recognized.`,
                     nextSteps: ['Use /help to see available commands', 'Check command spelling']
                 });
                 await this.outputCoordinator.render(context.stream);
                 
                 return {
                     success: false,
-                    error: `Command '${parsedCommand.command}' not found`
+                    error: `Command '${parsedCommand?.command || 'unknown'}' not found`
                 };
             }
 
@@ -109,18 +125,45 @@ export class CommandRouter {
             return result;
 
         } catch (error) {
+            // Enhanced error handling with recovery options
+            const err = error instanceof Error ? error : new Error(String(error));
+            const errorContext = {
+                operation: 'command-execution',
+                userInput: input,
+                timestamp: new Date()
+            };
+            
+            // Use enhanced error handler for better recovery
+            const errorHandler = EnhancedErrorHandler.getInstance();
+            const errorReport = await errorHandler.handleErrorWithRecovery(err, errorContext, 2);
+            
+            // Provide contextual error information
+            const errorDetails = [errorReport.technicalDetails];
+            const nextSteps = errorReport.recoveryOptions.map(option => option.description);
+            
+            // Add command-specific recovery suggestions
+            if (parsedCommand?.command) {
+                nextSteps.push(`Try '/help ${parsedCommand.command}' for command usage`);
+            }
+            nextSteps.push('Check the VS Code output panel for details');
+            
             this.outputCoordinator.registerPrimaryOutput('command-router', {
                 type: 'error',
-                title: 'Unexpected Error',
-                message: 'An unexpected error occurred while executing the command.',
-                details: [error instanceof Error ? error.message : String(error)],
-                nextSteps: ['Try the command again', 'Check the VS Code output panel for details']
+                title: errorReport.severity === 'critical' ? 'Critical Error' : 'Command Error',
+                message: errorReport.userMessage,
+                details: errorDetails,
+                nextSteps
             });
             await this.outputCoordinator.render(context.stream);
             
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Unknown error occurred'
+                error: errorReport.userMessage,
+                metadata: {
+                    errorCategory: errorReport.severity,
+                    recoveryOptions: errorReport.recoveryOptions.map(opt => opt.label),
+                    canRetry: errorReport.recoveryOptions.some(opt => opt.label.toLowerCase().includes('retry'))
+                }
             };
         }
     }
@@ -455,25 +498,33 @@ export class CommandRouter {
                     
                     switch (subcommand) {
                         case 'list':
-                            this.outputCoordinator.registerPrimaryOutput('agent-command', {
-                                type: 'success',
-                                title: '🤖 Available AI Agents',
-                                message: 'Here are the AI agents available for document assistance:',
-                                details: [
-                                    '• **prd-creator** - Specialized in Product Requirements Documents',
-                                    '• **brainstormer** - Expert in ideation and creative brainstorming',
-                                    '• **requirements-gatherer** - Focused on technical requirements gathering',
-                                    '• **solution-architect** - Designs system architecture and technical solutions',
-                                    '• **quality-reviewer** - Reviews documents for quality and completeness',
-                                    '• **specification-writer** - Creates detailed implementation specifications'
-                                ],
-                                nextSteps: [
-                                    'Use `/agent set <agent-name>` to activate an agent',
-                                    'Use `/new "Title" --with-conversation` to create documents with AI assistance',
-                                    'Different templates automatically select appropriate agents',
-                                    'Use `/agent current` to see which agent is currently active'
-                                ]
-                            });
+                            try {
+                                const agents = this.agentManager.listAgents();
+                                const agentDetails = agents.map(agent => `• **${agent.name}** - ${agent.description || 'AI Assistant'}`);
+                                
+                                this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                    type: 'info',
+                                    title: '🤖 Available AI Agents',
+                                    message: 'Here are the AI agents available for document assistance:',
+                                    details: agentDetails,
+                                    nextSteps: [
+                                        'Use `/agent set <agent-name>` to activate an agent',
+                                        'Use `/new "Title" --with-conversation` to create documents with AI assistance',
+                                        'Different templates automatically select appropriate agents',
+                                        'Use `/agent current` to see which agent is currently active'
+                                    ]
+                                });
+                            } catch (error) {
+                                this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                    type: 'error',
+                                    title: 'Agent Manager Error',
+                                    message: `Error listing agents: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                    nextSteps: [
+                                        'Try the command again',
+                                        'Check VS Code output panel for detailed error information'
+                                    ]
+                                });
+                            }
                             break;
                             
                         case 'set':
@@ -492,61 +543,106 @@ export class CommandRouter {
                                 break;
                             }
                             
-                            const validAgents = ['prd-creator', 'brainstormer', 'requirements-gatherer', 'solution-architect', 'quality-reviewer', 'specification-writer'];
-                            if (!validAgents.includes(agentName)) {
+                            try {
+                                const agentManager = this.agentManager;
+                                const success = agentManager.setCurrentAgent(agentName);
+                                if (success) {
+                                    this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                        type: 'success',
+                                        title: '🤖 Agent Activated',
+                                        message: `Successfully set "${agentName}" as the active agent.`,
+                                        details: [
+                                            `**Active Agent:** ${agentName}`,
+                                            `**Specialization:** ${this.getAgentDescription(agentName)}`,
+                                            `**Status:** Ready for conversations and document assistance`
+                                        ],
+                                        nextSteps: [
+                                            'Use `/chat <message>` to start a conversation with this agent',
+                                            'Use `/new "Title" --with-conversation` to create documents with AI assistance',
+                                            'The agent will provide specialized guidance based on its expertise',
+                                            'Use `/agent current` to confirm the active agent'
+                                        ]
+                                    });
+                                } else {
+                                    const agents = agentManager.listAgents();
+                                    const availableAgents = agents.map((a: any) => a.name);
+                                    this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                        type: 'error',
+                                        title: 'Invalid Agent Name',
+                                        message: `Agent "${agentName}" is not available.`,
+                                        details: [
+                                            'Available agents:',
+                                            ...availableAgents.map((agent: string) => `• ${agent}`)
+                                        ],
+                                        nextSteps: [
+                                            'Use `/agent list` to see all available agents',
+                                            'Check the agent name spelling',
+                                            'Use `/agent set <valid-agent-name>`'
+                                        ]
+                                    });
+                                }
+                            } catch (error) {
                                 this.outputCoordinator.registerPrimaryOutput('agent-command', {
                                     type: 'error',
-                                    title: 'Invalid Agent Name',
-                                    message: `Agent "${agentName}" is not available.`,
-                                    details: [
-                                        'Available agents:',
-                                        ...validAgents.map(agent => `• ${agent}`)
-                                    ],
+                                    title: 'Agent Manager Error',
+                                    message: `Error setting agent: ${error instanceof Error ? error.message : 'Unknown error'}`,
                                     nextSteps: [
-                                        'Use `/agent list` to see all available agents',
-                                        'Check the agent name spelling',
-                                        'Use `/agent set <valid-agent-name>`'
+                                        'Try the command again',
+                                        'Check VS Code output panel for detailed error information',
+                                        'Use `/help agent` for command syntax'
                                     ]
                                 });
-                                break;
                             }
-                            
-                            this.outputCoordinator.registerPrimaryOutput('agent-command', {
-                                type: 'success',
-                                title: '🤖 Agent Activated',
-                                message: `Successfully set "${agentName}" as the active agent.`,
-                                details: [
-                                    `**Active Agent:** ${agentName}`,
-                                    `**Specialization:** ${this.getAgentDescription(agentName)}`,
-                                    `**Status:** Ready for conversations and document assistance`
-                                ],
-                                nextSteps: [
-                                    'Use `/chat <message>` to start a conversation with this agent',
-                                    'Use `/new "Title" --with-conversation` to create documents with AI assistance',
-                                    'The agent will provide specialized guidance based on its expertise',
-                                    'Use `/agent current` to confirm the active agent'
-                                ]
-                            });
                             break;
                             
                         case 'current':
-                            // In a real implementation, this would check the actual current agent
-                            this.outputCoordinator.registerPrimaryOutput('agent-command', {
-                                type: 'info',
-                                title: '🤖 Current Agent Status',
-                                message: 'No agent is currently active.',
-                                details: [
-                                    '**Status:** No active agent',
-                                    '**Impact:** AI conversations and assistance are not available',
-                                    '**Recommendation:** Set an agent to enable AI features'
-                                ],
-                                nextSteps: [
-                                    'Use `/agent list` to see available agents',
-                                    'Use `/agent set <agent-name>` to activate an agent',
-                                    'Use `/new "Title" --with-conversation` for automatic agent selection',
-                                    'Different document templates will suggest appropriate agents'
-                                ]
-                            });
+                            try {
+                                const currentAgent = this.agentManager.getCurrentAgent();
+                                if (currentAgent) {
+                                    this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                        type: 'success',
+                                        title: '🤖 Current Agent Status',
+                                        message: `Agent "${currentAgent.name}" is currently active.`,
+                                        details: [
+                                            `**Active Agent:** ${currentAgent.name}`,
+                                            `**Description:** ${(currentAgent as any).description || 'AI Assistant'}`,
+                                            `**Status:** Ready for conversations and document assistance`
+                                        ],
+                                        nextSteps: [
+                                            'Use `/chat <message>` to start a conversation with this agent',
+                                            'Use `/new "Title" --with-conversation` to create documents with AI assistance',
+                                            'Use `/agent set <name>` to switch to a different agent'
+                                        ]
+                                    });
+                                } else {
+                                    this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                        type: 'info',
+                                        title: '🤖 Current Agent Status',
+                                        message: 'No agent is currently active.',
+                                        details: [
+                                            '**Status:** No active agent',
+                                            '**Impact:** AI conversations and assistance are not available',
+                                            '**Recommendation:** Set an agent to enable AI features'
+                                        ],
+                                        nextSteps: [
+                                            'Use `/agent list` to see available agents',
+                                            'Use `/agent set <agent-name>` to activate an agent',
+                                            'Use `/new "Title" --with-conversation` for automatic agent selection',
+                                            'Different document templates will suggest appropriate agents'
+                                        ]
+                                    });
+                                }
+                            } catch (error) {
+                                this.outputCoordinator.registerPrimaryOutput('agent-command', {
+                                    type: 'error',
+                                    title: 'Agent Manager Error',
+                                    message: `Error getting current agent: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                    nextSteps: [
+                                        'Try the command again',
+                                        'Check VS Code output panel for detailed error information'
+                                    ]
+                                });
+                            }
                             break;
                             
                         default:
@@ -745,9 +841,35 @@ export class CommandRouter {
         context: CommandContext,
         parsedCommand: ParsedCommand
     ): Promise<void> {
-        // Handle conversation continuation if needed
-        if (result.success && result.shouldContinueConversation && result.conversationConfig) {
-            await this.handleConversationContinuation(result, context);
+        // Handle conversation continuation using ConversationBridge
+        if (result.success && this.conversationBridge) {
+            const transitionResult = await this.conversationBridge.handleCommandToConversationTransition(
+                result,
+                parsedCommand.command,
+                context
+            );
+            
+            if (!transitionResult.success && transitionResult.error) {
+                this.outputCoordinator.addSecondaryFeedback('conversation-error', {
+                    type: 'warning',
+                    content: `⚠️ **Conversation could not start:** ${transitionResult.error}`,
+                    priority: 3
+                });
+                
+                if (transitionResult.fallbackOptions) {
+                    this.outputCoordinator.addSecondaryFeedback('conversation-fallback', {
+                        type: 'guidance',
+                        content: `🔧 **Alternative options:**\n${transitionResult.fallbackOptions.map(option => `• ${option}`).join('\n')}`,
+                        priority: 2
+                    });
+                }
+            } else if (transitionResult.success && transitionResult.sessionId) {
+                this.outputCoordinator.addSecondaryFeedback('conversation-success', {
+                    type: 'tip',
+                    content: `🚀 **Conversation started successfully!** Session ID: ${transitionResult.sessionId}`,
+                    priority: 5
+                });
+            }
         } else if (result.success) {
             // Provide completion guidance through coordinated feedback
             await this.provideCoordinatedCompletionGuidance(parsedCommand);
@@ -755,14 +877,33 @@ export class CommandRouter {
     }
 
     /**
-     * Handle conversation continuation after command execution
+     * Handle conversation continuation after command execution (Legacy method - now uses ConversationBridge)
+     * @deprecated Use ConversationBridge.handleCommandToConversationTransition instead
      */
     private async handleConversationContinuation(
         result: CommandResult,
         context: CommandContext
     ): Promise<void> {
+        // This method is kept for backward compatibility but delegates to ConversationBridge
+        if (this.conversationBridge) {
+            const transitionResult = await this.conversationBridge.handleCommandToConversationTransition(
+                result,
+                'legacy-command',
+                context
+            );
+            
+            if (!transitionResult.success) {
+                this.outputCoordinator.addSecondaryFeedback('conversation-fallback', {
+                    type: 'guidance',
+                    content: '💡 **Conversation could not start automatically.** You can start a conversation manually with `/chat <message>`',
+                    priority: 10
+                });
+            }
+            return;
+        }
+
+        // Fallback to old logic if ConversationBridge is not available
         if (!this.conversationFlowHandler || !this.conversationManager) {
-            // Register fallback feedback with coordinator
             this.outputCoordinator.addSecondaryFeedback('conversation-fallback', {
                 type: 'guidance',
                 content: '💡 **Conversation handlers not available.** You can start a conversation manually with `/chat <message>`',
@@ -773,28 +914,24 @@ export class CommandRouter {
 
         try {
             if (result.conversationConfig) {
-                // Register conversation feedback with coordinator
                 this.outputCoordinator.addSecondaryFeedback('conversation-start', {
                     type: 'conversation',
                     content: await this.formatConversationStartFeedback(result),
                     priority: 5
                 });
 
-                // Start the conversation flow
                 await this.conversationFlowHandler.startConversationFlow(
                     result.conversationConfig,
                     context
                 );
             }
         } catch (error) {
-            // Register error feedback with coordinator
             this.outputCoordinator.addSecondaryFeedback('conversation-error', {
                 type: 'warning',
                 content: await this.formatConversationErrorFeedback(error),
                 priority: 3
             });
 
-            // Handle conversation continuation failure with recovery manager
             if (result.conversationConfig && this.conversationManager) {
                 await this.conversationManager.provideFallbackOptions(
                     result.conversationConfig,

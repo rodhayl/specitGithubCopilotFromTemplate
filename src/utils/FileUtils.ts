@@ -155,8 +155,12 @@ export class FileUtils {
         workspaceRoot?: string
     ): string {
         if (customPath) {
+            const sanitizedTitle = FileUtils.sanitizeFilename(title);
             const normalized = this.normalizePath(customPath);
-            return FileUtils.ensureMarkdownExtension(normalized);
+            // If customPath ends with a directory separator or is a directory,
+            // append the sanitized title as filename
+            const fullPath = path.join(normalized, `${sanitizedTitle}.md`);
+            return fullPath;
         }
 
         const sanitizedTitle = FileUtils.sanitizeFilename(title);

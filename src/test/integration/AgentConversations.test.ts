@@ -94,7 +94,14 @@ describe('Agent Conversations Integration Tests', () => {
         mockContext = VSCodeAPIMocks.createMockCommandContext('/mock/workspace');
         
         // Initialize other managers (these would normally be initialized in extension.ts)
-        commandRouter = new CommandRouter();
+        // Create mock agent manager for CommandRouter
+        const mockAgentManager = {
+            listAgents: jest.fn().mockReturnValue([]),
+            getAgent: jest.fn().mockReturnValue(null),
+            loadConfigurations: jest.fn().mockResolvedValue(undefined)
+        } as any;
+        
+        commandRouter = new CommandRouter(mockAgentManager);
         
         // Mock the conversation and agent managers
         conversationManager = {
