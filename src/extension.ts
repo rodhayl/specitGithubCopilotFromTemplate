@@ -53,11 +53,23 @@ const getSettingsProvider = () => stateManager.getComponent<SettingsWebviewProvi
 const getOutputCoordinator = () => stateManager.getComponent<OutputCoordinator>('outputCoordinator')!;
 
 export async function activate(context: vscode.ExtensionContext) {
-	// Store global extension context
-	globalExtensionContext = context;
+	const startTime = Date.now();
+	console.log('DOCU EXTENSION: Activation started at', new Date().toISOString());
 	
-	// Initialize StateManager first for centralized state coordination
-	stateManager = StateManager.getInstance();
+	try {
+		// Store global extension context
+		globalExtensionContext = context;
+		
+		// Add development mode detection
+		const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
+		if (isDevelopment) {
+			console.log('DOCU EXTENSION: Running in development mode - marketplace features disabled');
+		}
+		
+		// Initialize StateManager first for centralized state coordination with context
+		console.log('DOCU EXTENSION: Initializing StateManager...');
+		stateManager = StateManager.getInstance(context);
+		await stateManager.initialize();
 	
 	// Initialize logging system first
 	const logger = Logger.initialize(context);
@@ -274,17 +286,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		stateManager.getComponent('conversationManager') as any
 	);
 
-	// Initialize ConversationBridge for improved command-to-conversation transitions
+	// Check ConversationBridge availability (it's initialized automatically in CommandRouter.setConversationHandlers)
 	if ((commandRouter as any).conversationBridge) {
-		const commandRouterForConversationBridge = stateManager.getComponent('commandRouter');
-		if (commandRouterForConversationBridge) {
-			(commandRouterForConversationBridge as any).conversationBridge.initialize(
-				stateManager.getComponent('conversationFlowHandler') as any,
-				stateManager.getComponent('conversationManager') as any,
-				stateManager.getComponent('agentManager') as any,
-				stateManager.getComponent('outputCoordinator') as any
-			);
-		}
 		const loggerForConversationBridgeSuccess = stateManager.getComponent('logger');
 		if (loggerForConversationBridgeSuccess) {
 			(loggerForConversationBridgeSuccess as any).extension.info('ConversationBridge initialized successfully');
@@ -318,41 +321,52 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Setup configuration change handlers
 	setupConfigurationHandlers(context);
 
-	// Register the @docu chat participant
+	// Register the @docu chat participant with enhanced error handling
 	try {
 		const loggerForChatParticipantRegistration = stateManager.getComponent('logger');
-		if (loggerForChatParticipantRegistration) {(loggerForChatParticipantRegistration as any).extension.info('Registering chat participant');}
-		console.log('DOCU EXTENSION: About to create chat participant');
+		if (loggerForChatParticipantRegistration) {(loggerForChatParticipantRegistration as any).extension.info('Registering GitHub Copilot chat participant');}
+		console.log('DOCU EXTENSION: About to create GitHub Copilot chat participant');
 		
-		// Check if chat API is available
-		if (!vscode.chat || !vscode.chat.createChatParticipant) {
-			throw new Error('VS Code Chat API is not available - please ensure you have VS Code 1.97.0 or later');
+		// Enhanced check for GitHub Copilot Chat API availability
+		if (!vscode.chat) {
+			throw new Error('VS Code Chat API is not available - please ensure you have VS Code 1.97.0 or later and GitHub Copilot Chat extension is installed');
 		}
 		
+		if (!vscode.chat.createChatParticipant) {
+			throw new Error('createChatParticipant API is not available - this may be due to VS Code version incompatibility or missing GitHub Copilot Chat extension');
+		}
+		
+		// Create the chat participant with enhanced configuration
 		const participant = vscode.chat.createChatParticipant('docu', handleChatRequest);
-		console.log('DOCU EXTENSION: Chat participant created:', participant);
+		console.log('DOCU EXTENSION: GitHub Copilot chat participant created:', participant);
 		
 		// Verify participant was created successfully
 		if (!participant) {
-			throw new Error('Failed to create chat participant - createChatParticipant returned null/undefined');
+			throw new Error('Failed to create chat participant - createChatParticipant returned null/undefined. This may indicate a conflict with VS Code agent mode.');
 		}
 		
+		// Configure participant properties for GitHub Copilot integration
 		participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
 		participant.followupProvider = {
 			provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: vscode.CancellationToken) {
 				return [
 					{
-						prompt: 'Help me create a new document',
+						prompt: '/help',
+						label: vscode.l10n.t('Show Help'),
+						command: 'help'
+					},
+					{
+						prompt: '/new "My Document"',
 						label: vscode.l10n.t('Create Document'),
 						command: 'new'
 					},
 					{
-						prompt: 'Show me available agents',
+						prompt: '/agent list',
 						label: vscode.l10n.t('List Agents'),
 						command: 'agent'
 					},
 					{
-						prompt: 'Show me available templates',
+						prompt: '/templates list',
 						label: vscode.l10n.t('List Templates'),
 						command: 'templates'
 					}
@@ -360,34 +374,63 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		};
 
+		// Add participant to subscriptions
 		context.subscriptions.push(participant);
+		
+		// Log successful registration
 		const loggerForChatParticipant = stateManager.getComponent('logger');
 		if (loggerForChatParticipant) {
-			(loggerForChatParticipant as any).extension.info('Chat participant registered successfully', { participantId: 'docu' });
+			(loggerForChatParticipant as any).extension.info('GitHub Copilot chat participant registered successfully', { 
+				participantId: 'docu',
+				fullName: 'Docu Assistant',
+				vsCodeVersion: vscode.version
+			});
 		}
-		console.log('DOCU EXTENSION: Chat participant registered successfully and added to subscriptions');
-		vscode.window.showInformationMessage('Docu chat participant registered successfully!');
+		console.log('DOCU EXTENSION: GitHub Copilot chat participant registered successfully and added to subscriptions');
+		
+		// Show success message to user
+		vscode.window.showInformationMessage('Docu GitHub Copilot chat participant registered successfully! Use @docu in chat to get started.');
 		
 	} catch (participantError) {
 		const error = participantError instanceof Error ? participantError : new Error(String(participantError));
 		const loggerForChatParticipantError = stateManager.getComponent('logger');
-		if (loggerForChatParticipantError) {(loggerForChatParticipantError as any).extension.error('Failed to register chat participant', error);}
-		console.error('DOCU EXTENSION: Failed to register chat participant:', error);
+		if (loggerForChatParticipantError) {(loggerForChatParticipantError as any).extension.error('Failed to register GitHub Copilot chat participant', error);}
+		console.error('DOCU EXTENSION: Failed to register GitHub Copilot chat participant:', error);
 		
-		// Show error to user
-		vscode.window.showErrorMessage(
-			`Failed to register Docu chat participant: ${error.message}. Please reload VS Code and try again.`,
-			'Reload Window'
-		).then(selection => {
-			if (selection === 'Reload Window') {
-				vscode.commands.executeCommand('workbench.action.reloadWindow');
+		// Enhanced error handling with specific guidance
+		let errorMessage = `Failed to register Docu chat participant: ${error.message}`;
+		let actions: string[] = ['Reload Window'];
+		
+		if (error.message.includes('agent mode') || error.message.includes('No activated agent')) {
+			errorMessage += '\n\nThis appears to be related to VS Code\'s new agent mode. Try disabling agent mode in VS Code settings.';
+			actions.push('Open Settings');
+		} else if (error.message.includes('GitHub Copilot')) {
+			errorMessage += '\n\nPlease ensure GitHub Copilot Chat extension is installed and enabled.';
+			actions.push('Install Copilot');
+		}
+		
+		vscode.window.showErrorMessage(errorMessage, ...actions).then(selection => {
+			switch (selection) {
+				case 'Reload Window':
+					vscode.commands.executeCommand('workbench.action.reloadWindow');
+					break;
+				case 'Open Settings':
+					vscode.commands.executeCommand('workbench.action.openSettings', 'chat.agent.enabled');
+					break;
+				case 'Install Copilot':
+					vscode.commands.executeCommand('workbench.extensions.search', 'GitHub.copilot-chat');
+					break;
 			}
 		});
 		
-		// Don't throw - allow extension to continue activating
+		// Track error for telemetry
 		const telemetryManagerForChatParticipantError = stateManager.getComponent('telemetryManager');
 		if (telemetryManagerForChatParticipantError) {
-			(telemetryManagerForChatParticipantError as any).trackError(error, { operation: 'chat-participant-registration' });
+			(telemetryManagerForChatParticipantError as any).trackError(error, { 
+				operation: 'github-copilot-chat-participant-registration',
+				vsCodeVersion: vscode.version,
+				errorType: error.message.includes('agent') ? 'agent-conflict' : 'api-unavailable'
+			});
 		}
 	}
 
@@ -416,16 +459,42 @@ export async function activate(context: vscode.ExtensionContext) {
 		SettingsCommand.register(context, settingsProvider as SettingsWebviewProvider)
 	);
 
-	// Register a test command to verify extension is working
-	context.subscriptions.push(
-		vscode.commands.registerCommand('docu.test', () => {
-			vscode.window.showInformationMessage('Docu extension is active and working!');
-			const loggerForTestCommand = stateManager.getComponent('logger');
-		if (loggerForTestCommand) {
-			(loggerForTestCommand as any).extension.info('Test command executed successfully');
+		// Register a test command to verify extension is working
+		context.subscriptions.push(
+			vscode.commands.registerCommand('docu.test', () => {
+				vscode.window.showInformationMessage('Docu extension is active and working!');
+				const loggerForTestCommand = stateManager.getComponent('logger');
+			if (loggerForTestCommand) {
+				(loggerForTestCommand as any).extension.info('Test command executed successfully');
+			}
+			})
+		);
+		
+		// Log successful activation
+		const duration = Date.now() - startTime;
+		console.log(`DOCU EXTENSION: Activation completed in ${duration}ms`);
+		logger.extension.info(`Extension activated successfully in ${duration}ms`);
+		vscode.window.showInformationMessage(`Docu extension activated successfully (${duration}ms)`);
+		
+	} catch (error) {
+		const duration = Date.now() - startTime;
+		const errorMessage = `Extension activation failed: ${error instanceof Error ? error.message : String(error)}`;
+		console.error(`DOCU EXTENSION: Activation failed after ${duration}ms:`, error);
+		
+		// Try to show error to user if possible
+		try {
+			vscode.window.showErrorMessage(errorMessage, 'Show Details').then(selection => {
+				if (selection === 'Show Details') {
+					vscode.window.showErrorMessage(`Detailed Error: ${error instanceof Error ? error.stack : String(error)}`);
+				}
+			});
+		} catch (displayError) {
+			console.error('DOCU EXTENSION: Failed to display error message:', displayError);
 		}
-		})
-	);
+		
+		// Re-throw to ensure VS Code knows activation failed
+		throw error;
+	}
 }
 
 async function handleChatRequest(
@@ -435,26 +504,60 @@ async function handleChatRequest(
 	token: vscode.CancellationToken
 ): Promise<vscode.ChatResult> {
 	const startTime = performance.now();
-	const loggerForChatRequest = stateManager.getComponent('logger');
-	if (loggerForChatRequest) {
-		(loggerForChatRequest as any).extension.info('Chat request received', {
-			prompt: request.prompt.substring(0, 100),
-			command: request.command
-		});
-	}
-	const telemetryManagerForChatRequest = stateManager.getComponent('telemetryManager');
-	if (telemetryManagerForChatRequest) {
-		(telemetryManagerForChatRequest as any).startPerformanceMetric('chat.request');
-	}
+	
+	try {
+		// Validate agent manager is available
+		const agentManager = stateManager.getComponent<AgentManager>('agentManager');
+		if (!agentManager) {
+			const errorMsg = 'Agent manager not initialized - extension may not be fully activated';
+			stream.markdown(`❌ **Error**: ${errorMsg}`);
+			console.error('DOCU EXTENSION: Chat request failed -', errorMsg);
+			return { errorDetails: { message: errorMsg } };
+		}
+		
+		const loggerForChatRequest = stateManager.getComponent('logger');
+		if (loggerForChatRequest) {
+			(loggerForChatRequest as any).extension.info('GitHub Copilot chat request received', {
+				prompt: request.prompt.substring(0, 100),
+				command: request.command,
+				participantId: 'docu'
+			});
+		}
+		const telemetryManagerForChatRequest = stateManager.getComponent('telemetryManager');
+		if (telemetryManagerForChatRequest) {
+			(telemetryManagerForChatRequest as any).startPerformanceMetric('chat.request');
+		}
 	
 	// Add debug information about the request
 	const debugManagerForChat = stateManager.getComponent('debugManager');
 	if (debugManagerForChat) {
-		(debugManagerForChat as any).addDebugInfo('chat', 'info', 'Chat request received', {
+		(debugManagerForChat as any).addDebugInfo('chat', 'info', 'GitHub Copilot chat request received', {
 			prompt: request.prompt.substring(0, 100),
 			command: request.command,
+			participantId: 'docu',
 			timestamp: new Date().toISOString()
 		});
+	}
+
+	// Fallback mechanism for agent/participant confusion
+	try {
+		// Check if this request is being incorrectly routed as an agent invocation
+		if (request.prompt.includes('No activated agent with id') || 
+			request.prompt.includes('invokeAgent')) {
+			stream.markdown('🔧 **Agent/Participant Conflict Detected**\n\n');
+			stream.markdown('It appears VS Code is trying to invoke this as an agent instead of a chat participant. ');
+			stream.markdown('This is likely due to VS Code\'s new agent mode conflicting with chat participants.\n\n');
+			stream.markdown('**To fix this issue:**\n');
+			stream.markdown('1. Open VS Code Settings (Ctrl+,)\n');
+			stream.markdown('2. Search for "chat.agent.enabled"\n');
+			stream.markdown('3. Disable agent mode\n');
+			stream.markdown('4. Reload VS Code\n\n');
+			stream.markdown('**Alternative:** Use the @docu prefix in GitHub Copilot Chat instead of trying to invoke as an agent.\n');
+			return { metadata: { type: 'agent-conflict-detected', success: true } };
+		}
+	} catch (fallbackError) {
+		// Continue with normal processing if fallback fails
+		console.warn('DOCU EXTENSION: Fallback mechanism failed:', fallbackError);
 	}
 
 	try {
@@ -776,6 +879,32 @@ async function handleChatRequest(
 				canRetry: displayErrorReport.recoveryOptions?.some((opt: any) => opt.label?.toLowerCase().includes('retry')) || false
 			} 
 		};
+	}
+	
+	} catch (error) {
+		// Comprehensive error handling for chat requests
+		const errorMsg = `Chat request failed: ${error instanceof Error ? error.message : String(error)}`;
+		stream.markdown(`❌ **Error**: ${errorMsg}`);
+		
+		// Log the error
+		const logger = stateManager.getComponent('logger');
+		if (logger) {
+			(logger as any).extension.error('Chat request error', error instanceof Error ? error : new Error(String(error)));
+		}
+		
+		// End telemetry tracking
+		const telemetryManager = stateManager.getComponent('telemetryManager');
+		if (telemetryManager) {
+			(telemetryManager as any).endPerformanceMetric('chat.request');
+		}
+		
+		// Provide helpful recovery suggestions
+		stream.markdown('\n**What you can try:**\n');
+		stream.markdown('- Reload the VS Code window\n');
+		stream.markdown('- Check if GitHub Copilot Chat extension is enabled\n');
+		stream.markdown('- Try using `/help` to see available commands\n');
+		
+		return { errorDetails: { message: errorMsg } };
 	}
 }
 

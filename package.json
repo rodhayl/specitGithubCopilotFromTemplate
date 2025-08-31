@@ -29,7 +29,9 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onLanguage:*"
+    "onLanguage:*",
+    "onCommand:workbench.action.chat.open",
+    "onView:workbench.panel.chat"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -37,8 +39,27 @@
       {
         "id": "docu",
         "name": "docu",
+        "fullName": "Docu Assistant",
         "description": "AI-powered documentation assistant for requirements gathering, design, and implementation planning",
-        "isSticky": true
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "help",
+            "description": "Show help and available commands"
+          },
+          {
+            "name": "new",
+            "description": "Create a new document"
+          },
+          {
+            "name": "agent",
+            "description": "Manage AI agents"
+          },
+          {
+            "name": "templates",
+            "description": "Manage document templates"
+          }
+        ]
       }
     ],
     "commands": [
