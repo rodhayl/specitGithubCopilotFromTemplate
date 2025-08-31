@@ -361,7 +361,7 @@ export class StateManager {
         
         for (const componentName of this.initializationOrder) {
             const status = this.state.componentStatuses.get(componentName);
-            if (!status) continue;
+            if (!status) {continue;}
             
             // Check if all dependencies are initialized before this component
             for (const dependency of status.dependencies) {

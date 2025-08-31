@@ -57,7 +57,7 @@ export class TestTimeoutManager {
         operation: string, 
         maxRetries: number = 3
     ): Promise<T> {
-        let lastError: Error;
+        let lastError: Error = new Error('Unknown error occurred');
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -74,7 +74,7 @@ export class TestTimeoutManager {
             }
         }
         
-        throw lastError!;
+        throw lastError;
     }
 
     /**

@@ -321,7 +321,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the @docu chat participant
 	try {
 		const loggerForChatParticipantRegistration = stateManager.getComponent('logger');
-		if (loggerForChatParticipantRegistration) {(loggerForChatParticipantRegistration as any).extension.info('Registering chat participant');}
+		if (loggerForChatParticipantRegistration) (loggerForChatParticipantRegistration as any).extension.info('Registering chat participant');
 		console.log('DOCU EXTENSION: About to create chat participant');
 		
 		// Check if chat API is available
@@ -371,7 +371,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	} catch (participantError) {
 		const error = participantError instanceof Error ? participantError : new Error(String(participantError));
 		const loggerForChatParticipantError = stateManager.getComponent('logger');
-		if (loggerForChatParticipantError) {(loggerForChatParticipantError as any).extension.error('Failed to register chat participant', error);}
+		if (loggerForChatParticipantError) (loggerForChatParticipantError as any).extension.error('Failed to register chat participant', error);
 		console.error('DOCU EXTENSION: Failed to register chat participant:', error);
 		
 		// Show error to user
@@ -765,7 +765,7 @@ async function handleChatRequest(
 		}
 
 		const telemetryManagerForEnd = stateManager.getComponent('telemetryManager');
-		if (telemetryManagerForEnd) {(telemetryManagerForEnd as any).endPerformanceMetric('chat.request');}
+		if (telemetryManagerForEnd) (telemetryManagerForEnd as any).endPerformanceMetric('chat.request');
 		return { 
 			metadata: { 
 				command: request.command, 
@@ -1442,9 +1442,20 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 				}, toolContext) : { success: false, error: 'Tool manager not available' };
 				
 				if (openResult.success) {
-				context.stream.markdown('✨ *File opened in editor*\n\n');
+					context.stream.markdown('✨ *File opened in editor*\n\n');
+				}
 			}
-		}
+				const toolManagerForOpen = stateManager.getComponent('toolManager');
+				const openResult = toolManagerForOpen ? await (toolManagerForOpen as any).executeTool('openInEditor', {
+					path: relativePath,
+					preview: false,
+					viewColumn: 1
+				}, toolContext) : { success: false, error: 'Tool manager not available' };
+				
+				if (openResult.success) {
+					context.stream.markdown('✨ *File opened in editor*\n\n');
+				}
+			}
 			
 			// Show some details about what was created
 			if (result.data) {
@@ -1484,7 +1495,18 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 					conversationConfig.conversationContext.workspaceRoot = context.workspaceRoot;
 					conversationConfig.conversationContext.extensionContext = context.extensionContext;
 				}
-		}
+			}
+				conversationConfig = (conversationManager as any).getConversationConfig('new', templateId);
+				if (conversationConfig) {
+					// Fill in the specific values
+					conversationConfig.documentPath = outputPath;
+					conversationConfig.title = title;
+					conversationConfig.conversationContext.documentPath = outputPath;
+					conversationConfig.conversationContext.title = title;
+					conversationConfig.conversationContext.workspaceRoot = context.workspaceRoot;
+					conversationConfig.conversationContext.extensionContext = context.extensionContext;
+				}
+			}
 			
 			// Show tips if not starting conversation automatically
 			if (!shouldContinue) {
@@ -1752,7 +1774,7 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 		} else if (subcommand === 'open') {
 			const templateId = parsedCommand.arguments[0];
 			if (!templateId) {
-				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** \`/templates open <template-id> [--mode <edit|view>]\`');
+				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** `/templates open <template-id> [--mode <edit|view>]`);
 				return {
 					success: false,
 					error: 'Template ID is required',
@@ -1763,7 +1785,7 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 		} else if (subcommand === 'open') {
 			const templateId = parsedCommand.arguments[0];
 			if (!templateId) {
-				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** \`/templates open <template-id> [--mode <edit|view>]\`');
+				context.stream.markdown('❌ **Error:** Template ID is required\n\n**Usage:** `/templates open <template-id> [--mode <edit|view>]`');
 				return { 
 					success: false, 
 					error: 'Template ID is required',
@@ -1919,7 +1941,8 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 					await (templateServiceForReload as any).reloadTemplates();
 				}
 				context.stream.markdown(`\n🔄 *Templates reloaded - new template is now available*\n`);
-		} else {
+			}
+			} else {
 				context.stream.markdown(`❌ **Error creating template:** ${result.error}`);
 				return { 
 					success: false, 
@@ -1936,6 +1959,7 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 				shouldContinueConversation: false
 			};
 		}
+		}
 
 		return {
 			success: true,
@@ -1951,9 +1975,17 @@ async function handleTemplatesCommand(parsedCommand: ParsedCommand, context: Com
 			shouldContinueConversation: false
 		};
 	}
-}
 
-/**
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+		context.stream.markdown(`❌ **Error:** ${errorMessage}`);
+		return { 
+			success: false, 
+			error: errorMessage,
+			shouldContinueConversation: false
+		};
+	}
+}/*
 *
  * Handle the /update command
  */

@@ -143,7 +143,7 @@ export class PerformanceMonitor {
      * Check if operation exceeds performance threshold
      */
     private checkPerformanceThreshold(metrics: PerformanceMetrics): void {
-        if (!metrics.duration) return;
+        if (!metrics.duration) {return;}
 
         let threshold: number | undefined;
         
@@ -182,7 +182,7 @@ export class PerformanceMonitor {
         metrics: PerformanceMetrics,
         threshold: number
     ): OptimizationSuggestion | null {
-        if (!metrics.duration) return null;
+        if (!metrics.duration) {return null;}
 
         const exceedRatio = metrics.duration / threshold;
         let priority: 'low' | 'medium' | 'high' = 'low';
@@ -333,7 +333,7 @@ export class PerformanceMonitor {
         const allMetrics = Array.from(this.metrics.values());
 
         for (const metrics of allMetrics) {
-            if (!metrics.duration) continue;
+            if (!metrics.duration) {continue;}
 
             let threshold: number | undefined;
             
@@ -361,7 +361,7 @@ export class PerformanceMonitor {
         return suggestions.sort((a, b) => {
             const priorityOrder = { high: 3, medium: 2, low: 1 };
             const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
-            if (priorityDiff !== 0) return priorityDiff;
+            if (priorityDiff !== 0) {return priorityDiff;}
             return b.currentDuration - a.currentDuration;
         });
     }

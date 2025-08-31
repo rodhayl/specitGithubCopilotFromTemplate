@@ -378,9 +378,15 @@ export class ContentCapture implements IContentCapture {
         const deletions = changes.filter(c => c.changeType === 'deletion').length;
 
         const parts: string[] = [];
-        if (additions > 0) parts.push(`${additions} section${additions > 1 ? 's' : ''} added`);
-        if (modifications > 0) parts.push(`${modifications} section${modifications > 1 ? 's' : ''} modified`);
-        if (deletions > 0) parts.push(`${deletions} section${deletions > 1 ? 's' : ''} deleted`);
+        if (additions > 0) {
+            parts.push(`${additions} section${additions > 1 ? 's' : ''} added`);
+        }
+        if (modifications > 0) {
+            parts.push(`${modifications} section${modifications > 1 ? 's' : ''} modified`);
+        }
+        if (deletions > 0) {
+            parts.push(`${deletions} section${deletions > 1 ? 's' : ''} deleted`);
+        }
 
         return parts.join(', ');
     }

@@ -640,7 +640,7 @@ async function simulateConversationFlow(
     conversationManager: ConversationManager
 ): Promise<void> {
     const agentConfig = getAgentConfigForTemplate(templateId);
-    if (!agentConfig) return;
+    if (!agentConfig) {return;}
     
     const conversationContext = {
         documentType: templateId,

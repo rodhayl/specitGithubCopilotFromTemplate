@@ -184,13 +184,19 @@ export class StringUtils {
      * Calculate similarity between two strings (0-1)
      */
     static similarity(a: string, b: string): number {
-        if (a === b) return 1;
-        if (a.length === 0 || b.length === 0) return 0;
+        if (a === b) {
+            return 1;
+        }
+        if (a.length === 0 || b.length === 0) {
+            return 0;
+        }
 
         const longer = a.length > b.length ? a : b;
         const shorter = a.length > b.length ? b : a;
 
-        if (longer.length === 0) return 1;
+        if (longer.length === 0) {
+            return 1;
+        }
 
         const editDistance = this.levenshteinDistance(longer, shorter);
         return (longer.length - editDistance) / longer.length;
@@ -202,8 +208,12 @@ export class StringUtils {
     private static levenshteinDistance(a: string, b: string): number {
         const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
 
-        for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
-        for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
+        for (let i = 0; i <= a.length; i++) {
+            matrix[0][i] = i;
+        }
+        for (let j = 0; j <= b.length; j++) {
+            matrix[j][0] = j;
+        }
 
         for (let j = 1; j <= b.length; j++) {
             for (let i = 1; i <= a.length; i++) {
