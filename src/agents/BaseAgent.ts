@@ -271,7 +271,7 @@ export abstract class BaseAgent implements Agent {
             return [];
         }
 
-        const updates: any[] = [];
+        const updates: Array<Record<string, unknown>> = [];
         
         // Process each document update from the conversation
         for (const update of response.documentUpdates) {
@@ -366,7 +366,7 @@ export abstract class BaseAgent implements Agent {
     /**
      * Create a basic response structure
      */
-    protected createResponse(content: string, toolCalls?: any[], followups?: string[]): AgentResponse {
+    protected createResponse(content: string, toolCalls?: import('./types').ToolCall[], followups?: string[]): AgentResponse {
         return {
             content,
             toolCalls,

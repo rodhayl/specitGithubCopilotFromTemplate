@@ -1,5 +1,6 @@
 // Offline mode manager for graceful degradation
 import * as vscode from 'vscode';
+import { Logger } from '../logging/Logger';
 
 export interface OfflineCapabilities {
     fileOperations: boolean;
@@ -43,10 +44,12 @@ export class OfflineManager {
     private lastErrorType?: string;
     private forceOfflineMode = false;
     private debugLogging = false;
+    private logger: Logger;
 
     private constructor() {
+        this.logger = Logger.getInstance();
         this.loadConfiguration();
-        
+
         // Listen for configuration changes (only if workspace is available)
         try {
             vscode.workspace.onDidChangeConfiguration(event => {
@@ -403,7 +406,7 @@ export class OfflineManager {
      */
     private log(message: string): void {
         if (this.debugLogging) {
-            console.log(`[OfflineManager] ${message}`);
+            this.logger.extension.debug(`[OfflineManager] ${message}`);
         }
     }
 
@@ -416,7 +419,7 @@ export class OfflineManager {
         }
 
         this.isOfflineMode = true;
-        console.log(`Offline mode enabled: ${reason}`);
+        this.logger.extension.info(`Offline mode enabled: ${reason}`);
 
         // Notify user about offline mode (if available)
         try {
@@ -442,7 +445,7 @@ export class OfflineManager {
         }
 
         this.isOfflineMode = false;
-        console.log('Offline mode disabled - full functionality restored');
+        this.logger.extension.info('Offline mode disabled - full functionality restored');
 
         try {
             vscode.window.showInformationMessage(

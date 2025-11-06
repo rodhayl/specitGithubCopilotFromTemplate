@@ -50,7 +50,7 @@ Remember: Your goal is to facilitate creative thinking and help users explore th
                     // This would be implemented with actual file reading in a complete system
                     prdContext = `\n\nPRD Context: Available for reference`;
                 } catch (error) {
-                    console.warn('Could not read PRD for context:', error);
+                    this.log('Could not read PRD for context', 'warn');
                 }
             }
 

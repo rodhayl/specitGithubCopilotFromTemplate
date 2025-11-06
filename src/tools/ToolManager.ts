@@ -11,11 +11,14 @@ import { ValidateTemplateTool } from './ValidateTemplateTool';
 import { CreateTemplateTool } from './CreateTemplateTool';
 import { InsertSectionTool } from './InsertSectionTool';
 import { TemplateManager } from '../templates';
+import { Logger } from '../logging/Logger';
 
 export class ToolManager {
     private tools: Map<string, Tool> = new Map();
+    private logger: Logger;
 
     constructor(private templateManager?: TemplateManager) {
+        this.logger = Logger.getInstance();
         this.registerBuiltinTools();
     }
 
@@ -24,7 +27,7 @@ export class ToolManager {
      */
     registerTool(tool: Tool): void {
         this.tools.set(tool.name, tool);
-        console.log(`Registered tool: ${tool.name}`);
+        this.logger.extension.debug(`Registered tool: ${tool.name}`);
     }
 
     /**
@@ -44,7 +47,7 @@ export class ToolManager {
     /**
      * List all available tools
      */
-    listTools(): Array<{ name: string; description: string; parameters: any[] }> {
+    listTools(): Array<{ name: string; description: string; parameters: import('./types').ToolParameter[] }> {
         return Array.from(this.tools.values()).map(tool => ({
             name: tool.name,
             description: tool.description,
@@ -81,8 +84,8 @@ export class ToolManager {
             return this.standardizeResult(result, toolName);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            console.error(`Tool execution error [${toolName}]:`, error);
-            
+            this.logger.extension.error(`Tool execution error [${toolName}]`, error as Error);
+
             return {
                 success: false,
                 error: `Tool '${toolName}' execution failed: ${errorMessage}`,
@@ -164,13 +167,13 @@ export class ToolManager {
             try {
                 // Verify template manager is ready
                 this.templateManager.getTemplates();
-                
+
                 this.registerTool(new ListTemplatesTool(this.templateManager));
                 this.registerTool(new ValidateTemplateTool(this.templateManager));
                 this.registerTool(new OpenTemplateTool(this.templateManager));
                 this.registerTool(new ApplyTemplateTool(this.templateManager));
             } catch (error) {
-                console.warn('Template tools registration failed:', error);
+                this.logger.extension.warn('Template tools registration failed', error as Error);
                 // Continue with basic tools only
             }
         }
