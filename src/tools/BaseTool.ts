@@ -6,6 +6,7 @@ import { SecurityManager, WorkspaceDetectionResult } from '../security/SecurityM
 import { WorkspaceErrorHandler } from '../security/WorkspaceErrorHandler';
 import { ErrorHandler, ErrorContext } from '../error/ErrorHandler';
 import { OfflineManager } from '../offline/OfflineManager';
+import { Logger } from '../logging/Logger';
 
 export abstract class BaseTool implements Tool {
     public readonly name: string;
@@ -257,9 +258,23 @@ export abstract class BaseTool implements Tool {
     /**
      * Log tool activity
      */
-    protected log(message: string, level: 'info' | 'warn' | 'error' = 'info'): void {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] [${this.name}] [${level.toUpperCase()}] ${message}`);
+    protected log(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'info'): void {
+        const logger = Logger.getInstance();
+        const prefixedMessage = `[${this.name}] ${message}`;
+        switch (level) {
+            case 'debug':
+                logger.extension.debug(prefixedMessage);
+                break;
+            case 'info':
+                logger.extension.info(prefixedMessage);
+                break;
+            case 'warn':
+                logger.extension.warn(prefixedMessage);
+                break;
+            case 'error':
+                logger.extension.error(prefixedMessage, new Error(message));
+                break;
+        }
     }
 
     private isValidType(value: any, expectedType: string): boolean {

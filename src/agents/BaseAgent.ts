@@ -1,6 +1,7 @@
 // Base agent implementation
 import * as vscode from 'vscode';
 import { Agent, ChatRequest, AgentContext, AgentResponse, WorkflowPhase } from './types';
+import { Logger } from '../logging/Logger';
 import { 
     ConversationManager, 
     ConversationContext, 
@@ -376,9 +377,23 @@ export abstract class BaseAgent implements Agent {
     /**
      * Log agent activity
      */
-    protected log(message: string, level: 'info' | 'warn' | 'error' = 'info'): void {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] [${this.name}] [${level.toUpperCase()}] ${message}`);
+    protected log(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'info'): void {
+        const logger = Logger.getInstance();
+        const prefixedMessage = `[${this.name}] ${message}`;
+        switch (level) {
+            case 'debug':
+                logger.extension.debug(prefixedMessage);
+                break;
+            case 'info':
+                logger.extension.info(prefixedMessage);
+                break;
+            case 'warn':
+                logger.extension.warn(prefixedMessage);
+                break;
+            case 'error':
+                logger.extension.error(prefixedMessage, new Error(message));
+                break;
+        }
     }
 
     /**

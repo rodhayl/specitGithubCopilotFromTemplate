@@ -8,14 +8,18 @@ import { RequirementsGathererAgent } from './RequirementsGathererAgent';
 import { SolutionArchitectAgent } from './SolutionArchitectAgent';
 import { SpecificationWriterAgent } from './SpecificationWriterAgent';
 import { QualityReviewerAgent } from './QualityReviewerAgent';
+import { Logger } from '../logging/Logger';
+import { AGENTS, WORKFLOW_PHASES, PATHS } from '../constants';
 
 export class AgentManager {
     private agents: Map<string, Agent> = new Map();
     private configurations: Map<string, AgentConfiguration> = new Map();
-    private currentAgent: string = 'prd-creator';
+    private currentAgent: string = AGENTS.PRD_CREATOR;
     private workflowState: WorkflowState;
+    private logger: Logger;
 
     constructor(private extensionContext: vscode.ExtensionContext) {
+        this.logger = Logger.getInstance();
         this.workflowState = this.initializeWorkflowState();
         this.registerBuiltinAgents();
     }
@@ -57,7 +61,7 @@ export class AgentManager {
      */
     registerAgent(agent: Agent): void {
         this.agents.set(agent.name, agent);
-        console.log(`Registered agent: ${agent.name}`);
+        this.logger.extension.debug(`Registered agent: ${agent.name}`);
     }
 
     /**
@@ -105,11 +109,11 @@ export class AgentManager {
         try {
             // Load built-in configurations
             await this.loadBuiltinConfigurations();
-            
+
             // Load user-defined configurations if they exist
             await this.loadUserConfigurations();
         } catch (error) {
-            console.error('Error loading agent configurations:', error);
+            this.logger.extension.error('Error loading agent configurations', error as Error);
         }
     }
 
@@ -341,10 +345,10 @@ export class AgentManager {
                 });
             } catch (error) {
                 // User configuration file doesn't exist or is invalid - this is okay
-                console.log('No user agent configurations found or invalid format');
+                this.logger.extension.debug('No user agent configurations found or invalid format');
             }
         } catch (error) {
-            console.error('Error loading user configurations:', error);
+            this.logger.extension.error('Error loading user configurations', error as Error);
         }
     }
 }
