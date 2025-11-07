@@ -11,20 +11,49 @@ import { ValidateTemplateTool } from './ValidateTemplateTool';
 import { CreateTemplateTool } from './CreateTemplateTool';
 import { InsertSectionTool } from './InsertSectionTool';
 import { TemplateManager } from '../templates';
+import { Logger } from '../logging/Logger';
 
+/**
+ * ToolManager - Central coordinator for all tools in the extension
+ *
+ * Manages tool registration, lifecycle, and execution. Provides error handling,
+ * validation, and standardized result formatting for all tool operations.
+ *
+ * @example
+ * ```typescript
+ * const toolManager = new ToolManager(templateManager);
+ * const result = await toolManager.executeTool('readFile', { path: 'docs/file.md' }, context);
+ * ```
+ */
 export class ToolManager {
     private tools: Map<string, Tool> = new Map();
+    private logger: Logger;
 
+    /**
+     * Creates a new ToolManager instance
+     *
+     * @param templateManager - Optional template manager for template-related tools
+     */
     constructor(private templateManager?: TemplateManager) {
+        this.logger = Logger.getInstance();
         this.registerBuiltinTools();
     }
 
     /**
      * Register a tool with the manager
+     *
+     * Adds a tool to the available tools pool. Tools can be built-in or custom.
+     *
+     * @param tool - The tool instance to register
+     * @example
+     * ```typescript
+     * const customTool = new CustomTool('my-tool', 'Description', []);
+     * toolManager.registerTool(customTool);
+     * ```
      */
     registerTool(tool: Tool): void {
         this.tools.set(tool.name, tool);
-        console.log(`Registered tool: ${tool.name}`);
+        this.logger.extension.debug(`Registered tool: ${tool.name}`);
     }
 
     /**
@@ -44,7 +73,7 @@ export class ToolManager {
     /**
      * List all available tools
      */
-    listTools(): Array<{ name: string; description: string; parameters: any[] }> {
+    listTools(): Array<{ name: string; description: string; parameters: import('./types').ToolParameter[] }> {
         return Array.from(this.tools.values()).map(tool => ({
             name: tool.name,
             description: tool.description,
@@ -54,6 +83,30 @@ export class ToolManager {
 
     /**
      * Execute a tool with parameters and comprehensive error handling
+     *
+     * Handles tool execution with automatic error handling, validation, and result standardization.
+     * Supports both BaseTool subclasses (with enhanced error handling) and generic Tool implementations.
+     *
+     * @param toolName - Name of the tool to execute
+     * @param parameters - Tool-specific parameters
+     * @param context - Execution context including workspace root and extension context
+     * @returns Standardized tool result with success status, data, and metadata
+     *
+     * @example
+     * ```typescript
+     * const result = await toolManager.executeTool('readFile', {
+     *     path: 'docs/README.md'
+     * }, {
+     *     workspaceRoot: '/project',
+     *     extensionContext: context
+     * });
+     *
+     * if (result.success) {
+     *     console.log('File content:', result.data);
+     * } else {
+     *     console.error('Error:', result.error);
+     * }
+     * ```
      */
     async executeTool(toolName: string, parameters: any, context: ToolContext): Promise<ToolResult> {
         const tool = this.tools.get(toolName);
@@ -81,8 +134,8 @@ export class ToolManager {
             return this.standardizeResult(result, toolName);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            console.error(`Tool execution error [${toolName}]:`, error);
-            
+            this.logger.extension.error(`Tool execution error [${toolName}]`, error as Error);
+
             return {
                 success: false,
                 error: `Tool '${toolName}' execution failed: ${errorMessage}`,
@@ -164,13 +217,13 @@ export class ToolManager {
             try {
                 // Verify template manager is ready
                 this.templateManager.getTemplates();
-                
+
                 this.registerTool(new ListTemplatesTool(this.templateManager));
                 this.registerTool(new ValidateTemplateTool(this.templateManager));
                 this.registerTool(new OpenTemplateTool(this.templateManager));
                 this.registerTool(new ApplyTemplateTool(this.templateManager));
             } catch (error) {
-                console.warn('Template tools registration failed:', error);
+                this.logger.extension.warn('Template tools registration failed', error as Error);
                 // Continue with basic tools only
             }
         }

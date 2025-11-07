@@ -16,6 +16,12 @@ interface SectionInfo {
     title: string;
 }
 
+/**
+ * InsertSectionTool - Inserts content sections into documents
+ *
+ * Intelligently inserts content into existing documents at specified positions
+ * or after specific headers/markers.
+ */
 export class InsertSectionTool extends BaseTool {
     name = 'insertSection';
     description = 'Update specific sections in Markdown documents';

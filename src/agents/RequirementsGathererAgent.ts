@@ -1,6 +1,12 @@
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse } from './types';
 
+/**
+ * RequirementsGathererAgent - Structured requirements collection
+ *
+ * Systematically collects and structures business requirements using EARS format.
+ * Creates user stories and transforms brainstormed ideas into structured requirements.
+ */
 export class RequirementsGathererAgent extends BaseAgent {
     name = 'requirements-gatherer';
     systemPrompt = `You are a Requirements Gatherer agent specialized in systematically collecting and structuring business requirements using the EARS (Easy Approach to Requirements Syntax) format.

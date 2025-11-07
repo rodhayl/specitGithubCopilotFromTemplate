@@ -25,6 +25,19 @@ export interface ErrorReport {
     technicalDetails: string;
 }
 
+/**
+ * ErrorHandler - Centralized error handling and recovery system
+ *
+ * Provides comprehensive error handling, categorization, recovery suggestions,
+ * and error reporting. Maintains error history and integrates with VS Code's
+ * error reporting mechanisms.
+ *
+ * @example
+ * ```typescript
+ * const errorHandler = ErrorHandler.getInstance();
+ * const report = await errorHandler.handleError(error, { component: 'ToolManager' });
+ * ```
+ */
 export class ErrorHandler {
     private static instance: ErrorHandler;
     private errorHistory: ErrorReport[] = [];
@@ -42,6 +55,11 @@ export class ErrorHandler {
                process.env.VSCODE_PID === undefined;
     }
 
+    /**
+     * Get the singleton instance of ErrorHandler
+     *
+     * @returns The ErrorHandler singleton instance
+     */
     static getInstance(): ErrorHandler {
         if (!ErrorHandler.instance) {
             ErrorHandler.instance = new ErrorHandler();

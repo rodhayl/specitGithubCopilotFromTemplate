@@ -19,6 +19,12 @@ export interface ValidationIssue {
     suggestion?: string;
 }
 
+/**
+ * ValidateTemplateTool - Validates template structure and syntax
+ *
+ * Performs comprehensive template validation including front matter parsing,
+ * variable validation, and syntax checking.
+ */
 export class ValidateTemplateTool extends BaseTool {
     constructor(private templateManager: TemplateManager) {
         super(

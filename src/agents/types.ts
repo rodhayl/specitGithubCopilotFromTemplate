@@ -25,8 +25,10 @@ export interface AgentContext {
     userPreferences: UserPreferences;
     workflowState: WorkflowState;
     extensionContext: vscode.ExtensionContext;
-    toolManager?: any; // ToolManager instance
-    toolContext?: any; // Tool execution context
+    /** Tool manager instance for executing tools. Should be ToolManager type but kept flexible for compatibility. */
+    toolManager?: any;
+    /** Tool execution context. Should be ToolContext type but kept flexible for compatibility. */
+    toolContext?: any;
 }
 
 export interface AgentResponse {

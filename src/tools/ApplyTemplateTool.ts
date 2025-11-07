@@ -9,6 +9,12 @@ export interface ApplyTemplateParams {
     outputPath?: string;
 }
 
+/**
+ * ApplyTemplateTool - Applies templates to generate documents
+ *
+ * Renders templates with variable substitution and front matter processing.
+ * Integrates with TemplateService for template management.
+ */
 export class ApplyTemplateTool extends BaseTool {
     constructor(private templateManager: TemplateManager) {
         super(

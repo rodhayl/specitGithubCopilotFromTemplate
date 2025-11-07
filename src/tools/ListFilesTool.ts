@@ -4,6 +4,12 @@ import * as path from 'path';
 import { BaseTool } from './BaseTool';
 import { ToolContext, ToolResult, FileMetadata } from './types';
 
+/**
+ * ListFilesTool - Lists files in a directory
+ *
+ * Provides directory listing with glob pattern support, filtering,
+ * and security validation. Returns file paths and metadata.
+ */
 export class ListFilesTool extends BaseTool {
     constructor() {
         super(

@@ -218,6 +218,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (selection === 'Learn More') {
 				vscode.env.openExternal(vscode.Uri.parse('https://github.com/features/copilot'));
 			}
+		}, (error) => {
+			logger.extension.error('Failed to show Copilot warning dialog', error);
 		});
 	}
 	stateManager.registerComponent('llmService', llmService);
@@ -3561,153 +3563,9 @@ function setupConfigurationHandlers(context: vscode.ExtensionContext): void {
 	});
 
 	context.subscriptions.push(fileChangeCommand, continueConversationCommand);
-
-	// Register configuration management commands
-	const showConfigCommand = vscode.commands.registerCommand('docu.showConfiguration', () => {
-		const config = (stateManager.getComponent('configManager') as any).getConfiguration();
-		const panel = vscode.window.createWebviewPanel(
-			'docuConfig',
-			'Docu Configuration',
-			vscode.ViewColumn.One,
-			{ enableScripts: true }
-		);
-
-		panel.webview.html = generateConfigurationWebview(config);
-	});
-
-	const exportConfigCommand = vscode.commands.registerCommand('docu.exportConfiguration', async () => {
-		const configJson = (stateManager.getComponent('configManager') as any).exportConfiguration();
-		const doc = await vscode.workspace.openTextDocument({
-			content: configJson,
-			language: 'json'
-		});
-		await vscode.window.showTextDocument(doc);
-	});
-
-	const resetConfigCommand = vscode.commands.registerCommand('docu.resetConfiguration', async () => {
-		const result = await vscode.window.showWarningMessage(
-			'Are you sure you want to reset all Docu settings to their default values?',
-			{ modal: true },
-			'Reset',
-			'Cancel'
-		);
-
-		if (result === 'Reset') {
-			await (stateManager.getComponent('configManager') as any).resetToDefaults();
-			vscode.window.showInformationMessage('Docu configuration has been reset to defaults.');
-		}
-	});
-
-	context.subscriptions.push(showConfigCommand, exportConfigCommand, resetConfigCommand);
 }
 
 /**
- * Generate HTML for configuration webview
- */
-function generateConfigurationWebview(config: any): string {
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Docu Configuration</title>
-    <style>
-        body {
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-            padding: 20px;
-        }
-        .config-section {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 5px;
-        }
-        .config-item {
-            margin-bottom: 10px;
-        }
-        .config-key {
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-        }
-        .config-value {
-            margin-left: 10px;
-            font-family: var(--vscode-editor-font-family);
-        }
-        .boolean-true {
-            color: var(--vscode-debugConsole-infoForeground);
-        }
-        .boolean-false {
-            color: var(--vscode-debugConsole-errorForeground);
-        }
-        .number {
-            color: var(--vscode-debugConsole-warningForeground);
-        }
-        .string {
-            color: var(--vscode-debugConsole-sourceForeground);
-        }
-    </style>
-</head>
-<body>
-    <h1>Docu Configuration</h1>
-    
-    <div class="config-section">
-        <h2>General Settings</h2>
-        <div class="config-item">
-            <span class="config-key">Default Directory:</span>
-            <span class="config-value string">${config.defaultDirectory}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Default Agent:</span>
-            <span class="config-value string">${config.defaultAgent}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Auto Save Documents:</span>
-            <span class="config-value boolean-${config.autoSaveDocuments}">${config.autoSaveDocuments}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Show Workflow Progress:</span>
-            <span class="config-value boolean-${config.showWorkflowProgress}">${config.showWorkflowProgress}</span>
-        </div>
-    </div>
-
-    <div class="config-section">
-        <h2>Directories</h2>
-        <div class="config-item">
-            <span class="config-key">Template Directory:</span>
-            <span class="config-value string">${config.templateDirectory}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Agent Config Directory:</span>
-            <span class="config-value string">${config.agentConfigDirectory}</span>
-        </div>
-    </div>
-
-    <div class="config-section">
-        <h2>Advanced Settings</h2>
-        <div class="config-item">
-            <span class="config-key">Enable Hot Reload:</span>
-            <span class="config-value boolean-${config.enableHotReload}">${config.enableHotReload}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Review Level:</span>
-            <span class="config-value string">${config.reviewLevel}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Max Files in Summary:</span>
-            <span class="config-value number">${config.maxFilesInSummary}</span>
-        </div>
-        <div class="config-item">
-            <span class="config-key">Enable Debug Logging:</span>
-            <span class="config-value boolean-${config.enableDebugLogging}">${config.enableDebugLogging}</span>
-        </div>
-    </div>
-
-    <p><em>To modify these settings, use VS Code's Settings UI (Ctrl+,) and search for "docu".</em></p>
-</body>
-</html>`;
-}/**
 
  * Generate enhanced file link with VS Code command
  */

@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import { LLMMessage, LLMRequest, LLMResponse, LLMStreamChunk, ModelInfo, LLMServiceConfig } from './types';
+import { Logger } from '../logging/Logger';
 
 export class LLMService {
     private config: LLMServiceConfig;
     private availableModels: vscode.LanguageModelChat[] = [];
+    private logger: Logger;
 
     constructor(config?: Partial<LLMServiceConfig>) {
+        this.logger = Logger.getInstance();
         this.config = {
             defaultMaxTokens: 4000,
             defaultTemperature: 0.7,
@@ -24,9 +27,9 @@ export class LLMService {
                 vendor: 'copilot'
             });
 
-            console.log(`LLM Service initialized with ${this.availableModels.length} available models`);
+            this.logger.extension.info(`LLM Service initialized with ${this.availableModels.length} available models`);
         } catch (error) {
-            console.error('Failed to initialize LLM Service:', error);
+            this.logger.extension.error('Failed to initialize LLM Service', error as Error);
             throw new Error('GitHub Copilot is not available. Please ensure you have Copilot enabled.');
         }
     }

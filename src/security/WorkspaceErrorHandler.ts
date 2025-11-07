@@ -13,6 +13,20 @@ export interface WorkspaceErrorInfo {
     guidance: WorkspaceErrorGuidance;
 }
 
+/**
+ * WorkspaceErrorHandler - Specialized handler for workspace-related errors
+ *
+ * Provides intelligent error handling and user guidance for workspace-related issues
+ * such as missing workspace, permission errors, invalid workspace state, and multi-root
+ * workspace complexity. Generates actionable error messages with recovery suggestions.
+ *
+ * @example
+ * ```typescript
+ * const errorInfo = WorkspaceErrorHandler.createWorkspaceGuidance('no-workspace', 'readFile');
+ * console.log(errorInfo.message); // User-friendly error message
+ * console.log(errorInfo.guidance.action); // Recommended action
+ * ```
+ */
 export class WorkspaceErrorHandler {
     /**
      * Create workspace guidance based on error type and context

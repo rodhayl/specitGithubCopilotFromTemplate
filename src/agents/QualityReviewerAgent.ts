@@ -1,6 +1,12 @@
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse, ChatRequest } from './types';
 
+/**
+ * QualityReviewerAgent - Document quality assurance and review
+ *
+ * Analyzes documents for consistency, completeness, and quality standards.
+ * Checks for structural consistency, formatting, and completeness of required sections.
+ */
 export class QualityReviewerAgent extends BaseAgent {
     name = 'quality-reviewer';
     systemPrompt = `You are a Quality Reviewer agent specialized in analyzing documents for consistency, completeness, and quality standards.

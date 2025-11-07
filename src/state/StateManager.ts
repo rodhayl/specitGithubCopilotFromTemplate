@@ -14,7 +14,6 @@ import { DebugManager } from '../debugging/DebugManager';
 import { TemplateService } from '../templates/TemplateService';
 import { ToolManager } from '../tools';
 import { LLMService } from '../llm/LLMService';
-// import { SettingsWebviewProvider } from '../webview/SettingsWebviewProvider'; // TODO: Implement when webview is created
 import { OutputCoordinator } from '../commands/OutputCoordinator';
 import { ConversationBridge } from '../conversation/ConversationBridge';
 
@@ -165,8 +164,10 @@ export class StateManager {
 
     /**
      * Get all registered components
+     *
+     * @returns Map of component names to component instances
      */
-    public getAllComponents(): Map<string, any> {
+    public getAllComponents(): Map<string, unknown> {
         return new Map(this.components);
     }
 

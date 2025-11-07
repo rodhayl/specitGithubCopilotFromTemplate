@@ -174,14 +174,31 @@ export class Logger {
         }
     }
 
+    /**
+     * Write log message to file
+     *
+     * Logs are written to workspace logs/ directory if available, otherwise to global storage.
+     * Log files are named by date: docu-YYYY-MM-DD.log
+     */
     private async writeToFile(message: string): Promise<void> {
         try {
-            const logDir = vscode.Uri.joinPath(this.context.globalStorageUri, 'logs');
+            // Try to use workspace logs directory first
+            let logDir: vscode.Uri;
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                // Use workspace logs/ directory
+                logDir = vscode.Uri.joinPath(workspaceFolders[0].uri, 'logs');
+            } else {
+                // Fallback to global storage
+                logDir = vscode.Uri.joinPath(this.context.globalStorageUri, 'logs');
+            }
+
             await vscode.workspace.fs.createDirectory(logDir);
-            
+
             const logFile = vscode.Uri.joinPath(logDir, `docu-${new Date().toISOString().split('T')[0]}.log`);
             const content = `${message}\n`;
-            
+
             try {
                 const existingContent = await vscode.workspace.fs.readFile(logFile);
                 const newContent = Buffer.concat([existingContent, Buffer.from(content, 'utf8')]);

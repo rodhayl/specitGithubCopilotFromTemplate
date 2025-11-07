@@ -1,6 +1,12 @@
 import { BaseAgent } from './BaseAgent';
 import { Agent, AgentContext, AgentResponse, ChatRequest } from './types';
 
+/**
+ * BrainstormerAgent - Creative ideation and concept exploration
+ *
+ * Facilitates creative brainstorming sessions focused on ideation and concept exploration.
+ * Helps users develop and expand ideas through open-ended conversation and strategic questioning.
+ */
 export class BrainstormerAgent extends BaseAgent implements Agent {
     constructor() {
         super(
@@ -50,7 +56,7 @@ Remember: Your goal is to facilitate creative thinking and help users explore th
                     // This would be implemented with actual file reading in a complete system
                     prdContext = `\n\nPRD Context: Available for reference`;
                 } catch (error) {
-                    console.warn('Could not read PRD for context:', error);
+                    this.log('Could not read PRD for context', 'warn');
                 }
             }
 

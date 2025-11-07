@@ -7,6 +7,12 @@ export interface ListTemplatesParams {
     includeVariables?: boolean;
 }
 
+/**
+ * ListTemplatesTool - Lists available document templates
+ *
+ * Discovers and lists both built-in and custom templates from the workspace.
+ * Returns template metadata and availability information.
+ */
 export class ListTemplatesTool extends BaseTool {
     constructor(private templateManager: TemplateManager) {
         super(

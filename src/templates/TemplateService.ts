@@ -41,11 +41,17 @@ export class TemplateService {
     private userTemplates: Map<string, Template>;
     private context?: vscode.ExtensionContext;
 
+    // Performance caching
+    private renderCache: Map<string, { result: TemplateRenderResult; timestamp: number }>;
+    private readonly CACHE_MAX_SIZE = 100;
+    private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
     constructor(context?: any) {
         this.logger = Logger.getInstance();
         this.templates = new Map();
         this.builtInTemplates = new Map();
         this.userTemplates = new Map();
+        this.renderCache = new Map();
         this.initializeBuiltInTemplates();
         if (context) {
             this.initialize(context);
@@ -136,14 +142,23 @@ export class TemplateService {
     }
 
     /**
-     * Render a template with variables
+     * Render a template with variables (with caching for performance)
      */
     async renderTemplate(templateOrId: Template | string, variables: Record<string, any>): Promise<TemplateRenderResult> {
         const template = typeof templateOrId === 'string' ? await this.getTemplate(templateOrId) : templateOrId;
+
+        // Check cache first
+        const cacheKey = this.generateCacheKey(template.id, variables);
+        const cached = this.getCachedRender(cacheKey);
+        if (cached) {
+            this.logger.extension.debug(`Template render cache hit for ${template.id}`);
+            return cached;
+        }
+
         try {
-            this.logger.info('template', 'Rendering template', { 
-                templateId: template.id, 
-                variableCount: Object.keys(variables).length 
+            this.logger.info('template', 'Rendering template', {
+                templateId: template.id,
+                variableCount: Object.keys(variables).length
             });
 
             // Check for missing required variables
@@ -173,7 +188,7 @@ export class TemplateService {
                 contentLength: finalContent.length
             });
 
-            return {
+            const result: TemplateRenderResult = {
                 success: true,
                 content: finalContent,
                 frontMatter: renderedFrontMatter,
@@ -183,6 +198,11 @@ export class TemplateService {
                     renderTime: new Date().toISOString()
                 }
             };
+
+            // Cache the result
+            this.cacheRender(cacheKey, result);
+
+            return result;
 
         } catch (error) {
             this.logger.error('template', 'Failed to render template', error instanceof Error ? error : new Error(String(error)));
@@ -635,14 +655,85 @@ export class TemplateService {
         if (Object.keys(frontMatter).length === 0) {
             return content;
         }
-        
+
         let result = '---\n';
         for (const [key, value] of Object.entries(frontMatter)) {
             result += `${key}: ${value}\n`;
         }
         result += '---\n\n';
         result += content;
-        
+
         return result;
+    }
+
+    // ===== Performance Caching Methods =====
+
+    /**
+     * Generate a cache key from template ID and variables
+     */
+    private generateCacheKey(templateId: string, variables: Record<string, any>): string {
+        // Sort keys for consistent cache keys regardless of variable order
+        const sortedVars = Object.keys(variables)
+            .sort()
+            .map(key => `${key}:${JSON.stringify(variables[key])}`)
+            .join('|');
+        return `${templateId}:${sortedVars}`;
+    }
+
+    /**
+     * Get cached render result if available and not expired
+     */
+    private getCachedRender(cacheKey: string): TemplateRenderResult | null {
+        const cached = this.renderCache.get(cacheKey);
+        if (!cached) {
+            return null;
+        }
+
+        // Check if cache entry has expired
+        const now = Date.now();
+        if (now - cached.timestamp > this.CACHE_TTL_MS) {
+            this.renderCache.delete(cacheKey);
+            return null;
+        }
+
+        return cached.result;
+    }
+
+    /**
+     * Cache a render result with automatic size management
+     */
+    private cacheRender(cacheKey: string, result: TemplateRenderResult): void {
+        // Evict oldest entries if cache is full
+        if (this.renderCache.size >= this.CACHE_MAX_SIZE) {
+            // Simple FIFO eviction - delete first entry
+            const firstKey = this.renderCache.keys().next().value;
+            if (firstKey) {
+                this.renderCache.delete(firstKey);
+            }
+        }
+
+        this.renderCache.set(cacheKey, {
+            result,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Clear the render cache (useful for testing or forced refresh)
+     */
+    public clearRenderCache(): void {
+        this.renderCache.clear();
+        this.logger.extension.info('Template render cache cleared');
+    }
+
+    /**
+     * Get cache statistics for monitoring
+     */
+    public getCacheStats(): { size: number; maxSize: number; ttlMs: number } {
+        return {
+            size: this.renderCache.size,
+            maxSize: this.CACHE_MAX_SIZE,
+            ttlMs: this.CACHE_TTL_MS
+        };
     }
 }

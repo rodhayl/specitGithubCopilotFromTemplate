@@ -1,13 +1,29 @@
 // Base agent implementation
 import * as vscode from 'vscode';
 import { Agent, ChatRequest, AgentContext, AgentResponse, WorkflowPhase } from './types';
+import { Logger } from '../logging/Logger';
 import { 
     ConversationManager, 
     ConversationContext, 
     ConversationSession,
-    ConversationResponse 
+    ConversationResponse
 } from '../conversation/types';
 
+/**
+ * BaseAgent - Abstract base class for all AI agents
+ *
+ * Provides common functionality for agent implementations including conversation management,
+ * logging, offline mode handling, and request processing. All specialized agents extend this class.
+ *
+ * @example
+ * ```typescript
+ * class MyAgent extends BaseAgent {
+ *     async handleRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
+ *         // Implementation
+ *     }
+ * }
+ * ```
+ */
 export abstract class BaseAgent implements Agent {
     public readonly name: string;
     public readonly systemPrompt: string;
@@ -270,7 +286,7 @@ export abstract class BaseAgent implements Agent {
             return [];
         }
 
-        const updates: any[] = [];
+        const updates: Array<Record<string, unknown>> = [];
         
         // Process each document update from the conversation
         for (const update of response.documentUpdates) {
@@ -365,7 +381,7 @@ export abstract class BaseAgent implements Agent {
     /**
      * Create a basic response structure
      */
-    protected createResponse(content: string, toolCalls?: any[], followups?: string[]): AgentResponse {
+    protected createResponse(content: string, toolCalls?: import('./types').ToolCall[], followups?: string[]): AgentResponse {
         return {
             content,
             toolCalls,
@@ -376,9 +392,23 @@ export abstract class BaseAgent implements Agent {
     /**
      * Log agent activity
      */
-    protected log(message: string, level: 'info' | 'warn' | 'error' = 'info'): void {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] [${this.name}] [${level.toUpperCase()}] ${message}`);
+    protected log(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'info'): void {
+        const logger = Logger.getInstance();
+        const prefixedMessage = `[${this.name}] ${message}`;
+        switch (level) {
+            case 'debug':
+                logger.extension.debug(prefixedMessage);
+                break;
+            case 'info':
+                logger.extension.info(prefixedMessage);
+                break;
+            case 'warn':
+                logger.extension.warn(prefixedMessage);
+                break;
+            case 'error':
+                logger.extension.error(prefixedMessage, new Error(message));
+                break;
+        }
     }
 
     /**

@@ -75,6 +75,20 @@ export interface CommandConversationMapping {
     conversationFlags: string[];
 }
 
+/**
+ * ConversationManager - Manages conversation sessions and multi-turn interactions
+ *
+ * Coordinates conversation flows, maintains session state, processes questions/responses,
+ * and integrates with the question engine and response processor. Supports multi-turn
+ * conversations with context retention and session management.
+ *
+ * @example
+ * ```typescript
+ * const convManager = new ConversationManager(questionEngine, responseProcessor);
+ * const session = await convManager.startConversation(request, { agentName: 'prd-creator' });
+ * await convManager.processResponse(sessionId, response);
+ * ```
+ */
 export class ConversationManager implements IConversationManager {
     private static instance: ConversationManager;
     private sessions: Map<string, ConversationSession> = new Map();
@@ -163,8 +177,15 @@ export class ConversationManager implements IConversationManager {
 
     /**
      * Attempt recovery from conversation errors
+     *
+     * @returns Recovery result with success status, strategy, message, and action
      */
-    async attemptRecovery(sessionId: string, error: { name?: string; type: string; message: string; recoverable: boolean }, strategy: string): Promise<any> {
+    async attemptRecovery(sessionId: string, error: { name?: string; type: string; message: string; recoverable: boolean }, strategy: string): Promise<{
+        success: boolean;
+        strategy: string;
+        message: string;
+        action: string;
+    }> {
         // Implementation for attempting recovery
         const session = this.sessions.get(sessionId);
         if (!session) {

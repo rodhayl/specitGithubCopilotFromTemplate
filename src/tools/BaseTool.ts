@@ -6,7 +6,29 @@ import { SecurityManager, WorkspaceDetectionResult } from '../security/SecurityM
 import { WorkspaceErrorHandler } from '../security/WorkspaceErrorHandler';
 import { ErrorHandler, ErrorContext } from '../error/ErrorHandler';
 import { OfflineManager } from '../offline/OfflineManager';
+import { Logger } from '../logging/Logger';
 
+/**
+ * BaseTool - Abstract base class for all tools
+ *
+ * Provides common functionality for tool implementations including security validation,
+ * error handling, offline detection, workspace validation, and input validation helpers.
+ * All specialized tools extend this class.
+ *
+ * @example
+ * ```typescript
+ * class MyTool extends BaseTool {
+ *     async execute(params: any, context: ToolContext): Promise<ToolResult> {
+ *         // Implementation with validation
+ *         const validation = this.validateFilePath(params.path);
+ *         if (!validation.valid) {
+ *             return this.createValidationError(validation.error!, validation.suggestion);
+ *         }
+ *         // ... continue execution
+ *     }
+ * }
+ * ```
+ */
 export abstract class BaseTool implements Tool {
     public readonly name: string;
     public readonly description: string;
@@ -257,9 +279,23 @@ export abstract class BaseTool implements Tool {
     /**
      * Log tool activity
      */
-    protected log(message: string, level: 'info' | 'warn' | 'error' = 'info'): void {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] [${this.name}] [${level.toUpperCase()}] ${message}`);
+    protected log(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'info'): void {
+        const logger = Logger.getInstance();
+        const prefixedMessage = `[${this.name}] ${message}`;
+        switch (level) {
+            case 'debug':
+                logger.extension.debug(prefixedMessage);
+                break;
+            case 'info':
+                logger.extension.info(prefixedMessage);
+                break;
+            case 'warn':
+                logger.extension.warn(prefixedMessage);
+                break;
+            case 'error':
+                logger.extension.error(prefixedMessage, new Error(message));
+                break;
+        }
     }
 
     private isValidType(value: any, expectedType: string): boolean {
@@ -275,5 +311,150 @@ export abstract class BaseTool implements Tool {
             default:
                 return false;
         }
+    }
+
+    // ===== Enhanced Input Validation Methods =====
+
+    /**
+     * Validate a file path parameter with helpful error messages
+     */
+    protected validateFilePath(path: any, paramName: string = 'path'): { valid: boolean; error?: string; suggestion?: string } {
+        if (!path) {
+            return {
+                valid: false,
+                error: `Missing required parameter '${paramName}'`,
+                suggestion: `Provide a valid file path for ${paramName}`
+            };
+        }
+
+        if (typeof path !== 'string') {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' must be a string, got ${typeof path}`,
+                suggestion: `Use a string path like "docs/my-file.md"`
+            };
+        }
+
+        if (path.trim().length === 0) {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' cannot be empty`,
+                suggestion: `Provide a non-empty file path`
+            };
+        }
+
+        // Check for invalid characters
+        const invalidChars = /[<>:"|?*\x00-\x1F]/;
+        if (invalidChars.test(path)) {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' contains invalid characters`,
+                suggestion: `Remove special characters like < > : " | ? *`
+            };
+        }
+
+        return { valid: true };
+    }
+
+    /**
+     * Validate a string parameter with length constraints
+     */
+    protected validateString(value: any, paramName: string, options?: {
+        minLength?: number;
+        maxLength?: number;
+        pattern?: RegExp;
+        patternDescription?: string;
+    }): { valid: boolean; error?: string; suggestion?: string } {
+        if (value === undefined || value === null) {
+            return {
+                valid: false,
+                error: `Missing required parameter '${paramName}'`,
+                suggestion: `Provide a value for ${paramName}`
+            };
+        }
+
+        if (typeof value !== 'string') {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' must be a string, got ${typeof value}`,
+                suggestion: `Convert ${paramName} to a string`
+            };
+        }
+
+        if (options?.minLength && value.length < options.minLength) {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' must be at least ${options.minLength} characters`,
+                suggestion: `Provide a longer value for ${paramName}`
+            };
+        }
+
+        if (options?.maxLength && value.length > options.maxLength) {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' must not exceed ${options.maxLength} characters`,
+                suggestion: `Shorten the value for ${paramName}`
+            };
+        }
+
+        if (options?.pattern && !options.pattern.test(value)) {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' does not match required pattern`,
+                suggestion: options.patternDescription || `Check the format of ${paramName}`
+            };
+        }
+
+        return { valid: true };
+    }
+
+    /**
+     * Validate an object/record parameter
+     */
+    protected validateObject(value: any, paramName: string, requiredKeys?: string[]): { valid: boolean; error?: string; suggestion?: string } {
+        if (value === undefined || value === null) {
+            return {
+                valid: false,
+                error: `Missing required parameter '${paramName}'`,
+                suggestion: `Provide an object for ${paramName}`
+            };
+        }
+
+        if (typeof value !== 'object' || Array.isArray(value)) {
+            return {
+                valid: false,
+                error: `Parameter '${paramName}' must be an object, got ${typeof value}`,
+                suggestion: `Use an object like { key: value } for ${paramName}`
+            };
+        }
+
+        if (requiredKeys) {
+            const missingKeys = requiredKeys.filter(key => !(key in value));
+            if (missingKeys.length > 0) {
+                return {
+                    valid: false,
+                    error: `Parameter '${paramName}' is missing required keys: ${missingKeys.join(', ')}`,
+                    suggestion: `Add the missing keys to ${paramName}`
+                };
+            }
+        }
+
+        return { valid: true };
+    }
+
+    /**
+     * Create an enhanced error result with validation details
+     */
+    protected createValidationError(error: string, suggestion?: string, context?: Record<string, any>): ToolResult {
+        return {
+            success: false,
+            error,
+            metadata: {
+                validationError: true,
+                suggestion,
+                ...context,
+                toolName: this.name
+            }
+        };
     }
 }
