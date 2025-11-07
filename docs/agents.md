@@ -374,6 +374,49 @@ Agents are designed to work together:
 
 ## Best Practices
 
+### Documentation Management (IMPORTANT)
+
+**To avoid documentation bloat and maintain a clean codebase:**
+
+1. **NO Implementation Reports** ❌
+   - Do NOT create implementation summary documents
+   - Do NOT create completion reports or status documents
+   - Do NOT create code review summary files
+   - Do NOT create fix summary documents
+
+2. **Use CHANGELOG.md Instead** ✅
+   - Add ONE LINE per feature/fix to CHANGELOG.md
+   - Format: `- Added template caching for performance [#123]`
+   - Keep entries concise and actionable
+   - Link to issues/PRs when relevant
+
+3. **Update User Documentation** ✅
+   - Update README.md for user-facing changes
+   - Update docs/manual.md for how-to guides
+   - Update relevant docs/ files for new features
+   - Keep documentation current and accurate
+
+4. **Where to Document What:**
+   - **CHANGELOG.md** - All changes (one line each)
+   - **README.md** - Project overview, quick start, basic usage
+   - **docs/manual.md** - Comprehensive user manual and how-to guides
+   - **docs/quick-start.md** - Getting started tutorial
+   - **docs/command-reference.md** - Command documentation
+   - **docs/faq.md** - Common questions and troubleshooting
+   - **Code Comments** - Implementation details and rationale
+   - **JSDoc** - API documentation
+
+5. **Archive Location:**
+   - Historical reports: `docs/archive/implementation-reports/`
+   - Development notes: `docs/archive/development-notes/`
+   - Access only when needed for reference
+
+6. **Clean Codebase Rules:**
+   - Keep root directory minimal (README, LICENSE, CHANGELOG, CONTRIBUTING)
+   - All documentation in `docs/` directory
+   - No temporary or status files in repository
+   - Use git commit messages for detailed change descriptions
+
 ### Agent Selection
 
 1. **Follow the Workflow** - Use agents in their intended phase order
@@ -387,13 +430,15 @@ Agents are designed to work together:
 2. **Use Templates** - Leverage appropriate templates for structure
 3. **Build Incrementally** - Work through phases systematically
 4. **Review Regularly** - Use Quality Reviewer for validation
+5. **Document in CHANGELOG** - One line per change, not full reports
+6. **Update User Docs** - Keep manual.md and relevant docs current
 
 ### Context Management
 
 1. **Reference Previous Work** - Agents can access earlier documents
 2. **Maintain Consistency** - Keep terminology and concepts aligned
-3. **Document Decisions** - Record important choices and rationale
-4. **Track Progress** - Monitor workflow phase progression
+3. **Document Decisions** - Record important choices in code comments or relevant docs
+4. **Track Progress** - Use CHANGELOG.md for progress tracking
 
 ## Customization
 
