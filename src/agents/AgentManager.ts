@@ -11,6 +11,19 @@ import { QualityReviewerAgent } from './QualityReviewerAgent';
 import { Logger } from '../logging/Logger';
 import { AGENTS, WORKFLOW_PHASES, PATHS } from '../constants';
 
+/**
+ * AgentManager - Central coordinator for all AI agents in the extension
+ *
+ * Manages the lifecycle of agents, handles agent switching, maintains workflow state,
+ * and routes requests to appropriate agents based on context and workflow phase.
+ *
+ * @example
+ * ```typescript
+ * const agentManager = new AgentManager(context);
+ * await agentManager.routeRequest(request, agentContext);
+ * agentManager.setCurrentAgent('prd-creator');
+ * ```
+ */
 export class AgentManager {
     private agents: Map<string, Agent> = new Map();
     private configurations: Map<string, AgentConfiguration> = new Map();
@@ -18,6 +31,11 @@ export class AgentManager {
     private workflowState: WorkflowState;
     private logger: Logger;
 
+    /**
+     * Creates a new AgentManager instance
+     *
+     * @param extensionContext - VS Code extension context for accessing extension resources
+     */
     constructor(private extensionContext: vscode.ExtensionContext) {
         this.logger = Logger.getInstance();
         this.workflowState = this.initializeWorkflowState();
@@ -58,6 +76,15 @@ export class AgentManager {
 
     /**
      * Register an agent with the manager
+     *
+     * Adds an agent to the available agents pool. Agents can be built-in or custom.
+     *
+     * @param agent - The agent instance to register
+     * @example
+     * ```typescript
+     * const customAgent = new CustomAgent('my-agent', 'System prompt', ['readFile'], 'prd');
+     * agentManager.registerAgent(customAgent);
+     * ```
      */
     registerAgent(agent: Agent): void {
         this.agents.set(agent.name, agent);
@@ -66,6 +93,16 @@ export class AgentManager {
 
     /**
      * Get an agent by name
+     *
+     * @param name - The unique name of the agent to retrieve
+     * @returns The agent instance if found, undefined otherwise
+     * @example
+     * ```typescript
+     * const agent = agentManager.getAgent('prd-creator');
+     * if (agent) {
+     *     await agent.handleRequest(request, context);
+     * }
+     * ```
      */
     getAgent(name: string): Agent | undefined {
         return this.agents.get(name);
@@ -73,6 +110,8 @@ export class AgentManager {
 
     /**
      * Get the currently active agent
+     *
+     * @returns The current agent instance, or undefined if no agent is set
      */
     getCurrentAgent(): Agent | undefined {
         return this.agents.get(this.currentAgent);
