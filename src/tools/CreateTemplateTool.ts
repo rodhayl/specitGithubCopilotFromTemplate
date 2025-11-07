@@ -21,6 +21,12 @@ export interface CreateTemplateParams {
     interactive?: boolean;
 }
 
+/**
+ * CreateTemplateTool - Creates new custom templates
+ *
+ * Creates new template files in the workspace template directory with
+ * front matter, variables, and initial content.
+ */
 export class CreateTemplateTool extends BaseTool {
     constructor() {
         super(

@@ -4,6 +4,12 @@ import * as path from 'path';
 import { BaseTool } from './BaseTool';
 import { ToolContext, FileOperationResult } from './types';
 
+/**
+ * WriteFileTool - Writes content to files in the workspace
+ *
+ * Provides secure file writing with path validation, security checks,
+ * and automatic directory creation. Creates or overwrites files safely.
+ */
 export class WriteFileTool extends BaseTool {
     constructor() {
         super(

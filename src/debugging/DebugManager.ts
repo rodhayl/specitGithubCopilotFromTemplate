@@ -41,6 +41,20 @@ export interface SystemDiagnostics {
     };
 }
 
+/**
+ * DebugManager - Comprehensive debugging and diagnostics system
+ *
+ * Provides system diagnostics, debug information tracking, diagnostic reporting,
+ * and diagnostic panel visualization. Collects extension health metrics, performance
+ * data, and system information for troubleshooting and monitoring.
+ *
+ * @example
+ * ```typescript
+ * const debugManager = DebugManager.initialize(context);
+ * debugManager.addDebugInfo({ category: 'Performance', message: 'Slow operation detected' });
+ * const diagnostics = await debugManager.getSystemDiagnostics();
+ * ```
+ */
 export class DebugManager {
     private static instance: DebugManager;
     private logger: Logger;
@@ -57,6 +71,12 @@ export class DebugManager {
         this.errorHandler = ErrorHandler.getInstance();
     }
 
+    /**
+     * Initialize the DebugManager singleton with extension context
+     *
+     * @param context - VS Code extension context
+     * @returns The DebugManager singleton instance
+     */
     static initialize(context: vscode.ExtensionContext): DebugManager {
         if (!DebugManager.instance) {
             DebugManager.instance = new DebugManager(context);
@@ -64,6 +84,12 @@ export class DebugManager {
         return DebugManager.instance;
     }
 
+    /**
+     * Get the DebugManager singleton instance
+     *
+     * @returns The DebugManager singleton instance
+     * @throws Error if DebugManager has not been initialized
+     */
     static getInstance(): DebugManager {
         if (!DebugManager.instance) {
             throw new Error('DebugManager not initialized. Call DebugManager.initialize() first.');
@@ -71,6 +97,14 @@ export class DebugManager {
         return DebugManager.instance;
     }
 
+    /**
+     * Add debug information to the debug history
+     *
+     * @param category - Debug category (e.g., 'Performance', 'API', 'FileSystem')
+     * @param level - Debug level ('info', 'warning', or 'error')
+     * @param message - Debug message
+     * @param data - Optional additional data to include
+     */
     addDebugInfo(category: string, level: 'info' | 'warning' | 'error', message: string, data?: any): void {
         const debugInfo: DebugInfo = {
             timestamp: new Date(),
@@ -91,6 +125,14 @@ export class DebugManager {
         this.logger.extension.debug(`Debug info added: ${category}`, { level, message, data });
     }
 
+    /**
+     * Get comprehensive system diagnostics
+     *
+     * Collects diagnostic information about the extension, VS Code environment,
+     * workspace, Copilot availability, and system performance.
+     *
+     * @returns Promise resolving to SystemDiagnostics object
+     */
     async getSystemDiagnostics(): Promise<SystemDiagnostics> {
         const extension = vscode.extensions.getExtension('docu.vscode-docu-extension');
         const workspaceFolders = vscode.workspace.workspaceFolders || [];
@@ -145,6 +187,14 @@ export class DebugManager {
         return activationEvent ? activationEvent.timestamp.getTime() : undefined;
     }
 
+    /**
+     * Generate a comprehensive diagnostic report in markdown format
+     *
+     * Creates a detailed report including system diagnostics, debug information,
+     * error statistics, telemetry data, and performance metrics.
+     *
+     * @returns Markdown-formatted diagnostic report
+     */
     generateDiagnosticReport(): string {
         const report = [];
         
@@ -229,6 +279,12 @@ export class DebugManager {
         return report.join('\n');
     }
 
+    /**
+     * Show the diagnostics panel in a webview
+     *
+     * Creates or reveals a webview panel displaying comprehensive system diagnostics,
+     * debug information, and performance metrics in an interactive HTML interface.
+     */
     async showDiagnosticsPanel(): Promise<void> {
         if (this.diagnosticsPanel) {
             this.diagnosticsPanel.reveal();
@@ -487,6 +543,13 @@ export class DebugManager {
 </html>`;
     }
 
+    /**
+     * Export diagnostics report to a file
+     *
+     * Prompts the user to save a comprehensive diagnostic report as a markdown
+     * or text file. The report includes all system diagnostics, debug information,
+     * error statistics, and performance metrics.
+     */
     async exportDiagnostics(): Promise<void> {
         const report = this.generateDiagnosticReport();
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -506,11 +569,21 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Clear all debug information from history
+     *
+     * Removes all accumulated debug entries and logs the clearing action.
+     */
     clearDebugInfo(): void {
         this.debugInfo = [];
         this.addDebugInfo('debug', 'info', 'Debug information cleared');
     }
 
+    /**
+     * Dispose of resources and clean up
+     *
+     * Closes the diagnostics panel if open and releases associated resources.
+     */
     dispose(): void {
         if (this.diagnosticsPanel) {
             this.diagnosticsPanel.dispose();

@@ -218,6 +218,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (selection === 'Learn More') {
 				vscode.env.openExternal(vscode.Uri.parse('https://github.com/features/copilot'));
 			}
+		}, (error) => {
+			logger.extension.error('Failed to show Copilot warning dialog', error);
 		});
 	}
 	stateManager.registerComponent('llmService', llmService);

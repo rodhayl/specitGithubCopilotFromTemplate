@@ -10,6 +10,12 @@ export interface OpenTemplateParams {
     mode?: 'edit' | 'view';
 }
 
+/**
+ * OpenTemplateTool - Opens template files for editing
+ *
+ * Opens template files in the VS Code editor for customization and management.
+ * Supports both built-in and custom templates.
+ */
 export class OpenTemplateTool extends BaseTool {
     constructor(private templateManager: TemplateManager) {
         super(

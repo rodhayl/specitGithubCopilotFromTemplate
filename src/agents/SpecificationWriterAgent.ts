@@ -1,6 +1,12 @@
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse, ChatRequest } from './types';
 
+/**
+ * SpecificationWriterAgent - Implementation specifications and planning
+ *
+ * Creates detailed technical specifications and implementation plans based on system design.
+ * Generates comprehensive task lists with step-by-step implementation plans.
+ */
 export class SpecificationWriterAgent extends BaseAgent {
     name = 'specification-writer';
     systemPrompt = `You are a Specification Writer agent specialized in creating detailed technical specifications and implementation plans based on system design documents.

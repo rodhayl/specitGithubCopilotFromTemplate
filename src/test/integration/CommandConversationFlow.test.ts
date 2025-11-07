@@ -339,6 +339,7 @@ describe('Command to Conversation Flow Integration', () => {
 				const mockAttemptRecovery = jest.spyOn(conversationManager, 'attemptRecovery');
 				mockAttemptRecovery.mockResolvedValue({
 					success: true,
+					strategy: 'retry',
 					action: 'retry',
 					message: 'Operation retried successfully'
 				});

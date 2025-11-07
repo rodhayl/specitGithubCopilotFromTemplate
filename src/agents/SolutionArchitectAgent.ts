@@ -1,6 +1,12 @@
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse, ChatRequest } from './types';
 
+/**
+ * SolutionArchitectAgent - Technical architecture and design
+ *
+ * Designs technical solutions and system architecture based on business requirements.
+ * Creates comprehensive design documents with system architecture, components, and interfaces.
+ */
 export class SolutionArchitectAgent extends BaseAgent {
     name = 'solution-architect';
     systemPrompt = `You are a Solution Architect agent specialized in designing technical solutions and system architecture based on business requirements.

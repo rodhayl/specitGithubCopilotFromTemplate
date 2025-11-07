@@ -28,6 +28,22 @@ export interface WorkspaceDetectionResult {
     };
 }
 
+/**
+ * SecurityManager - Security and access control manager
+ *
+ * Provides path validation, permission checks, and security controls for file operations.
+ * Prevents path traversal attacks, validates file access, and enforces security policies
+ * including file size limits, allowed extensions, and blocked paths.
+ *
+ * @example
+ * ```typescript
+ * const securityManager = new SecurityManager(workspaceRoot);
+ * const validation = await securityManager.validateFilePath('docs/file.md');
+ * if (validation.isValid) {
+ *     // Proceed with file operation
+ * }
+ * ```
+ */
 export class SecurityManager {
     private readonly workspaceRoot: string;
     private readonly maxFileSize = 10 * 1024 * 1024; // 10MB limit

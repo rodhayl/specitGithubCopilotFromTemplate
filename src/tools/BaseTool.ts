@@ -8,6 +8,27 @@ import { ErrorHandler, ErrorContext } from '../error/ErrorHandler';
 import { OfflineManager } from '../offline/OfflineManager';
 import { Logger } from '../logging/Logger';
 
+/**
+ * BaseTool - Abstract base class for all tools
+ *
+ * Provides common functionality for tool implementations including security validation,
+ * error handling, offline detection, workspace validation, and input validation helpers.
+ * All specialized tools extend this class.
+ *
+ * @example
+ * ```typescript
+ * class MyTool extends BaseTool {
+ *     async execute(params: any, context: ToolContext): Promise<ToolResult> {
+ *         // Implementation with validation
+ *         const validation = this.validateFilePath(params.path);
+ *         if (!validation.valid) {
+ *             return this.createValidationError(validation.error!, validation.suggestion);
+ *         }
+ *         // ... continue execution
+ *     }
+ * }
+ * ```
+ */
 export abstract class BaseTool implements Tool {
     public readonly name: string;
     public readonly description: string;

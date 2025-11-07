@@ -4,6 +4,12 @@ import * as path from 'path';
 import { BaseTool } from './BaseTool';
 import { ToolContext, ToolResult } from './types';
 
+/**
+ * OpenInEditorTool - Opens files in VS Code editor
+ *
+ * Opens specified files in the VS Code editor with optional line/column
+ * positioning. Integrates with VS Code's editor API.
+ */
 export class OpenInEditorTool extends BaseTool {
     constructor() {
         super(

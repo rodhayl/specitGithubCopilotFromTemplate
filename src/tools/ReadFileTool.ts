@@ -4,6 +4,12 @@ import * as path from 'path';
 import { BaseTool } from './BaseTool';
 import { ToolContext, ToolResult, FileMetadata } from './types';
 
+/**
+ * ReadFileTool - Reads file contents from the workspace
+ *
+ * Provides secure file reading with path validation, security checks,
+ * and error handling. Supports reading markdown, text, and JSON files.
+ */
 export class ReadFileTool extends BaseTool {
     constructor() {
         super(

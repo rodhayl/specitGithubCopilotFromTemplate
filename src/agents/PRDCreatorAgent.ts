@@ -3,6 +3,12 @@ import * as vscode from 'vscode';
 import { BaseAgent } from './BaseAgent';
 import { ChatRequest, AgentContext, AgentResponse } from './types';
 
+/**
+ * PRDCreatorAgent - Creates Product Requirements Documents (PRDs)
+ *
+ * Helps develop initial product ideas into comprehensive Product Requirements Documents
+ * through conversational exploration, strategic questioning, and systematic thinking.
+ */
 export class PRDCreatorAgent extends BaseAgent {
     constructor() {
         super(

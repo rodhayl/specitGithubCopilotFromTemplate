@@ -6,9 +6,24 @@ import {
     ConversationManager, 
     ConversationContext, 
     ConversationSession,
-    ConversationResponse 
+    ConversationResponse
 } from '../conversation/types';
 
+/**
+ * BaseAgent - Abstract base class for all AI agents
+ *
+ * Provides common functionality for agent implementations including conversation management,
+ * logging, offline mode handling, and request processing. All specialized agents extend this class.
+ *
+ * @example
+ * ```typescript
+ * class MyAgent extends BaseAgent {
+ *     async handleRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
+ *         // Implementation
+ *     }
+ * }
+ * ```
+ */
 export abstract class BaseAgent implements Agent {
     public readonly name: string;
     public readonly systemPrompt: string;

@@ -31,6 +31,22 @@ export interface OfflineStatus {
     };
 }
 
+/**
+ * OfflineManager - Manages offline mode and graceful degradation
+ *
+ * Monitors model availability, detects offline conditions, and provides graceful
+ * degradation of functionality when AI models are unavailable. Manages automatic
+ * recovery and offline mode notifications.
+ *
+ * @example
+ * ```typescript
+ * const offlineManager = OfflineManager.initialize(context);
+ * const status = await offlineManager.checkModelAvailability();
+ * offlineManager.subscribeToOfflineChanges((isOffline) => {
+ *     console.log('Offline mode:', isOffline);
+ * });
+ * ```
+ */
 export class OfflineManager {
     private static instance: OfflineManager;
     private isOfflineMode = false;
@@ -109,6 +125,11 @@ export class OfflineManager {
         }
     }
 
+    /**
+     * Get the OfflineManager singleton instance
+     *
+     * @returns The OfflineManager singleton instance
+     */
     static getInstance(): OfflineManager {
         if (!OfflineManager.instance) {
             OfflineManager.instance = new OfflineManager();

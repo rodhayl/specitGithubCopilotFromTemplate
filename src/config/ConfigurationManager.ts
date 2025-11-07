@@ -23,6 +23,21 @@ export interface DocuConfiguration {
     'debug.offlineMode': boolean;
 }
 
+/**
+ * ConfigurationManager - Centralized configuration management for the extension
+ *
+ * Manages user configuration, workspace settings, file watchers, and configuration changes.
+ * Provides a centralized interface for accessing and updating extension settings.
+ *
+ * @example
+ * ```typescript
+ * const configManager = new ConfigurationManager(context);
+ * const config = configManager.getConfiguration();
+ * configManager.onConfigurationChanged((newConfig) => {
+ *     console.log('Config updated:', newConfig);
+ * });
+ * ```
+ */
 export class ConfigurationManager {
     private config: DocuConfiguration;
     private watchers: vscode.FileSystemWatcher[] = [];
