@@ -49,69 +49,30 @@ Focus on creating comprehensive design.md documents that bridge the gap between 
     async handleDirectRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {
             const prompt = request.prompt?.trim() || '';
-            
-            // Handle architecture design requests
-            if (prompt.includes('architecture') || prompt.includes('design') || prompt.includes('system')) {
-                return this.createResponse(
-                    `I'm the Solution Architect agent. I help design technical architectures and system solutions.\n\n` +
-                    `I can help you:\n` +
-                    `- Design system architecture\n` +
-                    `- Choose appropriate technologies\n` +
-                    `- Plan scalability and performance\n` +
-                    `- Define integration patterns\n\n` +
-                    `What architectural challenge are you working on?`,
-                    [],
-                    [
-                        'Design system architecture',
-                        'Choose technologies',
-                        'Plan for scalability'
-                    ]
-                );
+
+            // Create a new design document
+            if (prompt.toLowerCase().includes('design') || prompt.toLowerCase().includes('architecture')) {
+                // If user wants to update an existing design
+                if (prompt.toLowerCase().includes('update') && prompt.toLowerCase().includes('design')) {
+                    return await this.updateDesign(prompt, context);
+                }
+                return await this.createDesignDocument(context);
             }
-            
-            // Default response
-            return this.createResponse(
-                `I'm here to help with system architecture and technical design. What would you like to work on?`,
-                [],
-                ['Tell me about your system', 'Design architecture', 'Get technical guidance']
-            );
-            
+
+            // Analyze requirements before designing
+            if (prompt.toLowerCase().includes('analyze') || prompt.toLowerCase().includes('review requirements')) {
+                return await this.analyzeRequirements(context);
+            }
+
+            // General architecture discussion / guidance
+            return await this.discussArchitecture(prompt, context);
+
         } catch (error) {
             return this.createResponse(
                 `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 [],
                 ['Try again', 'Get help']
             );
-        }
-    }
-
-    async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {
-        try {
-            const prompt = request.prompt?.trim() || '';
-            
-            // Check if user is asking to create design document
-            if (prompt.toLowerCase().includes('design') || prompt.toLowerCase().includes('architecture')) {
-                return await this.createDesignDocument(context);
-            }
-
-            // Check if user wants to update existing design
-            if (prompt.toLowerCase().includes('update') && prompt.toLowerCase().includes('design')) {
-                return await this.updateDesign(prompt, context);
-            }
-
-            // Check if user wants to analyze requirements for design
-            if (prompt.toLowerCase().includes('analyze') || prompt.toLowerCase().includes('review requirements')) {
-                return await this.analyzeRequirements(context);
-            }
-
-            // General architecture discussion
-            return await this.discussArchitecture(prompt, context);
-
-        } catch (error) {
-            return {
-                success: false,
-                message: `Architecture design failed: ${error instanceof Error ? error.message : String(error)}`
-            };
         }
     }
 

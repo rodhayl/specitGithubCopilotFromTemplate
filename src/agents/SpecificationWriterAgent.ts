@@ -50,57 +50,17 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
     async handleDirectRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {
             const prompt = request.prompt?.trim() || '';
-            
-            // Handle specification writing requests
-            if (prompt.includes('implementation') || prompt.includes('plan') || prompt.includes('task')) {
-                return this.createResponse(
-                    `I'm the Specification Writer agent. I help create detailed implementation plans and break down development tasks.\n\n` +
-                    `I can help you:\n` +
-                    `- Create implementation roadmaps\n` +
-                    `- Break down features into development tasks\n` +
-                    `- Define technical specifications\n` +
-                    `- Plan resource allocation and timelines\n\n` +
-                    `What would you like to work on?`,
-                    [],
-                    [
-                        'Create an implementation plan',
-                        'Break down development tasks',
-                        'Define technical specifications'
-                    ]
-                );
-            }
-            
-            // Default response
-            return this.createResponse(
-                `I'm here to help with implementation planning and specification writing. What would you like to work on?`,
-                [],
-                ['Tell me about your project', 'Create implementation plan', 'Get help with specifications']
-            );
-            
-        } catch (error) {
-            return this.createResponse(
-                `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                [],
-                ['Try again', 'Get help']
-            );
-        }
-    }
 
-    async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {
-        try {
-            const prompt = request.prompt?.trim() || '';
-            
-            // Check if user is asking to create implementation plan
+            // Create implementation plan / task breakdown
             if (prompt.toLowerCase().includes('implementation') || prompt.toLowerCase().includes('tasks') || prompt.toLowerCase().includes('specification')) {
+                // If user wants to update an existing plan
+                if (prompt.toLowerCase().includes('update') && (prompt.toLowerCase().includes('task') || prompt.toLowerCase().includes('spec'))) {
+                    return await this.updateImplementationPlan(prompt, context);
+                }
                 return await this.createImplementationPlan(context);
             }
 
-            // Check if user wants to update existing tasks
-            if (prompt.toLowerCase().includes('update') && (prompt.toLowerCase().includes('task') || prompt.toLowerCase().includes('spec'))) {
-                return await this.updateImplementationPlan(prompt, context);
-            }
-
-            // Check if user wants to analyze design for implementation
+            // Analyze design document as prep for specification
             if (prompt.toLowerCase().includes('analyze') || prompt.toLowerCase().includes('review design')) {
                 return await this.analyzeDesignForImplementation(context);
             }
@@ -109,10 +69,11 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
             return await this.discussImplementation(prompt, context);
 
         } catch (error) {
-            return {
-                success: false,
-                message: `Implementation planning failed: ${error instanceof Error ? error.message : String(error)}`
-            };
+            return this.createResponse(
+                `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                [],
+                ['Try again', 'Get help']
+            );
         }
     }
 

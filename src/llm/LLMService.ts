@@ -22,10 +22,16 @@ export class LLMService {
      */
     async initialize(): Promise<void> {
         try {
-            // Get available Copilot models
+            // Get available Copilot models - prefer gpt-4o family per VS Code API recommendations
             this.availableModels = await vscode.lm.selectChatModels({
-                vendor: 'copilot'
+                vendor: 'copilot',
+                family: 'gpt-4o'
             });
+
+            // Fallback: if no gpt-4o models, accept any Copilot model
+            if (this.availableModels.length === 0) {
+                this.availableModels = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+            }
 
             this.logger.extension.info(`LLM Service initialized with ${this.availableModels.length} available models`);
         } catch (error) {
@@ -80,17 +86,22 @@ export class LLMService {
      */
     async sendRequest(
         request: LLMRequest, 
-        cancellationToken?: vscode.CancellationToken
+        cancellationToken?: vscode.CancellationToken,
+        requestedModel?: vscode.LanguageModelChat
     ): Promise<LLMResponse> {
-        const model = this.selectModel();
+        const model = requestedModel ?? this.selectModel();
         if (!model) {
             throw new Error('No language models available');
         }
 
         try {
             // Convert our message format to VS Code's format
-            const messages = request.messages.map(msg => 
-                vscode.LanguageModelChatMessage.User(msg.content, msg.role)
+            // Note: The VS Code LM API does not support system messages.
+            // System/user messages both map to User; assistant messages map to Assistant.
+            const messages = request.messages.map(msg =>
+                msg.role === 'assistant'
+                    ? vscode.LanguageModelChatMessage.Assistant(msg.content)
+                    : vscode.LanguageModelChatMessage.User(msg.content)
             );
 
             // Create request options
@@ -145,17 +156,22 @@ export class LLMService {
     async sendStreamingRequest(
         request: LLMRequest,
         onChunk: (chunk: LLMStreamChunk) => void,
-        cancellationToken?: vscode.CancellationToken
+        cancellationToken?: vscode.CancellationToken,
+        requestedModel?: vscode.LanguageModelChat
     ): Promise<void> {
-        const model = this.selectModel();
+        const model = requestedModel ?? this.selectModel();
         if (!model) {
             throw new Error('No language models available');
         }
 
         try {
             // Convert our message format to VS Code's format
-            const messages = request.messages.map(msg => 
-                vscode.LanguageModelChatMessage.User(msg.content, msg.role)
+            // Note: The VS Code LM API does not support system messages.
+            // System/user messages both map to User; assistant messages map to Assistant.
+            const messages = request.messages.map(msg =>
+                msg.role === 'assistant'
+                    ? vscode.LanguageModelChatMessage.Assistant(msg.content)
+                    : vscode.LanguageModelChatMessage.User(msg.content)
             );
 
             // Create request options

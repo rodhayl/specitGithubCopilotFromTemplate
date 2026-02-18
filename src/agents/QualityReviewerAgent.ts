@@ -64,61 +64,23 @@ Focus on providing actionable, specific feedback that improves document quality 
     async handleDirectRequest(request: any, context: AgentContext): Promise<AgentResponse> {
         try {
             const prompt = request.prompt?.trim() || '';
-            
-            // Handle quality review requests
-            if (prompt.includes('review') || prompt.includes('quality') || prompt.includes('check')) {
-                return this.createResponse(
-                    `I'm the Quality Reviewer agent. I help ensure your documentation meets high standards.\n\n` +
-                    `I can help you:\n` +
-                    `- Review document completeness\n` +
-                    `- Check for clarity and consistency\n` +
-                    `- Validate requirements quality\n` +
-                    `- Suggest improvements\n\n` +
-                    `What document would you like me to review?`,
-                    [],
-                    [
-                        'Review my PRD',
-                        'Check requirements quality',
-                        'Validate document completeness'
-                    ]
-                );
+
+            // Parse review command parameters (--file, --level, --fix)
+            const reviewParams = this.parseReviewCommand(prompt);
+
+            if (reviewParams.filePath) {
+                return await this.reviewDocument(reviewParams, context);
             }
-            
-            // Default response
-            return this.createResponse(
-                `I'm here to help with document quality review and validation. What would you like me to review?`,
-                [],
-                ['Review a document', 'Check quality standards', 'Get review guidance']
-            );
-            
+
+            // No specific file given — provide guidance on how to invoke a review
+            return await this.provideReviewGuidance(context);
+
         } catch (error) {
             return this.createResponse(
                 `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 [],
                 ['Try again', 'Get help']
             );
-        }
-    }
-
-    async handleRequest(request: any, context: AgentContext): Promise<AgentResponse> {
-        try {
-            const prompt = request.prompt?.trim() || '';
-            
-            // Parse review command parameters
-            const reviewParams = this.parseReviewCommand(prompt);
-            
-            if (reviewParams.filePath) {
-                return await this.reviewDocument(reviewParams, context);
-            }
-
-            // If no specific file, provide guidance
-            return await this.provideReviewGuidance(context);
-
-        } catch (error) {
-            return {
-                success: false,
-                message: `Quality review failed: ${error instanceof Error ? error.message : String(error)}`
-            };
         }
     }
 

@@ -1,4 +1,5 @@
 // WorkflowOrchestrator implementation for phase management
+import * as vscode from 'vscode';
 import {
     WorkflowOrchestrator as IWorkflowOrchestrator,
     PhaseCompletionStatus,
@@ -206,18 +207,76 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     }
 
     private async getCompletedSections(documentPath: string, phase: string): Promise<string[]> {
-        // This would integrate with ContentCapture to check which sections exist
-        // For now, return a mock implementation
         const requiredSections = this.getPhaseRequirements(phase);
-        
-        // Simulate some completed sections
-        return requiredSections.slice(0, Math.floor(requiredSections.length * 0.6));
+        try {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) { return []; }
+
+            const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, documentPath);
+            const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+            const content = Buffer.from(fileBytes).toString('utf8');
+
+            // Extract heading text from all markdown headings (# / ## / ###)
+            const headingPattern = /^#{1,3}\s+(.+)$/gm;
+            const headings: string[] = [];
+            let match;
+            while ((match = headingPattern.exec(content)) !== null) {
+                headings.push(match[1].trim());
+            }
+
+            // A required section is "completed" when a heading contains or is contained by the section name
+            return requiredSections.filter(section =>
+                headings.some(h =>
+                    h.toLowerCase().includes(section.toLowerCase()) ||
+                    section.toLowerCase().includes(h.toLowerCase())
+                )
+            );
+        } catch {
+            // File does not exist or cannot be read — nothing completed yet
+            return [];
+        }
     }
 
     private async calculateQualityScore(documentPath: string, phase: string): Promise<number> {
-        // This would implement actual quality assessment
-        // For now, return a mock score
-        return 0.75;
+        try {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) { return 0; }
+
+            const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, documentPath);
+            const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+            const content = Buffer.from(fileBytes).toString('utf8');
+
+            // Factor 1: word count normalised to 0–0.5 (target: 500+ words)
+            const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+            const wordFactor = Math.min(wordCount / 500, 1) * 0.5;
+
+            // Factor 2: filled sections normalised to 0–0.5
+            const requiredSections = this.getPhaseRequirements(phase);
+            const headingPattern = /^#{1,3}\s+(.+)$/gm;
+            const headings: string[] = [];
+            let match;
+            while ((match = headingPattern.exec(content)) !== null) {
+                headings.push(match[1].trim());
+            }
+            const filledSections = requiredSections.filter(section => {
+                const headingIdx = headings.findIndex(h =>
+                    h.toLowerCase().includes(section.toLowerCase()) ||
+                    section.toLowerCase().includes(h.toLowerCase())
+                );
+                if (headingIdx === -1) { return false; }
+                // Verify the section has more than a placeholder line of content
+                const headingPos = content.indexOf(headings[headingIdx]);
+                const afterHeading = content.substring(headingPos + headings[headingIdx].length + 3, headingPos + headings[headingIdx].length + 203).trim();
+                return afterHeading.length > 20;
+            });
+            const sectionFactor = requiredSections.length > 0
+                ? (filledSections.length / requiredSections.length) * 0.5
+                : 0.5;
+
+            return Math.round((wordFactor + sectionFactor) * 100) / 100;
+        } catch {
+            return 0;
+        }
     }
 
     private getAgentForPhase(phase: string): string {

@@ -54,10 +54,9 @@ Focus on creating comprehensive, well-structured requirements.md documents that 
             return await this.gatherRequirements(prompt, context);
 
         } catch (error) {
-            return {
-                success: false,
-                message: `Requirements gathering failed: ${error instanceof Error ? error.message : String(error)}`
-            };
+            return this.createResponse(
+                `Requirements gathering failed: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
     }
 

@@ -130,12 +130,26 @@ export class AgentManager {
     }
 
     /**
+     * Built-in descriptions shown when no external configuration is loaded
+     */
+    private readonly builtInDescriptions: Record<string, string> = {
+        'prd-creator': 'Transforms product ideas into structured PRDs through guided questioning about goals, users, and constraints.',
+        'requirements-gatherer': 'Elicits and documents functional and non-functional requirements through systematic exploration.',
+        'brainstormer': 'Generates creative ideas, explores solution spaces, and facilitates structured brainstorming sessions.',
+        'solution-architect': 'Designs technical system architecture based on requirements — creates comprehensive design.md documents.',
+        'specification-writer': 'Breaks down designs into actionable development tasks, creating detailed implementation plans in tasks.md.',
+        'quality-reviewer': 'Reviews documentation for completeness, clarity, and consistency. Use --file <path> [--level strict] [--fix].'
+    };
+
+    /**
      * List all available agents
      */
     listAgents(): Array<{ name: string; description: string; phase: string; active: boolean }> {
         return Array.from(this.agents.values()).map(agent => ({
             name: agent.name,
-            description: this.configurations.get(agent.name)?.description || 'No description available',
+            description: this.configurations.get(agent.name)?.description ||
+                         this.builtInDescriptions[agent.name] ||
+                         'No description available',
             phase: agent.workflowPhase,
             active: agent.name === this.currentAgent
         }));
@@ -168,7 +182,8 @@ export class AgentManager {
             previousOutputs: [],
             userPreferences,
             workflowState: this.workflowState,
-            extensionContext: this.extensionContext
+            extensionContext: this.extensionContext,
+            model: request.model
         };
     }
 

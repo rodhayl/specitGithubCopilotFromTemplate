@@ -10,6 +10,9 @@ import { ErrorHandler, ErrorCategory, withErrorHandling } from '../utils/ErrorHa
 import { PerformanceMonitor, withPerformanceMonitoring } from '../utils/PerformanceMonitor';
 import { ConversationBridge } from '../conversation/ConversationBridge';
 import { ErrorHandler as EnhancedErrorHandler } from '../error/ErrorHandler';
+import { createHelpCommandDefinition } from './HelpCommand';
+import { createStatusCommandDefinition } from './StatusCommand';
+import { createWorkflowCommandDefinitions } from './WorkflowCommands';
 
 export type { CommandContext } from './types';
 
@@ -60,6 +63,27 @@ export class CommandRouter {
     ): void {
         this.newCommandHandler.setAutoChatManager(autoChatManager);
         this.newCommandHandler.setDocumentUpdateEngine(documentUpdateEngine);
+    }
+
+    /**
+     * Register context-aware workflow commands (/prd, /requirements, /design, /spec, /review, /status, /context)
+     * and replace the static /help with a smart, project-aware version.
+     *
+     * Call this once after the AgentManager is ready and WorkflowStateManager is initialized.
+     */
+    registerWorkflowCommands(
+        workflowStateManager: import('../state/WorkflowStateManager').WorkflowStateManager
+    ): void {
+        // Replace static /help with context-aware version
+        this.parser.registerCommand(createHelpCommandDefinition(workflowStateManager, this.agentManager));
+
+        // Register /status
+        this.parser.registerCommand(createStatusCommandDefinition(workflowStateManager));
+
+        // Register /prd, /requirements, /design, /spec, /review, /context
+        for (const def of createWorkflowCommandDefinitions(workflowStateManager, this.agentManager)) {
+            this.parser.registerCommand(def);
+        }
     }
 
     /**

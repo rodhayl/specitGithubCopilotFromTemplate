@@ -2,9 +2,24 @@
   "name": "vscode-docu-extension",
   "displayName": "Docu - AI Documentation Assistant",
   "description": "A VS Code extension that provides AI-powered documentation assistance through GitHub Copilot Chat with specialized agents for requirements gathering, design, and implementation planning.",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "publisher": "docu",
-  "repository": "https://github.com/docu/vscode-docu-extension",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/vscode-docu-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/vscode-docu-extension/issues"
+  },
+  "homepage": "https://github.com/your-username/vscode-docu-extension#readme",
+  "author": {
+    "name": "Docu Extension Contributors"
+  },
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "preview": true,
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.97.0"
@@ -29,7 +44,6 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onLanguage:*",
     "onCommand:workbench.action.chat.open",
     "onView:workbench.panel.chat"
   ],
@@ -58,6 +72,30 @@
           {
             "name": "templates",
             "description": "Manage document templates"
+          }
+        ],
+        "disambiguation": [
+          {
+            "category": "documentation",
+            "description": "The user wants to create, manage, or improve software documentation such as PRDs, requirements documents, architecture designs, or implementation plans.",
+            "examples": [
+              "Create a PRD for my app",
+              "Help me write requirements for a new feature",
+              "Generate a technical specification document",
+              "I need to document my API endpoints",
+              "Write an architecture design document",
+              "Help me gather requirements for a new project"
+            ]
+          },
+          {
+            "category": "agents",
+            "description": "The user wants to use or manage AI documentation agents for requirements gathering, PRD creation, or solution architecture.",
+            "examples": [
+              "Start the requirements gathering agent",
+              "Use the PRD creator agent",
+              "List available documentation agents",
+              "Set the solution architect agent"
+            ]
           }
         ]
       }

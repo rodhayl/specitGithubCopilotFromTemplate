@@ -252,6 +252,13 @@ export class TemplateService {
                     version: '1.0',
                     status: 'Draft'
                 };
+            case 'tasks':
+                return {
+                    ...defaultVariables,
+                    title: 'Implementation Plan',
+                    version: '1.0',
+                    status: 'Draft'
+                };
             case 'basic':
             default:
                 return {
@@ -500,10 +507,156 @@ export class TemplateService {
             }
         });
 
+        // Design template
+        this.templates.set('design', {
+            id: 'design',
+            name: 'Design Document',
+            description: 'Technical architecture and system design document',
+            builtIn: true,
+            content: `# {{title}}
+
+## Overview
+
+### Purpose
+{{purpose}}
+
+### Scope
+{{scope}}
+
+## Architecture
+
+### System Architecture
+{{system_architecture}}
+
+### Technology Stack
+{{technology_stack}}
+
+## Components and Interfaces
+
+### Core Components
+{{core_components}}
+
+### API / Interface Specifications
+{{api_specifications}}
+
+## Data Models
+
+### Entities and Relationships
+{{data_models}}
+
+### Storage Strategy
+{{storage_strategy}}
+
+## Error Handling
+
+### Error Categories
+{{error_categories}}
+
+### Recovery Strategies
+{{recovery_strategies}}
+
+## Security Considerations
+
+{{security_considerations}}
+
+## Performance Considerations
+
+{{performance_considerations}}
+
+## Deployment
+
+{{deployment_plan}}
+
+## Appendix
+
+{{appendix}}
+`,
+            variables: [
+                { name: 'title', type: 'string', description: 'Document title', required: true },
+                { name: 'purpose', type: 'string', description: 'Purpose of the design', required: false, defaultValue: 'To be defined.' },
+                { name: 'scope', type: 'string', description: 'Scope of the system', required: false, defaultValue: 'To be defined.' }
+            ],
+            frontMatter: {
+                title: '{{title}}',
+                type: 'Design',
+                version: '{{version}}',
+                status: '{{status}}',
+                created: '{{created}}',
+                author: '{{author}}'
+            }
+        });
+
+        // Tasks / Implementation Plan template
+        this.templates.set('tasks', {
+            id: 'tasks',
+            name: 'Implementation Plan',
+            description: 'Detailed task breakdown and implementation roadmap',
+            builtIn: true,
+            content: `# {{title}}
+
+## Implementation Plan
+
+### Overview
+{{overview}}
+
+## Task Breakdown
+
+### Phase 1 — Foundation
+{{phase1_tasks}}
+
+### Phase 2 — Core Features
+{{phase2_tasks}}
+
+### Phase 3 — Integration & Polish
+{{phase3_tasks}}
+
+## Testing Strategy
+
+### Unit Tests
+{{unit_tests}}
+
+### Integration Tests
+{{integration_tests}}
+
+### Acceptance Criteria
+{{acceptance_criteria}}
+
+## Deployment Plan
+
+### Environments
+{{environments}}
+
+### Rollout Strategy
+{{rollout_strategy}}
+
+## Risk Register
+
+{{risks}}
+
+## Timeline
+
+{{timeline}}
+`,
+            variables: [
+                { name: 'title', type: 'string', description: 'Document title', required: true },
+                { name: 'overview', type: 'string', description: 'Implementation overview', required: false, defaultValue: 'To be defined.' }
+            ],
+            frontMatter: {
+                title: '{{title}}',
+                type: 'Implementation Plan',
+                version: '{{version}}',
+                status: '{{status}}',
+                created: '{{created}}',
+                author: '{{author}}'
+            }
+        });
+
         // Store built-in templates separately
         this.builtInTemplates.set('basic', this.templates.get('basic')!);
         this.builtInTemplates.set('prd', this.templates.get('prd')!);
         this.builtInTemplates.set('requirements', this.templates.get('requirements')!);
+        this.builtInTemplates.set('design', this.templates.get('design')!);
+        this.builtInTemplates.set('tasks', this.templates.get('tasks')!);
 
         this.logger.info('template', 'Initialized built-in templates', {
             count: this.templates.size,

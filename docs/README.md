@@ -119,19 +119,10 @@ docs/
 ├── installation.md              # Installation instructions
 ├── quick-start.md               # Quick start guide
 ├── template-management.md       # Template documentation
+├── testing.md                   # Testing guide (single source of truth)
 ├── troubleshooting.md           # Problem solving guide
-├── video-tutorial-script.md     # Video walkthrough script
-└── archive/                     # Historical documentation
-    ├── README.md                # Archive documentation
-    ├── implementation-reports/  # Historical implementation reports
-    └── development-notes/       # Historical development notes
+└── video-tutorial-script.md     # Video walkthrough script
 ```
-
-## 📋 Archive
-
-Historical implementation reports and development notes are archived in the `archive/` directory. These documents are preserved for reference but are not part of active documentation.
-
-See [archive/README.md](archive/README.md) for more information.
 
 ## 🤝 Contributing
 
@@ -143,9 +134,9 @@ Found an issue with the documentation? Want to improve it?
 
 ## 📦 External Resources
 
-- **GitHub Repository**: [github.com/yourusername/docu-extension](https://github.com)
+- **GitHub Repository**: [github.com/your-username/vscode-docu-extension](https://github.com/your-username/vscode-docu-extension)
 - **VS Code Marketplace**: [marketplace.visualstudio.com](https://marketplace.visualstudio.com)
-- **Issue Tracker**: [github.com/yourusername/docu-extension/issues](https://github.com)
+- **Issue Tracker**: [github.com/your-username/vscode-docu-extension/issues](https://github.com/your-username/vscode-docu-extension/issues)
 
 ## 📄 License
 

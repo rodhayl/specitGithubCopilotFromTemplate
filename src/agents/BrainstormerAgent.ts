@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { BaseAgent } from './BaseAgent';
 import { Agent, AgentContext, AgentResponse, ChatRequest } from './types';
 
@@ -52,8 +53,6 @@ Remember: Your goal is to facilitate creative thinking and help users explore th
             let prdContext = '';
             if (context.workflowState?.documents?.prd) {
                 try {
-                    // For now, we'll simulate reading PRD content
-                    // This would be implemented with actual file reading in a complete system
                     prdContext = `\n\nPRD Context: Available for reference`;
                 } catch (error) {
                     this.log('Could not read PRD for context', 'warn');
@@ -63,12 +62,31 @@ Remember: Your goal is to facilitate creative thinking and help users explore th
             // Build the prompt for brainstorming
             const prompt = this.buildBrainstormingPrompt(request.prompt, prdContext, context);
 
-            // For now, create a simulated brainstorming response
-            // In a complete implementation, this would use the LLM service
-            const response = this.createBrainstormingResponse(request.prompt, prdContext);
-
-            // Extract insights and suggestions from the response
-            const insights = this.extractInsights(response);
+            // Use the LLM model from context if available; fall back to static response
+            let response: string;
+            if (context.model) {
+                try {
+                    const messages = [vscode.LanguageModelChatMessage.User(prompt)];
+                    const tokenSource = new vscode.CancellationTokenSource();
+                    const llmResponse = await context.model.sendRequest(messages, {}, tokenSource.token);
+                    let content = '';
+                    for await (const chunk of llmResponse.stream) {
+                        if (chunk instanceof vscode.LanguageModelTextPart) {
+                            content += chunk.value;
+                        }
+                    }
+                    tokenSource.dispose();
+                    response = content || this.createBrainstormingResponse(request.prompt, prdContext);
+                } catch (llmError) {
+                    this.log(
+                        `LLM call failed, using fallback: ${llmError instanceof Error ? llmError.message : String(llmError)}`,
+                        'warn'
+                    );
+                    response = this.createBrainstormingResponse(request.prompt, prdContext);
+                }
+            } else {
+                response = this.createBrainstormingResponse(request.prompt, prdContext);
+            }
 
             return {
                 content: response,

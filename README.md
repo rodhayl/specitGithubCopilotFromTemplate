@@ -15,8 +15,8 @@ A powerful VS Code extension that provides AI-powered documentation assistance t
 ## 🚀 Quick Start
 
 1. **Install the Extension**
-   - Install from VS Code Marketplace (coming soon)
-   - Or install from VSIX file (see [Installation Guide](docs/installation.md))
+   - Install from VSIX file (see [Installation Guide](docs/installation.md))
+   - Or build from source (see [Compilation Guide](docs/compilation-guide.md))
 
 2. **Setup GitHub Copilot**
    - Ensure GitHub Copilot is installed and authenticated
@@ -264,6 +264,18 @@ Access debugging tools through the Command Palette:
 4. Run tests: `npm test`
 5. Press `F5` to launch extension development host
 
+### Repository Structure
+
+```
+vscode-docu-extension/
+├── src/           # Production source code
+├── tests/         # All tests (unit, integration, e2e, conversation)
+├── docs/          # User-facing documentation
+├── examples/      # Example workflows and demo projects
+├── ARCHIVED/      # Archived development artifacts
+└── package.json   # Extension manifest
+```
+
 ### Building
 
 ```bash
@@ -315,15 +327,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Issues** - Report bugs and request features on [GitHub Issues](https://github.com/docu/vscode-docu-extension/issues)
-- **Discussions** - Join the conversation on [GitHub Discussions](https://github.com/docu/vscode-docu-extension/discussions)
+- **Issues** - Report bugs and request features on [GitHub Issues](https://github.com/your-username/vscode-docu-extension/issues)
+- **Discussions** - Join the conversation on [GitHub Discussions](https://github.com/your-username/vscode-docu-extension/discussions)
 - **Documentation** - Check our comprehensive [documentation](docs/)
 
 ## 🙏 Acknowledgments
 
-- Built on the excellent [VS Code Extension Template](https://github.com/maxeonyx/vscode-extension-template)
 - Powered by [GitHub Copilot](https://github.com/features/copilot)
-- Inspired by [Kiro](https://kiro.ai) workflow methodology
+- Powered by the [VS Code Extension API](https://code.visualstudio.com/api)
 
 ---
 

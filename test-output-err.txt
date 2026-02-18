@@ -1,0 +1,933 @@
+PASS tests/unit/OfflineManager.test.ts
+  OfflineManager Unit Tests
+    √ Should be singleton (4 ms)
+    √ Should start in online mode (1 ms)
+    √ Should enable offline mode
+    √ Should disable offline mode
+    √ Should provide correct capabilities in online mode
+    √ Should provide correct capabilities in offline mode
+    √ Should validate operations in online mode
+    √ Should validate operations in offline mode (1 ms)
+    √ Should provide fallback responses
+    √ Should provide contextual fallback for document creation
+    √ Should provide offline error messages
+    √ Should handle multiple enable/disable cycles
+    √ Should not change state when already in target mode
+    Model Availability Detection
+      √ Should detect available models successfully
+      √ Should handle no models available
+      √ Should handle authentication errors
+      √ Should handle Copilot extension not installed
+      √ Should handle Copilot extension not active
+      √ Should categorize LanguageModelError correctly
+      √ Should categorize network errors correctly
+      √ Should categorize authentication errors correctly
+    Retry Logic and Error Handling
+      √ Should retry on transient failures
+      √ Should not retry authentication errors
+      √ Should not retry permission errors
+      √ Should respect maximum retry attempts
+      √ Should handle interval-based checking
+    Configuration Handling
+      √ Should handle force offline mode
+      √ Should handle force online mode
+      √ Should handle debug logging configuration (1 ms)
+      √ Should handle custom retry configuration
+    Detailed Status Reporting
+      √ Should provide detailed status when online
+      √ Should provide detailed status when offline
+      √ Should include model status in detailed status (1 ms)
+      √ Should include error information in status
+    Manual Mode Override
+      √ Should allow manual offline mode setting
+      √ Should allow manual online mode setting
+      √ Should respect manual override during model checks (1 ms)
+      √ Should allow forced check even in manual mode
+
+D:\GitHub\specitGithubCopilotFromTemplate\node_modules\expect\build\index.js:2231
+    throw error;
+    ^
+
+[JestAssertionError: expect(received).toBe(expected) // Object.is equality
+
+Expected: 1
+Received: undefined] {
+  matcherResult: {
+    actual: undefined,
+    expected: 1,
+    message: 'expect(received).toBe(expected) // Object.is equality\n' +
+      '\n' +
+      'Expected: 1\n' +
+      'Received: undefined',
+    name: 'toBe',
+    pass: false
+  }
+}
+
+Node.js v24.13.1
+PASS tests/integration/ExtensionActivation.test.ts
+  Extension Activation
+    Activation pop-ups
+      √ should NOT show informational pop-ups during normal activation (143 ms)
+    Chat participant registration
+      √ should call createChatParticipant with participant ID "docu" (18 ms)
+    Command registration
+      √ should register the docu.test command (16 ms)
+
+PASS tests/ListTemplatesTool.test.ts
+  ListTemplatesTool
+    workspace scenarios
+      √ should work with workspace available (3 ms)
+      √ should work without workspace (1 ms)
+      √ should filter by agent when specified
+      √ should include variables when requested
+    getRequirements
+      √ should return correct requirements (1 ms)
+
+PASS tests/BaseTool.workspace.test.ts
+  BaseTool Workspace Handling
+    workspace-required tools
+      √ should fail when no workspace is available (4 ms)
+      √ should fail when workspace has insufficient permissions
+      √ should succeed when workspace is valid (1 ms)
+    workspace-optional tools
+      √ should succeed without workspace
+      √ should succeed with workspace (1 ms)
+      √ should continue with warning when workspace has permission issues (1 ms)
+
+PASS tests/conversation/integration.test.ts
+  Conversation System Integration
+    End-to-End PRD Creation Workflow
+      √ should complete a full PRD conversation workflow (29 ms)
+    Multi-Agent Workflow Transitions
+      √ should handle transitions between agents
+    Error Handling and Recovery
+      √ should handle unclear responses gracefully
+      √ should handle session errors (10 ms)
+    Progress Tracking
+      √ should track conversation progress accurately
+    Document Updates
+      √ should generate document updates from conversation
+
+PASS tests/settings-integration.test.ts
+  Settings Integration Tests
+    Settings Webview Provider Integration
+      √ should handle complete agent update workflow (5 ms)
+      √ should handle model selection workflow (2 ms)
+      √ should handle agent reset workflow (1 ms)
+    Settings Command Integration
+      √ should register settings command successfully
+    Configuration Management Integration
+      √ should handle configuration updates through settings (1 ms)
+    Error Handling
+      √ should handle agent update errors gracefully (1 ms)
+    Data Validation
+      √ should provide correct builtin agent configurations (1 ms)
+
+PASS tests/integration/ConversationSessionFlow.test.ts
+  Conversation Session Flow Integration
+    End-to-End Conversation Flow
+      √ should handle complete conversation flow from command to completion (116 ms)
+      √ should handle conversation interruption and recovery
+      √ should handle offline mode gracefully (1 ms)
+    Session State Management
+      √ should maintain session state across multiple interactions (29 ms)
+      √ should handle concurrent session management (1 ms)
+    Error Handling and Recovery
+      √ should recover from conversation manager errors
+      √ should handle agent unavailability (1 ms)
+
+PASS tests/validation/DuplicationDetection.test.ts
+  Code Duplication Detection Tests
+    Duplicate Class Detection
+      √ should not have duplicate class names across the codebase (56 ms)
+      √ should not have duplicate interface names across the codebase (32 ms)
+    Duplicate Function Detection
+      √ should not have duplicate utility functions (20 ms)
+      √ should not have similar method implementations (55 ms)
+    Removed Duplicate Files Detection
+      √ should verify that duplicate manager files have been removed
+      √ should verify that imports to removed files have been cleaned up (13 ms)
+    Singleton Pattern Validation
+      √ should verify that core services use singleton pattern (2 ms)
+    Architecture Consistency
+      √ should verify consistent import patterns (14 ms)
+      √ should verify no circular dependencies (10 ms)
+
+PASS tests/unit/LLMService.test.ts
+  LLMService
+    initialize()
+      √ should select gpt-4o family models first (4 ms)
+      √ should fall back to any Copilot model when no gpt-4o models are available (1 ms)
+      √ should throw when no Copilot models are available at all (6 ms)
+      √ should expose model info after successful initialization (1 ms)
+    sendRequest() — message role mapping
+      √ should map user messages using LanguageModelChatMessage.User() (1 ms)
+      √ should map assistant messages using LanguageModelChatMessage.Assistant()
+      √ should use the requestedModel param over selectModel()
+      √ should throw when no models are available (1 ms)
+    sendStreamingRequest()
+      √ should call onChunk for each yielded text fragment (1 ms)
+
+PASS tests/conversation/ConversationManager.test.ts
+  ConversationManager
+    startConversation
+      √ should create a new conversation session (5 ms)
+      √ should end existing session when starting new one for same agent
+    continueConversation
+      √ should process user response and generate follow-up (38 ms)
+      √ should handle clarification requests for unclear responses
+      √ should throw error for non-existent session (18 ms)
+    endConversation
+      √ should end conversation and return summary (1 ms)
+      √ should remove session from active sessions
+    getConversationHistory
+      √ should return conversation history for session (1 ms)
+      √ should return empty array for non-existent session (1 ms)
+    pauseConversation and resumeConversation
+      √ should pause and resume conversation (1 ms)
+
+PASS tests/workspace-fixes.e2e.test.ts
+  Workspace Fixes End-to-End Validation
+    WorkspaceErrorHandler
+      √ should provide comprehensive error guidance for all scenarios (5 ms)
+      √ should determine correct error types from workspace state
+    Tool Workspace Requirements
+      √ should correctly classify all tools (2 ms)
+    No-Workspace Scenario Validation
+      √ should handle workspace-optional tools gracefully
+      √ should provide enhanced errors for workspace-required tools (1 ms)
+    Workspace Available Scenario Validation
+      √ should provide full functionality for workspace-optional tools
+      √ should work normally for workspace-required tools (1 ms)
+    Error Message Quality Validation
+      √ should provide actionable error messages
+      √ should provide consistent error format across all error types (1 ms)
+    Integration Validation
+      √ should validate complete workspace fix implementation
+
+PASS tests/integration/CommandRouter.test.ts
+  CommandRouter Integration Tests
+    √ Should identify commands correctly (2 ms)
+    √ Should parse command names correctly (1 ms)
+    √ Should parse command arguments correctly (1 ms)
+    √ Should parse subcommands correctly
+    √ Should handle quoted arguments correctly
+    √ Should handle boolean flags correctly
+    √ Should handle short flags correctly
+    √ Should handle complex command parsing
+    √ Should provide help for unknown commands (98 ms)
+    √ Should handle empty commands gracefully
+    √ Should preserve command context (125 ms)
+
+PASS tests/integration/CommandConversationFlow.test.ts
+  Command to Conversation Flow Integration
+    Command Flow Integration
+      √ should determine conversation continuation correctly for different commands (4 ms)
+      √ should generate appropriate conversation decisions for different templates (1 ms)
+      √ should handle conversation initiation after successful command (1 ms)
+      √ should handle conversation initiation failure gracefully
+    Command-Specific Conversation Flows
+      √ should handle new command with PRD template conversation flow (1 ms)
+      √ should handle new command with requirements template conversation flow (1 ms)
+      √ should handle new command with design template conversation flow (1 ms)
+      √ should handle commands without conversation continuation
+    Error Recovery in Command Flow
+      √ should handle conversation errors with recovery options (1 ms)
+      √ should attempt error recovery (1 ms)
+      √ should handle non-recoverable errors
+
+PASS tests/unit/ConversationSessionRouter.test.ts
+  ConversationSessionRouter
+    routeUserInput
+      √ should route to conversation when active session exists (5 ms)
+      √ should route to agent when no active session exists (1 ms)
+      √ should return error when no agent is available (1 ms)
+      √ should clean up invalid session and route to agent
+      √ should handle conversation errors gracefully (1 ms)
+    session management
+      √ should set and get active session (1 ms)
+      √ should clear active session (1 ms)
+      √ should update session activity
+      √ should clean up inactive sessions (1 ms)
+    session state
+      √ should return current session state (1 ms)
+      √ should handle empty session state (1 ms)
+
+PASS tests/unit/AgentManager.test.ts
+  AgentManager
+    listAgents()
+      √ should list all built-in agents (4 ms)
+      √ should have exactly one active agent at a time
+      √ should return each agent with name, description, phase, and active fields (2 ms)
+    setCurrentAgent()
+      √ should switch to a valid agent name and return true
+      √ should return false for an unknown agent name (1 ms)
+      √ should not change current agent when switch fails
+    getAgent()
+      √ should return an agent by name (1 ms)
+      √ should return undefined for an unknown agent
+    getCurrentAgent()
+      √ should return the default prd-creator agent on initialization
+      √ should reflect agent switch
+    buildAgentContext()
+      √ should include workspaceRoot from vscode workspace
+      √ should include workflowState
+
+PASS tests/integration/ConversationErrorHandling.test.ts
+  Conversation Error Handling
+    Error Handling in shouldStartConversation
+      √ should handle invalid command names gracefully (4 ms)
+      √ should handle invalid command results gracefully
+      √ should handle invalid user context gracefully
+    Error Handling in conversation operations
+      √ should handle conversation errors properly (1 ms)
+      √ should handle invalid session IDs gracefully
+    Error Handling in startContinuation
+      √ should handle conversation manager failures
+      √ should handle conversation start failures
+      √ should handle invalid command results gracefully
+      √ should handle missing context gracefully (1 ms)
+    Recovery Scenarios
+      √ should handle network errors gracefully
+      √ should handle execution errors gracefully
+      √ should handle non-recoverable errors appropriately
+
+PASS tests/unit/ErrorHandler.test.ts
+  ErrorHandler Unit Tests
+    √ Should be singleton (3 ms)
+    √ Should categorize file not found errors (9 ms)
+    √ Should categorize permission errors
+    √ Should categorize network errors (1 ms)
+    √ Should categorize model errors
+    √ Should categorize workspace errors (1 ms)
+    √ Should categorize template errors
+    √ Should handle generic errors (1 ms)
+    √ Should maintain error history (1 ms)
+    √ Should provide error statistics (1 ms)
+    √ Should clear error history
+    √ Should limit error history size (5 ms)
+    √ Should provide technical details (1 ms)
+
+PASS tests/integration/AgentConversations.test.ts
+  Agent Conversations Integration Tests
+    /new Command Conversation Triggering
+      √ Should trigger conversation for PRD template with placeholders (4 ms)
+      √ Should not trigger conversation when explicitly disabled
+      √ Should trigger conversation when explicitly enabled (1 ms)
+      √ Should trigger conversation for structured templates
+      √ Should not trigger conversation for basic templates by default (1 ms)
+    Conversation Flow Management
+      √ Should start conversation with appropriate agent (2 ms)
+      √ Should handle conversation progression through questions (1 ms)
+      √ Should complete conversation and update document
+    Offline Fallback Functionality
+      √ Should provide offline conversation fallback (1 ms)
+      √ Should provide structured offline document templates (1 ms)
+      √ Should handle offline mode gracefully during conversation (1 ms)
+    Authentication Interference Scenarios
+      √ Should handle Copilot authentication errors gracefully (1 ms)
+      √ Should not interfere with existing Copilot sessions
+      √ Should handle Copilot extension not active
+
+PASS tests/validation/MessageQuality.test.ts
+  Message Quality Validation Tests
+    Message Content Quality
+      √ should reject empty or placeholder messages (5 ms)
+      √ should provide specific and actionable messages (1 ms)
+      √ should provide helpful error messages with recovery options (1 ms)
+      √ should format progress messages clearly
+    Message Consistency
+      √ should use consistent formatting across message types (1 ms)
+      √ should maintain consistent tone and language (1 ms)
+      √ should provide appropriate level of detail
+    Feedback Coordination Quality
+      √ should prioritize feedback appropriately (1 ms)
+      √ should prevent feedback spam from same source
+      √ should group related feedback appropriately
+    Message Accessibility
+      √ should use clear and simple language
+      √ should provide meaningful icons and visual cues
+      √ should structure information hierarchically (1 ms)
+    Context-Aware Messaging
+      √ should provide context-appropriate suggestions
+      √ should adapt message detail level based on user experience
+
+PASS tests/unit/OutputCoordinator.test.ts
+  OutputCoordinator
+    singleton pattern
+      √ should return the same instance (2 ms)
+    registerPrimaryOutput
+      √ should register primary output
+      √ should replace existing primary output
+    addSecondaryFeedback
+      √ should add secondary feedback (1 ms)
+      √ should detect and suppress duplicate feedback
+    addTips
+      √ should add tips
+      √ should filter duplicate tips (1 ms)
+      √ should handle empty tips array
+    render
+      √ should render primary output only (58 ms)
+      √ should render coordinated output with priority ordering (125 ms)
+      √ should suppress tips when conversation feedback is present (186 ms)
+      √ should not render twice (62 ms)
+    clear
+      √ should clear all state
+    deduplication logic
+      √ should detect similar content with high similarity (1 ms)
+      √ should not suppress dissimilar content (1 ms)
+
+PASS tests/unit/CommandParser.test.ts
+  CommandParser
+    parseCommand() — basic parsing
+      √ should parse a simple command (4 ms)
+      √ should throw for input not starting with / (11 ms)
+      √ should throw for empty command after slash (1 ms)
+      √ should preserve rawInput
+    parseCommand() — subcommands
+      √ should parse a subcommand
+      √ should leave second token as argument when it is not a registered subcommand
+      √ should parse subcommand with additional arguments
+    parseCommand() — quoted arguments
+      √ should treat double-quoted strings as single arguments (1 ms)
+      √ should treat single-quoted strings as single arguments
+      √ should handle multiple quoted arguments
+    parseCommand() — flags
+      √ should parse a boolean flag
+      √ should parse a key=value flag (1 ms)
+      √ should parse multiple flags
+      √ should separate flags from positional arguments
+    registerCommand()
+      √ should override a previously registered command
+
+PASS tests/integration/AutoChatWorkflow.test.ts
+  Auto-Chat Workflow Integration
+    Agent Set → Auto-Chat Workflow
+      √ should enable auto-chat when agent is set (5 ms)
+      √ should show appropriate prompt after agent is set (1 ms)
+      √ should track session statistics correctly
+    Document Creation → Auto-Chat Workflow
+      √ should create document and enable auto-chat with --with-conversation flag (1 ms)
+      √ should show document creation prompt with auto-chat guidance (1 ms)
+      √ should not enable auto-chat without --with-conversation flag (1 ms)
+    Conversation → Document Update Workflow
+      √ should update document when conversation response is processed (1 ms)
+      √ should track document update progress across multiple conversation turns
+    Error Handling and Recovery
+      √ should handle auto-chat timeout gracefully
+      √ should handle document update failures (1 ms)
+      √ should clean up expired sessions automatically
+    State Persistence
+      √ should persist auto-chat state across extension reloads (1 ms)
+      √ should restore auto-chat state from persistence
+    Multi-Agent Workflow
+      √ should handle agent switching during active auto-chat
+      √ should provide agent-specific prompts and guidance
+
+PASS tests/unit/StateManager.test.ts
+  StateManager
+    getInstance()
+      √ should return a singleton instance
+      √ should throw when called without context on first use (5 ms)
+      √ should use a cached instance even when called without context after first init
+    initialize()
+      √ should complete without throwing (1 ms)
+    registerComponent() / getComponent()
+      √ should store and retrieve a component
+      √ should return undefined for unregistered component
+      √ should mark the component as initialized after registration
+      √ should overwrite a previously registered component
+
+PASS tests/fixes/new-command-fixes.test.ts
+  New Command Fixes
+    Directory Creation
+      √ should handle missing directories gracefully
+    Template Variable Handling
+      √ should provide helpful error messages for missing variables (1 ms)
+      √ should succeed when all required variables are provided
+    Error Message Quality
+      √ should provide actionable suggestions in error metadata
+
+PASS tests/SettingsWebviewProvider.test.ts
+  SettingsWebviewProvider
+    resolveWebviewView
+      √ should initialize webview with proper options (1 ms)
+      √ should handle getAgents message (1 ms)
+      √ should handle getModels message
+    agent configuration management
+      √ should provide builtin configurations
+    HTML generation
+      √ should generate valid HTML for webview
+
+PASS tests/e2e/WorkflowTests.test.ts
+  End-to-End Workflow Tests
+    √ Complete PRD Creation Workflow (1 ms)
+    √ Template Management Workflow
+    √ Agent Workflow Progression
+    √ Command Processing Workflow (1 ms)
+    √ Error Handling Workflow
+    √ Template Creation and Validation Workflow (1 ms)
+    √ Multi-Agent Collaboration Workflow
+
+PASS tests/conversation/ContentCapture.test.ts
+  ContentCapture
+    updateDocument
+      √ should update existing document sections (4 ms)
+      √ should append content to existing sections (1 ms)
+      √ should create new sections when they don't exist (1 ms)
+      √ should handle document creation when file doesn't exist (1 ms)
+      √ should handle multiple updates in sequence (1 ms)
+      √ should track changes and generate summary
+    generateDocumentSection
+      √ should generate section using templates
+      √ should generate generic section when no template exists (1 ms)
+      √ should handle empty conversation data
+    validateDocumentStructure
+      √ should validate document structure (1 ms)
+    getDocumentSections
+      √ should extract sections from document
+      √ should handle documents without sections (1 ms)
+      √ should handle file read errors
+    extractExistingContent
+      √ should extract content from specific section
+      √ should return empty string for non-existent section (1 ms)
+      √ should handle file read errors
+    trackChanges
+      √ should track document changes
+      √ should limit change history (1 ms)
+
+PASS tests/unit/TemplateManager.test.ts
+  TemplateManager Unit Tests
+    √ Should initialize with built-in templates
+    √ Should get template by ID
+    √ Should return undefined for non-existent template
+    √ Should render template with variables (10 ms)
+    √ Should throw error for missing required variables
+    √ Should use default values for optional variables
+    √ Should filter templates by agent
+    √ Should extract variables from template content (1 ms)
+    √ Should validate template metadata
+
+PASS tests/unit/SecurityManager.test.ts
+  SecurityManager Unit Tests
+    √ Should validate paths within workspace
+    √ Should reject paths outside workspace
+    √ Should reject blocked directories
+    √ Should validate file extensions (1 ms)
+    √ Should sanitize user input
+    √ Should handle non-string input in sanitization
+    √ Should provide security recommendations
+    √ Should handle path normalization edge cases
+
+PASS tests/integration/OnlineOfflineConversation.test.ts
+  Online/Offline Conversation Handling
+    Online Mode Simulation
+      √ should successfully initiate conversation when online (1 ms)
+      √ should handle conversation continuation when online
+    Offline Mode Simulation
+      √ should handle offline mode gracefully with network errors (1 ms)
+      √ should not fail when conversation cannot be started
+    Online/Offline Transitions
+      √ should handle transition from online to offline during conversation
+      √ should handle intermittent connectivity issues
+    Context Preservation
+      √ should preserve conversation context across different scenarios (1 ms)
+      √ should handle different template types correctly
+      √ should provide fallback for unknown templates
+    Conversation Decision Logic
+      √ should make appropriate conversation decisions based on context
+      √ should handle different command contexts correctly (1 ms)
+
+PASS tests/WorkspaceErrorHandler.test.ts
+  WorkspaceErrorHandler
+    createWorkspaceGuidance
+      √ should create no-workspace guidance (1 ms)
+      √ should create permissions guidance
+      √ should create invalid-workspace guidance
+      √ should create multi-root-complexity guidance
+    determineErrorType
+      √ should return no-workspace when workspace is not available
+      √ should return permissions when cannot write
+      √ should return invalid-workspace when cannot read
+      √ should return multi-root-complexity for multi-root workspaces
+    createUserFriendlyError
+      √ should create user-friendly error for no workspace
+    formatErrorForDisplay
+      √ should format error with all components
+      √ should handle error without alternatives
+
+PASS tests/unit/FileUtils.test.ts
+  FileUtils
+    generateSafeFilePath
+      with customPath
+        √ should generate correct path with customPath and title (1 ms)
+        √ should handle customPath without trailing slash
+        √ should sanitize title in customPath
+        √ should handle relative customPath
+      without customPath
+        √ should generate PRD path for prd template
+        √ should generate requirements path for requirements template (1 ms)
+        √ should generate design path for design template
+        √ should generate specification path for specification template
+        √ should generate basic docs path for unknown template
+        √ should sanitize filename for basic template
+
+PASS tests/unit/NewCommandHandler.test.ts
+  NewCommandHandler
+    validateInputs
+      √ should validate successful inputs (3 ms)
+      √ should reject empty title
+      √ should reject missing title (1 ms)
+      √ should reject invalid template
+      √ should reject absolute paths
+      √ should reject paths with parent directory traversal (1 ms)
+    generateOutputPath
+      √ should use custom path when provided
+      √ should add .md extension to custom path if missing
+      √ should generate PRD path for PRD template
+      √ should generate requirements path for requirements template (1 ms)
+      √ should generate design path for design template
+      √ should generate basic docs path for other templates
+      √ should sanitize filename
+    createDocument
+      √ should create document successfully (1 ms)
+      √ should handle template rendering failure
+      √ should handle template not found
+      √ should handle file system errors
+    execute
+      √ should execute successfully without conversation (2 ms)
+      √ should execute successfully with conversation
+      √ should use PRD agent for PRD template
+      √ should handle validation errors (1 ms)
+      √ should handle document creation failure
+      √ should handle unexpected errors
+
+PASS tests/integration/CompilationValidation.test.ts
+  Compilation Validation Tests
+    Core Module Instantiation
+      √ should instantiate ConversationManager without errors (5 ms)
+      √ should instantiate ResponseProcessor without errors (1 ms)
+      √ should instantiate ContentCapture without errors (1 ms)
+      √ should instantiate QuestionEngine without errors
+      √ should instantiate TemplateManager without errors (1 ms)
+      √ should instantiate ToolManager without errors (2 ms)
+    Singleton Module Access
+      √ should access ErrorHandler singleton without errors
+      √ should access Logger singleton without errors
+      √ should access SecurityManager without errors (1 ms)
+      √ should access TelemetryManager singleton without errors (1 ms)
+      √ should access OfflineManager singleton without errors (1 ms)
+    VSCode API Mock Validation
+      √ should have properly mocked workspace API
+      √ should have properly mocked Uri API (1 ms)
+      √ should have properly mocked window API
+      √ should have properly mocked commands API (1 ms)
+      √ should have properly mocked extensions API
+      √ should have ExtensionMode enum available (1 ms)
+    Type System Validation
+      √ should have proper type definitions for conversation types
+      √ should have proper ExtensionContext mock with all required properties (1 ms)
+    Module Integration
+      √ should allow modules to work together without type conflicts
+      √ should handle error scenarios gracefully (32 ms)
+    Build Process Validation
+      √ should confirm all imports resolve correctly
+      √ should confirm TypeScript compilation succeeded
+      √ should confirm Jest configuration is working (1 ms)
+
+PASS tests/integration/ToolManager.test.ts
+  ToolManager Integration Tests
+    √ Should register all built-in tools (1 ms)
+    √ Should validate tool availability
+    √ Should detect missing tools
+    √ Should provide tool documentation
+    √ Should return undefined for non-existent tool documentation (1 ms)
+    √ Should execute listTemplates tool
+    √ Should execute listTemplates with agent filter
+    √ Should execute validateTemplate tool
+    √ Should handle tool execution errors gracefully
+    √ Should handle non-existent tool execution
+    √ Should execute openTemplate tool for built-in template
+    √ Should provide comprehensive tool information (1 ms)
+    √ Should handle tool execution with cancellation token
+
+PASS tests/unit/DocumentUpdateEngine.test.ts
+  DocumentUpdateEngine
+    updateDocumentFromConversation
+      √ should successfully update document from conversation response (3 ms)
+      √ should handle document update errors gracefully
+    mapContentToSections
+      √ should map PRD creator content to appropriate sections
+      √ should handle requirements gatherer content (1 ms)
+      √ should return empty updates for irrelevant content
+    applySectionUpdates
+      √ should apply section updates to existing document
+      √ should create new document when file does not exist
+      √ should handle multiple section updates in priority order (1 ms)
+    getUpdateProgress
+      √ should return progress for existing document
+    content extraction methods
+      √ should extract problem statement from content
+      √ should extract target users from content (1 ms)
+      √ should return empty string when no relevant keywords found
+    content formatting
+      √ should format content as requirements list
+      √ should format content as features list
+    section update modes
+      √ should use replace mode for first conversation turn
+      √ should use append mode for subsequent turns
+
+PASS tests/unit/TemplateService.test.ts
+  TemplateService
+    singleton pattern
+      √ should return the same instance
+    getTemplate
+      √ should return built-in basic template (1 ms)
+      √ should return built-in PRD template
+      √ should throw error for non-existent template (8 ms)
+    renderTemplate
+      √ should render basic template with variables (10 ms)
+      √ should use default variables when not provided
+      √ should fail when required variables are missing (1 ms)
+      √ should render front matter with variables
+      √ should handle templates without front matter (1 ms)
+    getDefaultVariables
+      √ should return basic default variables
+      √ should return PRD-specific defaults
+      √ should return requirements-specific defaults (1 ms)
+      √ should return basic defaults for unknown template
+    listTemplates
+      √ should return all built-in templates
+      √ should include custom templates
+    addTemplate
+      √ should add custom template (1 ms)
+      √ should replace existing template with same ID
+    variable substitution
+      √ should substitute all variable patterns
+      √ should handle missing variables gracefully (2 ms)
+
+PASS tests/conversation/ResponseProcessor.test.ts
+  ResponseProcessor
+    analyzeResponse
+      √ should analyze a comprehensive response positively (6 ms)
+      √ should identify short responses as needing clarification (1 ms)
+      √ should extract entities from technical responses (1 ms)
+      √ should generate relevant follow-up suggestions (1 ms)
+      √ should handle structured question types appropriately
+    extractStructuredData
+      √ should extract user story format (1 ms)
+      √ should extract acceptance criteria in EARS format
+      √ should extract requirements with priorities (1 ms)
+      √ should extract metrics and performance data
+      √ should handle unknown formats gracefully (1 ms)
+    validateCompleteness
+      √ should validate required fields
+      √ should validate minimum length (1 ms)
+      √ should validate maximum length
+      √ should validate patterns
+      √ should handle custom validation
+    suggestImprovements
+      √ should suggest more detail for short responses (1 ms)
+      √ should suggest breaking up very long responses
+      √ should suggest avoiding vague language
+      √ should suggest examples for PRD context
+      √ should suggest measurable criteria for requirements context
+      √ should suggest user perspective for PRD (1 ms)
+    processEntities
+      √ should extract technology entities
+      √ should extract metric entities
+      √ should extract role entities
+      √ should remove overlapping entities (1 ms)
+      √ should assign confidence scores to entities
+
+PASS tests/conversation/QuestionEngine.test.ts
+  QuestionEngine
+    generateInitialQuestions
+      √ should generate initial questions for PRD Creator agent (1 ms)
+      √ should generate initial questions for Brainstormer agent
+      √ should generate initial questions for Requirements Gatherer agent
+      √ should return default questions for unknown agent (1 ms)
+      √ should prioritize questions correctly
+    generateFollowupQuestions
+      √ should generate follow-up questions based on trigger words
+      √ should generate contextual follow-ups for short responses (1 ms)
+      √ should generate user impact follow-ups when appropriate
+      √ should limit follow-up questions to maximum of 3
+      √ should remove duplicate questions (1 ms)
+    validateQuestionRelevance
+      √ should filter out technical questions for PRD phase
+      √ should filter out detailed requirements questions for PRD phase
+      √ should keep all relevant questions
+    getQuestionTemplate and updateQuestionTemplate
+      √ should retrieve existing question template (1 ms)
+      √ should return null for non-existent template
+      √ should update question template
+
+PASS tests/integration/ConsolidatedArchitecture.test.ts
+  Consolidated Architecture Integration Tests
+    Code Duplication Detection
+      √ should ensure no duplicate manager classes exist (37 ms)
+      √ should have single instance of each core service (1 ms)
+      √ should not have duplicate functionality across services (1 ms)
+    Message Quality Validation
+      √ should provide meaningful messages for document operations (79 ms)
+      √ should provide meaningful error messages with recovery options (62 ms)
+      √ should format messages consistently (1 ms)
+      √ should handle multiple message coordination
+    Integration Workflow Tests
+      √ should handle complete document creation workflow (61 ms)
+      √ should coordinate feedback from multiple sources (1 ms)
+      √ should prevent duplicate feedback from same source
+      √ should handle conversation lifecycle properly (18 ms)
+    Performance and Reliability Tests
+      √ should complete simple operations within 2 seconds (121 ms)
+      √ should handle errors gracefully without breaking subsequent operations (186 ms)
+      √ should maintain consistent state across operations
+    Architecture Validation Tests
+      √ should have proper dependency management (1 ms)
+      √ should follow single responsibility principle
+      √ should use consistent error handling patterns (1 ms)
+
+PASS tests/unit/ValidationUtils.test.ts
+  ValidationUtils
+    isNotNull()
+      √ should return true for a non-null value (3 ms)
+      √ should return false for null (1 ms)
+      √ should return false for undefined
+    isNotEmpty()
+      √ should return true for a non-empty string
+      √ should return false for an empty string (1 ms)
+      √ should return false for whitespace-only string
+      √ should return false for null/undefined
+    isNotEmptyArray()
+      √ should return true for a non-empty array
+      √ should return false for an empty array (1 ms)
+      √ should return false for null/undefined
+    hasRequiredProperties()
+      √ should return true when all required props are present
+      √ should return false when a required prop is missing (1 ms)
+      √ should return false for null objects
+    isValidFilePath()
+      √ should return true for a valid file path
+      √ should return false for paths with invalid characters
+      √ should return false for Windows reserved names
+      √ should return false for empty string (1 ms)
+    isValidTemplateId()
+      √ should accept valid template IDs
+      √ should reject IDs with uppercase letters
+      √ should reject IDs with spaces or special characters
+      √ should reject empty string
+    isValidAgentName()
+      √ should accept valid agent names (1 ms)
+      √ should reject names with uppercase letters
+    isInRange()
+      √ should return true when value is within range
+      √ should return false when value is outside range
+      √ should return false for NaN
+    isValidJson()
+      √ should return true for valid JSON (1 ms)
+      √ should return false for invalid JSON
+    isValidMarkdown()
+      √ should return true for markdown with balanced code blocks
+      √ should return false for markdown with unbalanced code blocks
+      √ should return true for plain markdown with no code blocks
+
+PASS tests/unit/ConversationSessionRouter.test.ts
+  ConversationSessionRouter
+    routeUserInput
+      √ should route to conversation when active session exists (4 ms)
+      √ should route to agent when no active session exists (1 ms)
+      √ should return error when no agent is available
+      √ should clean up invalid session and route to agent
+      √ should handle conversation errors gracefully (1 ms)
+    session management
+      √ should set and get active session (1 ms)
+      √ should clear active session
+      √ should update session activity
+      √ should clean up inactive sessions (1 ms)
+    session state
+      √ should return current session state (1 ms)
+      √ should handle empty session state
+
+D:\GitHub\specitGithubCopilotFromTemplate\node_modules\expect\build\index.js:2231
+    throw error;
+    ^
+
+[JestAssertionError: expect(received).toBe(expected) // Object.is equality
+
+Expected: 1
+Received: undefined] {
+  matcherResult: {
+    actual: undefined,
+    expected: 1,
+    message: 'expect(received).toBe(expected) // Object.is equality\n' +
+      '\n' +
+      'Expected: 1\n' +
+      'Received: undefined',
+    name: 'toBe',
+    pass: false
+  }
+}
+
+Node.js v24.13.1
+PASS tests/unit/AutoChatStateManager.test.ts
+  AutoChatStateManager
+    enableAutoChat
+      √ should enable auto-chat mode with agent name (5 ms)
+      √ should enable auto-chat mode with additional context
+    disableAutoChat
+      √ should disable auto-chat mode
+    isAutoChatActive
+      √ should return false when not active (1 ms)
+      √ should return true when active
+      √ should return false when session has timed out
+    updateActivity
+      √ should update activity timestamp and message count
+      √ should not update when auto-chat is not active
+    showAutoChatPrompt
+      √ should show auto-chat prompt with agent information (1 ms)
+      √ should not show prompt when no context available
+    getSessionStats
+      √ should return correct session statistics (1115 ms)
+    setConversationSessionId
+      √ should update conversation session ID in context
+      √ should not update when no context exists (1 ms)
+    cleanupExpiredSessions
+      √ should clean up expired sessions
+      √ should not clean up active sessions
+    state persistence
+      √ should save state to extension context
+      √ should load state from extension context
+
+PASS tests/integration/CommandOutputCoordination.test.ts
+  Command Output Coordination Integration
+    Command execution with coordination
+      √ should coordinate output for help command (2067 ms)
+      √ should handle error coordination (1 ms)
+
+PASS tests/integration/CompleteWorkflow.test.ts (10.464 s)
+  Complete User Workflow Integration Tests
+    Example Case: CardCraft Online Store PRD
+      √ should handle the complete example workflow without duplicates or conflicts (85 ms)
+      √ should provide consistent behavior across multiple similar requests (188 ms)
+    Multi-Command Workflow
+      √ should handle a complete documentation workflow (4365 ms)
+      √ should maintain state consistency across workflow steps (183 ms)
+    Error Recovery and Resilience
+      √ should recover gracefully from errors without affecting subsequent operations (189 ms)
+      √ should handle concurrent operations without conflicts (2024 ms)
+    Message Consistency and Quality
+      √ should provide consistent message format across all commands (2255 ms)
+      √ should not produce duplicate or conflicting messages (63 ms)
+      √ should handle help command appropriately (125 ms)
+    Performance and Scalability
+      √ should maintain performance under load (621 ms)
+      √ should handle memory efficiently
+
+Test Suites: 45 passed, 45 total
+Tests:       571 passed, 571 total
+Snapshots:   0 total
+Time:        11.02 s
+Ran all test suites.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

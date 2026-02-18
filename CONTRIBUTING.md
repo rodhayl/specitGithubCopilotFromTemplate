@@ -26,7 +26,7 @@ Thank you for your interest in contributing to Docu! This guide will help you ge
 1. **Fork the Repository**
    ```bash
    # Fork on GitHub, then clone your fork
-   git clone https://github.com/YOUR_USERNAME/vscode-docu-extension.git
+   git clone https://github.com/your-username/vscode-docu-extension.git
    cd vscode-docu-extension
    ```
 
@@ -150,22 +150,38 @@ export class ExampleService {
 ### File Organization
 
 ```
-src/
-├── agents/          # AI agent implementations
-├── commands/        # Command parsing and routing
-├── config/          # Configuration management
-├── debugging/       # Debug and diagnostic tools
-├── error/           # Error handling system
-├── logging/         # Logging infrastructure
-├── offline/         # Offline mode management
-├── security/        # Security and validation
-├── telemetry/       # Analytics and telemetry
-├── templates/       # Template system
-├── tools/           # File system tools
-└── test/           # Test files
-    ├── unit/        # Unit tests
-    ├── integration/ # Integration tests
-    └── e2e/         # End-to-end tests
+vscode-docu-extension/
+├── src/                    # Production source code
+│   ├── agents/             # AI agent implementations
+│   ├── commands/           # Command parsing and routing
+│   ├── config/             # Configuration management
+│   ├── conversation/       # Conversation management
+│   ├── debugging/          # Debug and diagnostic tools
+│   ├── error/              # Error handling system
+│   ├── llm/                # GitHub Copilot LLM integration
+│   ├── logging/            # Logging infrastructure
+│   ├── offline/            # Offline mode management
+│   ├── security/           # Security and validation
+│   ├── state/              # State management
+│   ├── telemetry/          # Analytics and telemetry
+│   ├── templates/          # Template system
+│   ├── tools/              # File system tools
+│   ├── utils/              # Shared utilities
+│   ├── constants.ts        # Global constants
+│   └── extension.ts        # Extension entry point
+├── tests/                  # All test files (top-level, separate from src/)
+│   ├── unit/               # Unit tests
+│   ├── integration/        # Integration tests
+│   ├── e2e/                # End-to-end tests
+│   ├── conversation/       # Conversation module tests
+│   ├── fixes/              # Regression tests
+│   ├── mocks/              # VS Code API mocks
+│   ├── utils/              # Test utilities
+│   └── setup.ts            # Jest global setup
+├── docs/                   # User-facing documentation
+├── examples/               # Example workflows and demo projects
+├── ARCHIVED/               # Archived development artifacts
+└── package.json            # Extension manifest
 ```
 
 ## 🧪 Testing Guidelines
@@ -181,7 +197,7 @@ src/
 ```typescript
 // Example unit test
 import * as assert from 'assert';
-import { TemplateManager } from '../../templates/TemplateManager';
+import { TemplateManager } from '../../src/templates/TemplateManager';
 
 suite('TemplateManager Tests', () => {
     let templateManager: TemplateManager;

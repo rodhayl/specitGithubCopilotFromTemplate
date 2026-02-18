@@ -42,6 +42,12 @@ export interface CommandContext {
     token: vscode.CancellationToken;
     workspaceRoot: string;
     extensionContext: vscode.ExtensionContext;
+    /**
+     * The language model selected by the user in the chat UI (from vscode.ChatRequest.model).
+     * Per VS Code API guidelines, chat participants should use this model rather than calling
+     * vscode.lm.selectChatModels() independently, so the user's model choice is respected.
+     */
+    model?: vscode.LanguageModelChat;
 }
 
 export interface CommandResult {

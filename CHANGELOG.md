@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-18
+
+### Fixed
+- **Silent telemetry bug**: `stateManager.getComponent('telemetry')` (wrong key) → `getTelemetryManager()` — telemetry was silently returning `undefined` on all error paths
+- `RequirementsGathererAgent.handleDirectRequest()` catch block returned old `{ success, message }` API instead of `AgentResponse` — fixed to use `this.createResponse()`
+
+### Changed
+- **extension.ts**: Replaced all 100+ raw `stateManager.getComponent(...)` call-sites with the 17 typed accessor functions (`getLogger()`, `getTelemetryManager()`, `getCommandRouter()`, etc.) — eliminates redundant null-guards and untyped `as any` casts throughout the file
+- **BrainstormerAgent**: Wired `buildBrainstormingPrompt()` to make real LLM calls via `context.model.sendRequest()` — previously returned static hardcoded strings; falls back gracefully when model unavailable
+- **AgentManager**: `buildAgentContext()` now populates `AgentContext.model` from `request.model` — ensures all agents have access to the user's selected chat model
+- **StateManager**: Removed vestigial `conversationBridge` from `initializationOrder` and dependency map — `ConversationBridge` was listed but never instantiated
+- Repository restructured for GitHub Copilot / VS Code exclusivity
+- Moved all tests from `src/test/` and `src/conversation/__tests__/` to a top-level `tests/` folder
+- Added `tsconfig.test.json` to cleanly separate test compilation from production compilation
+
+### Documentation
+- Merged root `TESTING.md` into `docs/testing.md` — single comprehensive testing reference
+- Added `testing.md` to `docs/README.md` directory index
+- Fixed stale `(coming soon)` on marketplace install instruction in `README.md`
+- Fixed placeholder org name in README.md issue/discussion links
+- Fixed duplicate `Powered by GitHub Copilot` bullet in README.md acknowledgments
+- Fixed placeholder `yourusername` URLs in `docs/README.md`
+- Fixed `YOUR_USERNAME` placeholder in `CONTRIBUTING.md` clone URL
+- Bumped `package.json` version from `0.1.0` to `0.3.0`
+
+### Removed
+- Orphaned `tests/unit/FeedbackCoordinator.test.ts` — source merged into `OutputCoordinator` in a previous session
+- `OTHER_IDES/`, `.kiro/`, and `.trae/` directories (extension is GitHub Copilot only)
+
+### Added
+- VS Code API correctness fixes: `LanguageModelChatMessage`, `selectChatModels`, `request.model`, disambiguation
+- GitHub Actions workflows (`ci.yml`, `release.yml`), `SECURITY.md`, issue templates, PR template
+- 6 new test files: LLMService, CommandParser, StateManager, ValidationUtils, AgentManager, ExtensionActivation
+
+### Verified
+- Extension uses only `vscode.lm` (vendor: `copilot`) and `vscode.chat.createChatParticipant`
+- `extensionDependencies` correctly declares `github.copilot-chat`
+- Zero TypeScript compilation errors; zero ESLint warnings
+- All tests passing
+
 ## [0.2.0] - 2025-11-07
 
 ### Changed
@@ -102,11 +142,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ```
 
 ---
-
-## Archive Location
-
-Historical implementation reports and detailed documentation have been moved to:
-- `docs/archive/implementation-reports/` - All implementation and quality reports
-- `docs/archive/development-notes/` - Development notes and tutorials
-
-These archives are preserved for reference but are not part of active documentation.

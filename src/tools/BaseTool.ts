@@ -33,7 +33,7 @@ export abstract class BaseTool implements Tool {
     public readonly name: string;
     public readonly description: string;
     public readonly parameters: ToolParameter[];
-    protected securityManager: SecurityManager;
+    protected securityManager!: SecurityManager;
     protected errorHandler: ErrorHandler;
     protected offlineManager: OfflineManager;
 
@@ -43,8 +43,6 @@ export abstract class BaseTool implements Tool {
         this.parameters = parameters;
         this.errorHandler = ErrorHandler.getInstance();
         this.offlineManager = OfflineManager.getInstance();
-        // SecurityManager will be initialized when needed with workspace root
-        this.securityManager = null as any; // Temporary assignment
     }
 
     /**

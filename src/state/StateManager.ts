@@ -15,7 +15,6 @@ import { TemplateService } from '../templates/TemplateService';
 import { ToolManager } from '../tools';
 import { LLMService } from '../llm/LLMService';
 import { OutputCoordinator } from '../commands/OutputCoordinator';
-import { ConversationBridge } from '../conversation/ConversationBridge';
 
 /**
  * State change event types
@@ -89,7 +88,6 @@ export class StateManager {
         'llmService',
         'outputCoordinator',
         'commandRouter',
-        'conversationBridge',
         'settingsProvider'
     ];
 
@@ -332,7 +330,6 @@ export class StateManager {
             'llmService': ['logger', 'configManager'],
             'outputCoordinator': ['logger'],
             'commandRouter': ['agentManager'],
-            'conversationBridge': ['conversationFlowHandler', 'conversationManager', 'agentManager', 'outputCoordinator'],
             'settingsProvider': ['agentManager', 'llmService']
         };
         

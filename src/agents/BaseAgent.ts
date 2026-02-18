@@ -62,6 +62,9 @@ export abstract class BaseAgent implements Agent {
             return await this.handleOfflineRequest(request, context);
         }
 
+        // Inject shared project context (.docu/context.md) so all agents stay aligned
+        await this.injectProjectContext(context);
+
         // Check if this is a conversation-based request
         if (this.conversationManager && this.shouldUseConversation(request, context)) {
             return await this.handleConversationalRequest(request, context);
@@ -69,6 +72,23 @@ export abstract class BaseAgent implements Agent {
 
         // Fall back to direct handling
         return await this.handleDirectRequest(request, context);
+    }
+
+    /**
+     * Try to load `.docu/context.md` and attach it to the agent context.
+     * Safe to call multiple times — subsequent calls are no-ops if already loaded.
+     */
+    private async injectProjectContext(context: AgentContext): Promise<void> {
+        if (context.workflowState.context['projectContext']) { return; }
+        try {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) { return; }
+            const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, '.docu', 'context.md');
+            const bytes = await vscode.workspace.fs.readFile(uri);
+            context.workflowState.context['projectContext'] = Buffer.from(bytes).toString('utf8');
+        } catch {
+            // context.md does not exist yet — nothing to inject
+        }
     }
 
     /**
@@ -368,6 +388,11 @@ export abstract class BaseAgent implements Agent {
         // Add workspace context
         if (context.workspaceRoot) {
             prompt += `\nWorkspace root: ${context.workspaceRoot}`;
+        }
+
+        // Add shared project context from .docu/context.md (if loaded by injectProjectContext)
+        if (context.workflowState.context['projectContext']) {
+            prompt += `\n\n## Project Context\n${context.workflowState.context['projectContext']}`;
         }
 
         // Add previous outputs context

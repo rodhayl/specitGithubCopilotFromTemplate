@@ -51,8 +51,7 @@ export class ErrorHandler {
     private isTestEnvironment(): boolean {
         return process.env.NODE_ENV === 'test' ||
                (typeof global !== 'undefined' && (global as any).jest !== undefined) ||
-               (typeof global !== 'undefined' && (global as any).mocha !== undefined) ||
-               process.env.VSCODE_PID === undefined;
+               (typeof global !== 'undefined' && (global as any).mocha !== undefined);
     }
 
     /**
@@ -458,7 +457,6 @@ export class ErrorHandler {
     private async showUserNotification(errorReport: ErrorReport): Promise<void> {
         // Skip UI interactions in test environment
         if (this.isTestEnvironment()) {
-            console.log(`[TEST] Error notification: ${errorReport.userMessage}`);
             return;
         }
 

@@ -406,12 +406,7 @@ Agents are designed to work together:
    - **Code Comments** - Implementation details and rationale
    - **JSDoc** - API documentation
 
-5. **Archive Location:**
-   - Historical reports: `docs/archive/implementation-reports/`
-   - Development notes: `docs/archive/development-notes/`
-   - Access only when needed for reference
-
-6. **Clean Codebase Rules:**
+5. **Clean Codebase Rules:**
    - Keep root directory minimal (README, LICENSE, CHANGELOG, CONTRIBUTING)
    - All documentation in `docs/` directory
    - No temporary or status files in repository
