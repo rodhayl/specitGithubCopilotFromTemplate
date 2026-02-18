@@ -6,6 +6,11 @@ node_modules
 *.vsix
 test-fixtures/*
 
+# Compiled test output
+tests/**/*.js
+tests/**/*.js.map
+out-test/
+
 #### Automatically added by Node.js template ####
 # Logs
 logs
@@ -139,3 +144,14 @@ dist
 .pnp.*
 logs/
 *.log
+
+# Project-specific generated/state files
+.docu/
+test-results*.json
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
