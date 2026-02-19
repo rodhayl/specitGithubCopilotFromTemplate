@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse, ChatRequest } from './types';
 
@@ -78,6 +79,12 @@ Focus on creating comprehensive design.md documents that bridge the gap between 
 
     private async createDesignDocument(context: AgentContext): Promise<AgentResponse> {
         try {
+            // Guard: toolManager is optional and not available in all call sites.
+            // Fall back to the discussion response when no tool context exists.
+            if (!context.toolManager || !context.toolContext) {
+                return await this.discussArchitecture('', context);
+            }
+
             // Read requirements document for context
             let requirementsContext = '';
             
@@ -101,7 +108,7 @@ Focus on creating comprehensive design.md documents that bridge the gap between 
             }
 
             // Generate design content based on requirements
-            const designContent = await this.generateDesignContent(requirementsContext);
+            const designContent = await this.generateDesignContent(requirementsContext, context);
 
             // Create design.md file
             const result = await context.toolManager.executeTool('writeFile', {
@@ -284,10 +291,36 @@ Please let me know how you'd like to proceed with the technical design!`;
         };
     }
 
-    private async generateDesignContent(requirementsContext: string): Promise<string> {
-        // This is a simplified version - in a real implementation, you'd use LLM to generate
-        // design based on the requirements. For now, we'll create a comprehensive template.
-        
+    private async generateDesignContent(requirementsContext: string, context?: AgentContext): Promise<string> {
+        // Use LLM when available for context-aware architecture generation
+        if (context?.model) {
+            try {
+                const llmPrompt = [
+                    'You are a solution architect. Generate a comprehensive design.md document.',
+                    '',
+                    requirementsContext ? `Requirements document:\n${requirementsContext.substring(0, 6000)}` : 'Design a general-purpose web application.',
+                    '',
+                    'Include: System Architecture overview, Component Architecture (frontend, backend, infrastructure),',
+                    'Data Models with TypeScript interfaces, API Design, Security Architecture,',
+                    'Performance Considerations, and Technology Stack rationale.',
+                    '',
+                    'Output ONLY the markdown content, starting with "# Design Document".',
+                ].join('\n');
+                const messages = [vscode.LanguageModelChatMessage.User(llmPrompt)];
+                const tokenSource = new vscode.CancellationTokenSource();
+                const llmResponse = await context.model.sendRequest(messages, {}, tokenSource.token);
+                let llmContent = '';
+                for await (const chunk of llmResponse.stream) {
+                    if (chunk instanceof vscode.LanguageModelTextPart) { llmContent += chunk.value; }
+                }
+                tokenSource.dispose();
+                if (llmContent.trim().length > 200) { return llmContent; }
+            } catch {
+                // LLM unavailable — fall through to static template
+            }
+        }
+
+        // Static fallback template
         const template = `# Design Document
 
 ## Overview

@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse, ChatRequest } from './types';
 
@@ -79,6 +80,12 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
 
     private async createImplementationPlan(context: AgentContext): Promise<AgentResponse> {
         try {
+            // Guard: toolManager is optional and not available in all call sites.
+            // Fall back to the interactive discussion response when no tool context exists.
+            if (!context.toolManager || !context.toolContext) {
+                return await this.discussImplementation('', context);
+            }
+
             // Read design document for context
             let designContext = '';
             
@@ -116,7 +123,7 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
             }
 
             // Generate implementation plan based on design and requirements
-            const implementationContent = await this.generateImplementationContent(designContext, requirementsContext);
+            const implementationContent = await this.generateImplementationContent(designContext, requirementsContext, context);
 
             // Create tasks.md file
             const result = await context.toolManager.executeTool('writeFile', {
@@ -302,10 +309,42 @@ Please let me know how you'd like to proceed with implementation planning!`;
         };
     }
 
-    private async generateImplementationContent(designContext: string, requirementsContext: string): Promise<string> {
-        // This is a simplified version - in a real implementation, you'd use LLM to generate
-        // tasks based on the design and requirements. For now, we'll create a comprehensive template.
-        
+    private async generateImplementationContent(designContext: string, requirementsContext: string, context?: AgentContext): Promise<string> {
+        // Use LLM when available for context-driven implementation planning
+        if (context?.model) {
+            try {
+                const contextParts: string[] = [];
+                if (designContext) { contextParts.push(`Design document:\n${designContext.substring(0, 4000)}`); }
+                if (requirementsContext) { contextParts.push(`Requirements document:\n${requirementsContext.substring(0, 2000)}`); }
+                const llmPrompt = [
+                    'You are an implementation planning expert. Generate a comprehensive tasks.md document.',
+                    '',
+                    contextParts.length > 0 ? contextParts.join('\n\n') : 'Create an implementation plan for a general software project.',
+                    '',
+                    'Include: Implementation Overview & approach, phased Task Breakdown where each task has:',
+                    '  - Priority (High/Medium/Low)',
+                    '  - Estimated time (1-4 hours)',
+                    '  - Clear acceptance criteria',
+                    '  - Dependencies',
+                    'Also include: Testing Strategy and Deployment Instructions.',
+                    '',
+                    'Output ONLY the markdown content, starting with "# Implementation Plan".',
+                ].join('\n');
+                const messages = [vscode.LanguageModelChatMessage.User(llmPrompt)];
+                const tokenSource = new vscode.CancellationTokenSource();
+                const llmResponse = await context.model.sendRequest(messages, {}, tokenSource.token);
+                let llmContent = '';
+                for await (const chunk of llmResponse.stream) {
+                    if (chunk instanceof vscode.LanguageModelTextPart) { llmContent += chunk.value; }
+                }
+                tokenSource.dispose();
+                if (llmContent.trim().length > 200) { return llmContent; }
+            } catch {
+                // LLM unavailable — fall through to static template
+            }
+        }
+
+        // Static fallback template
         const template = `# Implementation Plan
 
 ## Overview

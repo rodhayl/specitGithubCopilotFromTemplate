@@ -96,8 +96,42 @@ export class NewCommandHandler {
             const customPath = parsedCommand.flags.path as string;
             const withConversation = parsedCommand.flags['with-conversation'] || parsedCommand.flags['wc'];
 
-            // Create the document
-            const result = await this.createDocument(title, templateId, customPath);
+            // Generate document content via local LLM when available
+            let llmGeneratedContent: string | undefined;
+            if (context.model) {
+                try {
+                    const typeLabel =
+                        templateId === 'prd' ? 'Product Requirements Document (PRD)' :
+                        templateId === 'requirements' ? 'Requirements Document' :
+                        templateId === 'design' ? 'Design Document' :
+                        templateId === 'spec' ? 'Technical Specification' :
+                        'Document';
+                    const llmMessages = [
+                        vscode.LanguageModelChatMessage.User(
+                            `Create a comprehensive ${typeLabel} titled "${title}".\n\n` +
+                            `Format the entire document in Markdown with proper headings (##, ###).\n` +
+                            `Include an introduction/executive summary and 4-6 well-structured sections ` +
+                            `relevant to the topic. Use placeholder text "[TBD]" only for information ` +
+                            `that genuinely requires the user's input. Write concrete, useful content for ` +
+                            `everything else.`
+                        )
+                    ];
+                    const llmResponse = await context.model.sendRequest(llmMessages, {}, context.token);
+                    let generated = '';
+                    for await (const chunk of llmResponse.text) {
+                        generated += chunk;
+                    }
+                    if (generated.trim()) {
+                        llmGeneratedContent = generated;
+                    }
+                } catch (llmError) {
+                    this.logger.warn('command', 'LLM content generation failed, falling back to template',
+                        llmError instanceof Error ? llmError : new Error(String(llmError)));
+                }
+            }
+
+            // Create the document (with LLM content if generated, otherwise template)
+            const result = await this.createDocument(title, templateId, customPath, llmGeneratedContent);
 
             if (!result.success) {
                 const errorOutput: OutputContent = {
@@ -164,6 +198,27 @@ export class NewCommandHandler {
 
             // Render output
             await this.outputCoordinator.render(context.stream);
+
+            // Stream a live LLM opener to invite continued development
+            if (context.model && !context.token.isCancellationRequested) {
+                try {
+                    context.stream.markdown('\n\n---\n\n🤖 **Let\'s continue developing this together:**\n\n');
+                    const openerMessages = [
+                        vscode.LanguageModelChatMessage.User(
+                            `I just created a document called "${title}". Write a short, friendly 2–3 sentence ` +
+                            `invitation for the user to continue developing it, mentioning 2–3 specific aspects ` +
+                            `of "${title}" we could work on next. Be concise and action-oriented.`
+                        )
+                    ];
+                    const openerResponse = await context.model.sendRequest(openerMessages, {}, context.token);
+                    for await (const chunk of openerResponse.text) {
+                        context.stream.markdown(chunk);
+                    }
+                    context.stream.markdown('\n\n💬 *Just reply here to continue — no extra commands needed.*\n');
+                } catch {
+                    // Non-fatal — document was already created successfully
+                }
+            }
 
             // Handle conversation integration if requested
             const commandResult: CommandResult = {
@@ -241,31 +296,41 @@ export class NewCommandHandler {
     }
 
     /**
-     * Create a document with the specified parameters
+     * Create a document with the specified parameters.
+     * @param content Optional pre-generated content (e.g. from the local LLM).
+     *                When provided the template is not rendered — the supplied
+     *                content is written directly, giving LLM-quality output.
      */
-    async createDocument(title: string, templateId: string, outputPath?: string): Promise<DocumentCreationResult> {
+    async createDocument(title: string, templateId: string, outputPath?: string, content?: string): Promise<DocumentCreationResult> {
         try {
-            this.logger.info('command', 'Creating document', { title, templateId, outputPath });
+            this.logger.info('command', 'Creating document', { title, templateId, outputPath, usingLLMContent: !!content });
 
-            // Get the template
+            // Get the template (needed for metadata / file-path even when content is pre-generated)
             const template = await this.templateService.getTemplate(templateId);
 
             // Generate output path
             const filePath = this.generateOutputPath(title, templateId, outputPath);
 
-            // Prepare template variables
-            const variables = {
-                title,
-                ...this.templateService.getDefaultVariables(templateId)
-            };
-
-            // Render the template
-            const renderResult = await this.templateService.renderTemplate(template, variables);
-            if (!renderResult.success) {
-                return {
-                    success: false,
-                    error: renderResult.error
+            // Determine file content: prefer LLM-generated, fall back to template rendering
+            let fileContent: string;
+            if (content) {
+                fileContent = content;
+            } else {
+                // Prepare template variables
+                const variables = {
+                    title,
+                    ...this.templateService.getDefaultVariables(templateId)
                 };
+
+                // Render the template
+                const renderResult = await this.templateService.renderTemplate(template, variables);
+                if (!renderResult.success) {
+                    return {
+                        success: false,
+                        error: renderResult.error
+                    };
+                }
+                fileContent = renderResult.content!;
             }
 
             // Ensure directory exists
@@ -274,7 +339,7 @@ export class NewCommandHandler {
             // Write the file
             await vscode.workspace.fs.writeFile(
                 vscode.Uri.file(filePath),
-                Buffer.from(renderResult.content!, 'utf8')
+                Buffer.from(fileContent, 'utf8')
             );
 
             // Get file stats

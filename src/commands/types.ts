@@ -1,5 +1,6 @@
 // Command system types
 import * as vscode from 'vscode';
+import { ToolManager } from '../tools/ToolManager';
 
 export interface ParsedCommand {
     command: string;
@@ -48,6 +49,7 @@ export interface CommandContext {
      * vscode.lm.selectChatModels() independently, so the user's model choice is respected.
      */
     model?: vscode.LanguageModelChat;
+    toolManager?: ToolManager;
 }
 
 export interface CommandResult {

@@ -42,14 +42,6 @@ export class ConversationFlowHandler {
                 documentPath: config.documentPath
             });
 
-            // Check if we're in offline mode
-            const isOffline = this.offlineManager.isOffline();
-            
-            if (isOffline) {
-                await this.startOfflineConversationFlow(config, context);
-                return;
-            }
-
             // Set the active agent
             this.agentManager.setCurrentAgent(config.agentName);
 

@@ -250,4 +250,31 @@ describe('CommandRouter Integration Tests', () => {
         // Should handle the command without throwing errors
         assert.ok(typeof result.success === 'boolean');
     });
+
+    test('Should detect mention-prefixed help command', () => {
+        const prefixed = '@docu /help';
+        assert.strictEqual(commandRouter.isCommand(prefixed), true, 'Mention-prefixed /help should be treated as a command');
+
+        const parsed = commandRouter.parseCommand(prefixed);
+        assert.strictEqual(parsed.command, 'help', 'Mention-prefixed /help should parse as help command');
+    });
+
+    test('Should route mention-prefixed agent list command', async () => {
+        const prefixed = '@docu /agent list';
+        const result = await TestTimeoutManager.wrapWithTimeout(
+            commandRouter.routeCommand(prefixed, mockContext),
+            'tool-execution'
+        );
+
+        assert.strictEqual(result.success, true, 'Mention-prefixed /agent list should execute successfully');
+    });
+
+    test('Should detect mention-prefixed new command with title argument', () => {
+        const prefixed = '@docu /new trainingForForexTrading';
+        assert.strictEqual(commandRouter.isCommand(prefixed), true, 'Mention-prefixed /new should be treated as a command');
+
+        const parsed = commandRouter.parseCommand(prefixed);
+        assert.strictEqual(parsed.command, 'new', 'Mention-prefixed /new should parse as new command');
+        assert.deepStrictEqual(parsed.arguments, ['trainingForForexTrading']);
+    });
 });

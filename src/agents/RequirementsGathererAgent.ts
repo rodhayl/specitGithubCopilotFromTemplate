@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse } from './types';
 
@@ -62,6 +63,13 @@ Focus on creating comprehensive, well-structured requirements.md documents that 
 
     private async createRequirementsDocument(context: AgentContext): Promise<AgentResponse> {
         try {
+            // Guard: toolManager is optional and not available in all call sites
+            // (e.g. when invoked without a full workspace tool context). Fall back
+            // to the interactive guidance response in that case.
+            if (!context.toolManager || !context.toolContext) {
+                return await this.gatherRequirements('', context);
+            }
+
             // First, try to read PRD or brainstorming outputs for context
             let contextInfo = '';
             
@@ -92,7 +100,7 @@ Focus on creating comprehensive, well-structured requirements.md documents that 
             }
 
             // Generate requirements based on available context
-            const requirementsContent = await this.generateRequirementsContent(contextInfo);
+            const requirementsContent = await this.generateRequirementsContent(contextInfo, context);
 
             // Create requirements.md file
             const result = await context.toolManager.executeTool('writeFile', {
@@ -127,6 +135,11 @@ Focus on creating comprehensive, well-structured requirements.md documents that 
 
     private async updateRequirements(prompt: string, context: AgentContext): Promise<AgentResponse> {
         try {
+            // Guard: toolManager is optional
+            if (!context.toolManager || !context.toolContext) {
+                return await this.gatherRequirements(prompt, context);
+            }
+
             // Read existing requirements
             const readResult = await context.toolManager.executeTool('readFile', {
                 path: 'requirements.md'
@@ -232,10 +245,39 @@ Please share your thoughts or let me know how you'd like to proceed with require
         };
     }
 
-    private async generateRequirementsContent(contextInfo: string): Promise<string> {
-        // This is a simplified version - in a real implementation, you'd use LLM to generate
-        // requirements based on the context. For now, we'll create a template structure.
-        
+    private async generateRequirementsContent(contextInfo: string, context?: AgentContext): Promise<string> {
+        // Use LLM when available for context-aware dynamic content generation
+        if (context?.model) {
+            try {
+                const llmPrompt = [
+                    'You are a requirements engineer. Generate a comprehensive requirements.md document.',
+                    'Use EARS format (Easy Approach to Requirements Syntax):',
+                    '  WHEN [event] THEN [system] SHALL [response]',
+                    '  IF [precondition] THEN [system] SHALL [response]',
+                    '',
+                    contextInfo ? `Project context:\n${contextInfo}` : 'Create requirements for a general software project.',
+                    '',
+                    'Include: Introduction, Functional Requirements with user stories ("As a [role], I want [feature], so that [benefit]"),',
+                    'EARS acceptance criteria, Non-Functional Requirements (performance, security, usability),',
+                    'and Assumptions & Constraints.',
+                    '',
+                    'Output ONLY the markdown content, starting with "# Requirements Document".',
+                ].join('\n');
+                const messages = [vscode.LanguageModelChatMessage.User(llmPrompt)];
+                const tokenSource = new vscode.CancellationTokenSource();
+                const llmResponse = await context.model.sendRequest(messages, {}, tokenSource.token);
+                let llmContent = '';
+                for await (const chunk of llmResponse.stream) {
+                    if (chunk instanceof vscode.LanguageModelTextPart) { llmContent += chunk.value; }
+                }
+                tokenSource.dispose();
+                if (llmContent.trim().length > 200) { return llmContent; }
+            } catch {
+                // LLM unavailable — fall through to static template
+            }
+        }
+
+        // Static fallback template (used when no LLM model is available)
         const template = `# Requirements Document
 
 ## Introduction

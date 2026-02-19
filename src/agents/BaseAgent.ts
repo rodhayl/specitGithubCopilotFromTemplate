@@ -54,14 +54,6 @@ export abstract class BaseAgent implements Agent {
      * Handle a chat request - enhanced with conversation capabilities
      */
     async handleRequest(request: ChatRequest, context: AgentContext): Promise<AgentResponse> {
-        // Check if we're in offline mode and handle accordingly
-        const { OfflineManager } = await import('../offline/OfflineManager.js');
-        const offlineManager = OfflineManager.getInstance();
-        
-        if (offlineManager.isOffline()) {
-            return await this.handleOfflineRequest(request, context);
-        }
-
         // Inject shared project context (.docu/context.md) so all agents stay aligned
         await this.injectProjectContext(context);
 

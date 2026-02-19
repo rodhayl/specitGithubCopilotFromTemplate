@@ -4,6 +4,7 @@ import * as path from 'path';
 import { TemplateService } from './templates/TemplateService';
 import { ToolManager } from './tools';
 import { CommandRouter, CommandDefinition, ParsedCommand, CommandContext } from './commands';
+import { deriveCommandInput } from './commands/CommandInputNormalizer';
 import { CommandTipProvider } from './commands/CommandTipProvider';
 import { OutputCoordinator } from './commands/OutputCoordinator';
 import { AgentManager } from './agents';
@@ -233,35 +234,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const defaultAgent = configManager.get('defaultAgent');
 	agentManager.setCurrentAgent(defaultAgent);
 
-	// Check model availability and set offline mode if needed
-	const skipStartupCheck = configManager.get('offline.skipStartupCheck') as boolean;
-	if (skipStartupCheck) {
-		logger.extension.info('Skipping model availability check during startup (skipStartupCheck=true)');
-		logger.extension.info('Models will be checked on first use');
-	} else {
-		try {
-			const modelStatus = await offlineManager.checkModelAvailability();
-			logger.extension.info('Model availability check completed', { 
-				available: modelStatus.available, 
-				error: modelStatus.error,
-				errorType: modelStatus.errorType 
-			});
-			
-			// If models are available, show a success message
-			if (modelStatus.available) {
-				logger.extension.info('GitHub Copilot models are available - full functionality enabled');
-			} else {
-				logger.extension.warn('GitHub Copilot models not available - running in offline mode', {
-					reason: modelStatus.error,
-					errorType: modelStatus.errorType
-				});
-			}
-		} catch (error) {
-			logger.extension.error('Model availability check failed', error instanceof Error ? error : new Error(String(error)));
-			// Continue activation even if model check fails
-		}
-	}
-
 	// Initialize OutputCoordinator
 	const outputCoordinator = OutputCoordinator.getInstance();
 	stateManager.registerComponent('outputCoordinator', outputCoordinator);
@@ -297,6 +269,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const workflowStateManager = WorkflowStateManager.getInstance();
 	getCommandRouter().registerWorkflowCommands(workflowStateManager);
 	getLogger().extension.info('Workflow commands registered (BMAD-style guided workflow)');
+
+	// Register /test command — runs live extension scenarios and saves logs to .docu/test-results/
+	getCommandRouter().registerTestCommand(workflowStateManager);
+	getLogger().extension.info('/test command registered (scenario-based extension testing)');
 
 	// First-run onboarding: if no project state exists yet, show a welcome notification
 	void workflowStateManager.load().then(state => {
@@ -545,17 +521,12 @@ async function handleChatRequest(
 	}
 
 	try {
-		const prompt = request.prompt.trim();
+		const prompt = deriveCommandInput(
+			request.prompt,
+			typeof request.command === 'string' ? request.command : undefined,
+			(candidate) => getCommandRouter().isCommand(candidate)
+		);
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-
-		// Ensure model availability (especially if startup check was skipped)
-		await getOfflineManager().ensureModelAvailability();
-		
-		// Check offline mode status
-		if (getOfflineManager().isOffline()) {
-			getLogger().extension.warn('Chat request in offline mode');
-			stream.markdown('⚠️ **Offline Mode Active** - Some AI features are unavailable.\n\n');
-		}
 
 		// Check if this is a command
 		if (getCommandRouter().isCommand(prompt)) {
@@ -567,7 +538,8 @@ async function handleChatRequest(
 				token,
 				workspaceRoot,
 				extensionContext: context as any,
-				model: request.model
+				model: request.model,
+				toolManager: getToolManager()
 			};
 
 			try {
@@ -602,22 +574,6 @@ async function handleChatRequest(
 		getLogger().extension.info('Processing non-command input', { prompt: prompt.substring(0, 100) });
 		
 		try {
-			// Check if we're in offline mode
-			if (getOfflineManager().isOffline()) {
-				const currentAgent = getAgentManager().getCurrentAgent();
-				if (currentAgent) {
-					stream.markdown(`🤖 **${currentAgent.name} (Offline Mode)**\n\n`);
-					stream.markdown('**Your message:** ' + prompt + '\n\n');
-					
-					// Provide offline guidance based on agent type
-					const offlineGuidance = getOfflineAgentGuidance(currentAgent.name, prompt);
-					stream.markdown(offlineGuidance);
-
-					const duration = getTelemetryManager().endPerformanceMetric('chat.request');
-					return { metadata: { agent: currentAgent.name, mode: 'offline', duration } };
-				}
-			}
-
 			// Route user input through conversation session router
 			const commandContext: CommandContext = {
 				request,
@@ -625,7 +581,8 @@ async function handleChatRequest(
 				token,
 				workspaceRoot,
 				extensionContext: context as any,
-				model: request.model
+				model: request.model,
+				toolManager: getToolManager()
 			};
 
 			const routingResult = await getConversationSessionRouter().routeUserInput(prompt, commandContext);
@@ -2617,8 +2574,7 @@ async function handleDiagnosticCommand(parsedCommand: ParsedCommand, context: Co
 		if (showAll) {
 			context.stream.markdown('## ⚙️ System Information\n\n');
 			
-			const isOffline = getOfflineManager().isOffline();
-			context.stream.markdown(`**Offline Mode:** ${isOffline ? 'Active' : 'Inactive'}\n`);
+			context.stream.markdown(`**Online Mode:** Always active (GitHub Copilot required)\n`);
 			
 			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'None';
 			context.stream.markdown(`**Workspace:** ${workspaceRoot}\n`);
@@ -2695,31 +2651,23 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			};
 		}
 
-		// Check offline mode
-		if (getOfflineManager().isOffline()) {
-			context.stream.markdown('⚠️ **Offline Mode Active** - AI features are unavailable.\n\n');
-			context.stream.markdown('**Your message:** ' + message + '\n\n');
-			context.stream.markdown('**Offline guidance for ' + currentAgent.name + ':**\n\n');
-			
-			// Provide offline guidance based on agent type
-			const offlineGuidance = getOfflineAgentGuidance(currentAgent.name, message);
-			context.stream.markdown(offlineGuidance);
-			
-			return { 
-				success: true, 
-				data: { mode: 'offline', agent: currentAgent.name },
-				shouldContinueConversation: false
-			};
-		}
-
 		// Process the chat message with the current agent
 		getLogger().extension.info('Processing chat command with agent', { agent: currentAgent.name, message: message.substring(0, 100) });
 		getTelemetryManager().trackEvent('chat.agent.interaction', { agent: currentAgent.name });
 		
 		try {
-			// Build agent context
+			// Build agent context and wire in tool infrastructure so agents can
+			// read/write files directly (toolManager) and so returned toolCalls
+			// are executed after the response.
 			const agentContext = (agentManager as any).buildAgentContext(context.request);
-			
+			const chatToolContext = {
+				workspaceRoot: context.workspaceRoot,
+				extensionContext: context.extensionContext,
+				cancellationToken: context.token
+			};
+			agentContext.toolManager = getToolManager();
+			agentContext.toolContext = chatToolContext;
+
 			// Convert to Agent ChatRequest
 			const agentRequest: import('./agents/types').ChatRequest = {
 				command: context.request.command,
@@ -2730,10 +2678,32 @@ async function handleChatCommand(parsedCommand: ParsedCommand, context: CommandC
 			
 			// Handle request with current agent
 			const agentResponse = await currentAgent.handleRequest(agentRequest, agentContext);
+
+			// Execute any file-system tool calls returned by the agent
+			// (e.g. writeFile from PRDCreatorAgent.createNewPRD)
+			if (agentResponse.toolCalls && agentResponse.toolCalls.length > 0) {
+				const createdFiles: string[] = [];
+				for (const toolCall of agentResponse.toolCalls) {
+					try {
+						const toolResult = await getToolManager().executeTool(toolCall.tool, toolCall.parameters, chatToolContext);
+						if (toolResult.success && toolCall.parameters?.path) {
+							createdFiles.push(toolCall.parameters.path as string);
+						}
+					} catch (toolErr) {
+						getLogger().extension.warn(`Tool call '${toolCall.tool}' failed`, toolErr instanceof Error ? toolErr : new Error(String(toolErr)));
+					}
+				}
+				if (createdFiles.length > 0) {
+					getLogger().extension.info('Agent tool calls executed', { files: createdFiles });
+				}
+			}
 			
 			// Stream the agent response
 			if (agentResponse.content) {
 				context.stream.markdown(agentResponse.content);
+			} else if (agentResponse.message) {
+				// Some agents return message instead of content
+				context.stream.markdown(agentResponse.message);
 			}
 			
 			// Add follow-up suggestions if available

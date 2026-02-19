@@ -8,6 +8,7 @@ import { OfflineManager } from '../offline/OfflineManager';
 import { Logger } from '../logging';
 import { AutoChatStateManager, AutoChatContext } from './AutoChatStateManager';
 import { DocumentUpdateEngine, ConversationResponse, TemplateStructure, ConversationContext } from './DocumentUpdateEngine';
+import { DocSessionManager } from './DocSessionManager';
 
 /**
  * Result of conversation routing decision
@@ -53,6 +54,8 @@ export class ConversationSessionRouter {
     private errorRecovery?: ConversationErrorRecovery;
     private autoChatManager?: AutoChatStateManager;
     private documentUpdateEngine?: DocumentUpdateEngine;
+    /** Active DocSessionManager session id (natural-language doc workflow) */
+    private activeDocSessionId: string | null = null;
 
     constructor(
         private conversationManager: ConversationManager,
@@ -104,6 +107,15 @@ export class ConversationSessionRouter {
                 return await this.routeUserInputWithAutoChat(input, context, autoChatContext);
             }
 
+            // ── DocSessionManager (natural-language document workflow) ──────────
+            // Priority 1: continue an active doc session
+            if (this.activeDocSessionId && DocSessionManager.getInstance().hasSession(this.activeDocSessionId)) {
+                return await this.routeToDocSession(this.activeDocSessionId, input, context);
+            } else if (this.activeDocSessionId) {
+                // session was cleared (e.g. user typed 'done')
+                this.activeDocSessionId = null;
+            }
+
             // Check if there's an active conversation session
             if (this.hasActiveSession()) {
                 const sessionId = this.sessionState.activeSessionId!;
@@ -120,7 +132,13 @@ export class ConversationSessionRouter {
                 }
             }
 
-            // No active session, route to current agent
+            // Priority 2: start a new doc session when a model is available
+            // (free-form user text with no active session → natural-language workflow)
+            if (context.model && input.trim().length > 0) {
+                return await this.startDocSession(input, context);
+            }
+
+            // Fallback: route to currently-set agent (legacy path)
             return await this.routeToAgent(input, context);
 
         } catch (error) {
@@ -402,6 +420,64 @@ export class ConversationSessionRouter {
                 routedTo: 'error',
                 error: `Conversation error: ${error instanceof Error ? error.message : String(error)}`
             };
+        }
+    }
+
+    /**
+     * Start a brand-new natural-language doc session via DocSessionManager.
+     */
+    private async startDocSession(
+        input: string,
+        context: CommandContext
+    ): Promise<ConversationRoutingResult> {
+        try {
+            const docMgr = DocSessionManager.getInstance();
+            const result = await docMgr.startNewSession(input, context);
+
+            if (result.sessionId) {
+                this.activeDocSessionId = result.sessionId;
+            }
+
+            return {
+                routedTo: 'agent',
+                agentName: docMgr.getSession(result.sessionId)?.agentName,
+                sessionId: result.sessionId,
+                response: result.response,
+                shouldContinue: result.shouldContinue
+            };
+        } catch (error) {
+            this.logger.error('conversation-router', 'Failed to start doc session', error instanceof Error ? error : new Error(String(error)));
+            return { routedTo: 'error', error: String(error) };
+        }
+    }
+
+    /**
+     * Continue an active natural-language doc session via DocSessionManager.
+     */
+    private async routeToDocSession(
+        sessionId: string,
+        input: string,
+        context: CommandContext
+    ): Promise<ConversationRoutingResult> {
+        try {
+            const docMgr = DocSessionManager.getInstance();
+            const result = await docMgr.continueSession(sessionId, input, context);
+
+            if (!result.shouldContinue) {
+                this.activeDocSessionId = null;
+            }
+
+            return {
+                routedTo: 'conversation',
+                agentName: docMgr.getSession(sessionId)?.agentName,
+                sessionId: result.sessionId,
+                response: result.response,
+                shouldContinue: result.shouldContinue
+            };
+        } catch (error) {
+            this.logger.error('conversation-router', 'Failed to continue doc session', error instanceof Error ? error : new Error(String(error)));
+            this.activeDocSessionId = null;
+            return { routedTo: 'error', error: String(error) };
         }
     }
 

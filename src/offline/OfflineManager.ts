@@ -378,18 +378,13 @@ export class OfflineManager {
 
     /**
      * Handle the result of model availability check
+     * NOTE: Offline mode is disabled — extension always runs in online mode.
      */
     private handleModelCheckResult(result: ModelAvailabilityResult): void {
         this.modelAvailable = result.available;
         this.lastError = result.error;
         this.lastErrorType = result.errorType;
-        
-        if (!result.available && !this.isOfflineMode) {
-            const reason = result.error || 'Language models not available';
-            this.enableOfflineMode(reason);
-        } else if (result.available && this.isOfflineMode && !this.forceOfflineMode) {
-            this.disableOfflineMode();
-        }
+        // Never enter offline mode — GitHub Copilot is always assumed available.
     }
 
     /**
@@ -432,29 +427,16 @@ export class OfflineManager {
     }
 
     /**
-     * Enable offline mode with reason
+     * Enable offline mode with reason.
+     * NOTE: This is only intended for manual/test use. The extension never enters
+     * offline mode automatically; GitHub Copilot is always assumed available.
      */
     enableOfflineMode(reason: string): void {
         if (this.isOfflineMode) {
             return;
         }
-
         this.isOfflineMode = true;
         this.logger.extension.info(`Offline mode enabled: ${reason}`);
-
-        // Notify user about offline mode (if available)
-        try {
-            vscode.window.showWarningMessage(
-                `Docu is now running in offline mode: ${reason}. Some AI features will be unavailable.`,
-                'Learn More'
-            )?.then(selection => {
-                if (selection === 'Learn More') {
-                    this.showOfflineModeInfo();
-                }
-            });
-        } catch (error) {
-            // Ignore if window is not available (e.g., in tests)
-        }
     }
 
     /**
@@ -464,38 +446,22 @@ export class OfflineManager {
         if (!this.isOfflineMode) {
             return;
         }
-
         this.isOfflineMode = false;
-        this.logger.extension.info('Offline mode disabled - full functionality restored');
-
-        try {
-            vscode.window.showInformationMessage(
-                'Docu is back online! All AI features are now available.'
-            );
-        } catch (error) {
-            // Ignore if window is not available (e.g., in tests)
-        }
+        this.logger.extension.info('Offline mode disabled - back to online');
     }
 
     /**
-     * Check if currently in offline mode
+     * Check if currently in offline mode.
      */
     isOffline(): boolean {
         return this.isOfflineMode;
     }
 
     /**
-     * Ensure models are checked (useful when startup check was skipped)
+     * Model availability is always assumed — returns online immediately.
      */
     async ensureModelAvailability(): Promise<ModelAvailabilityResult> {
-        // If we haven't checked models yet (lastModelCheck is 0), force a check
-        if (this.lastModelCheck === 0) {
-            this.log('First-time model availability check');
-            return await this.checkModelAvailability(true);
-        }
-        
-        // Otherwise, use normal check logic
-        return await this.checkModelAvailability();
+        return { available: true, models: [] };
     }
 
     /**
@@ -668,7 +634,8 @@ export class OfflineManager {
     }
 
     /**
-     * Validate operation availability in current mode
+     * Validate operation availability in current mode.
+     * In practice, offline mode is never auto-enabled, so this always returns allowed.
      */
     validateOperation(operation: string): { allowed: boolean; reason?: string } {
         if (!this.isOfflineMode) {

@@ -83,7 +83,37 @@ When creating PRD documents:
     private async createNewPRD(title: string, prompt: string, context: AgentContext): Promise<AgentResponse> {
         this.log(`Creating new PRD: ${title}`);
 
-        const prdContent = this.generatePRDTemplate(title, prompt, context);
+        // Generate content — use LLM for context-aware PRD when model is available
+        let prdContent = this.generatePRDTemplate(title, prompt, context);
+        if (context.model) {
+            try {
+                const llmPrompt = [
+                    `You are a product manager. Create a comprehensive PRD (Product Requirements Document) for: "${title}"`,
+                    prompt ? `\nContext from user: ${prompt}` : '',
+                    '',
+                    'Include these sections:',
+                    '- Executive Summary',
+                    '- Product Objectives & measurable Success Metrics',
+                    '- User Personas (primary and secondary with their needs)',
+                    '- Functional Requirements (core features, numbered)',
+                    '- Technical & Business Constraints',
+                    '- Success Criteria (launch criteria + post-launch metrics)',
+                    '',
+                    `Output ONLY the markdown content, starting with "# ${title}".`,
+                ].join('\n');
+                const messages = [vscode.LanguageModelChatMessage.User(llmPrompt)];
+                const tokenSource = new vscode.CancellationTokenSource();
+                const llmResponse = await context.model.sendRequest(messages, {}, tokenSource.token);
+                let llmContent = '';
+                for await (const chunk of llmResponse.stream) {
+                    if (chunk instanceof vscode.LanguageModelTextPart) { llmContent += chunk.value; }
+                }
+                tokenSource.dispose();
+                if (llmContent.trim().length > 200) { prdContent = llmContent; }
+            } catch {
+                // LLM unavailable — static template used as fallback
+            }
+        }
         const fileName = this.sanitizeFileName(title);
         const filePath = `${context.userPreferences.defaultDirectory}/${fileName}.md`;
 

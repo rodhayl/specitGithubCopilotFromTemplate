@@ -13,6 +13,8 @@ import { ErrorHandler as EnhancedErrorHandler } from '../error/ErrorHandler';
 import { createHelpCommandDefinition } from './HelpCommand';
 import { createStatusCommandDefinition } from './StatusCommand';
 import { createWorkflowCommandDefinitions } from './WorkflowCommands';
+import { createTestCommandDefinition } from './TestCommand';
+import { TemplateService } from '../templates/TemplateService';
 
 export type { CommandContext } from './types';
 
@@ -31,6 +33,15 @@ export class CommandRouter {
         this.newCommandHandler = new NewCommandHandler();
         this.agentManager = agentManager;
         this.registerBuiltInCommands();
+    }
+
+    /**
+     * Normalize chat input before command parsing.
+     * Handles mention-prefixed commands like "@docu /help".
+     */
+    private normalizeInput(input: string): string {
+        const trimmed = input.trim();
+        return trimmed.replace(/^@docu\s+/i, '').trim();
     }
 
     /**
@@ -87,6 +98,28 @@ export class CommandRouter {
     }
 
     /**
+     * Register the `/test` command with all scenario groups.
+     *
+     * Wires the TestRunner to the current AgentManager, TemplateService, and
+     * WorkflowStateManager so scenarios run against the live extension.
+     *
+     * Call this once during activation, after `registerWorkflowCommands()`.
+     */
+    registerTestCommand(
+        workflowStateManager: import('../state/WorkflowStateManager').WorkflowStateManager
+    ): void {
+        const templateService = TemplateService.getInstance();
+        this.parser.registerCommand(
+            createTestCommandDefinition(
+                this.agentManager,
+                templateService,
+                workflowStateManager,
+                this
+            )
+        );
+    }
+
+    /**
      * Register a command with the router
      */
     registerCommand(definition: CommandDefinition): void {
@@ -99,11 +132,13 @@ export class CommandRouter {
     async routeCommand(input: string, context: CommandContext): Promise<CommandResult> {
         let parsedCommand: ParsedCommand | undefined;
         try {
+            const normalizedInput = this.normalizeInput(input);
+
             // Clear previous output state
             this.outputCoordinator.clear();
 
             // Parse the command
-            parsedCommand = this.parser.parseCommand(input);
+            parsedCommand = this.parser.parseCommand(normalizedInput);
 
             // Validate the command
             const validation = this.parser.validateCommand(parsedCommand);
@@ -235,14 +270,14 @@ export class CommandRouter {
      * Parse a command string and return the parsed command
      */
     parseCommand(input: string): ParsedCommand {
-        return this.parser.parseCommand(input);
+        return this.parser.parseCommand(this.normalizeInput(input));
     }
 
     /**
      * Check if input looks like a command
      */
     isCommand(input: string): boolean {
-        const trimmed = input.trim();
+        const trimmed = this.normalizeInput(input);
         
         // Must start with / and have content after it
         if (!trimmed.startsWith('/')) {

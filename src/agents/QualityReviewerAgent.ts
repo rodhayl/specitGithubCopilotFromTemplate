@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { BaseAgent } from './BaseAgent';
 import { AgentContext, AgentResponse, ChatRequest } from './types';
 
@@ -111,6 +112,11 @@ Focus on providing actionable, specific feedback that improves document quality 
 
     private async reviewDocument(params: ReviewParams, context: AgentContext): Promise<AgentResponse> {
         try {
+            // Guard: toolManager is optional and not available in all call sites.
+            if (!context.toolManager || !context.toolContext) {
+                return await this.provideReviewGuidance(context);
+            }
+
             // Read the document to review
             const readResult = await context.toolManager.executeTool('readFile', {
                 path: params.filePath
@@ -124,7 +130,7 @@ Focus on providing actionable, specific feedback that improves document quality 
             }
 
             const content = readResult.data.content;
-            const reviewResults = await this.performReview(content, params.level, params.filePath!);
+            const reviewResults = await this.performReview(content, params.level, params.filePath!, context);
 
             // Apply automatic fixes if requested
             if (params.autoFix && reviewResults.fixableIssues.length > 0) {
@@ -160,7 +166,7 @@ Focus on providing actionable, specific feedback that improves document quality 
         }
     }
 
-    private async performReview(content: string, level: string, filePath: string): Promise<ReviewResults> {
+    private async performReview(content: string, level: string, filePath: string, context?: AgentContext): Promise<ReviewResults> {
         const results: ReviewResults = {
             summary: '',
             issues: [],
@@ -186,6 +192,38 @@ Focus on providing actionable, specific feedback that improves document quality 
 
         // Generate summary
         results.summary = this.generateReviewSummary(results, level);
+
+        // Enhance with LLM AI analysis when available
+        if (context?.model) {
+            try {
+                const llmPrompt = [
+                    `You are a technical documentation quality reviewer. Analyze this ${filePath} document.`,
+                    '',
+                    `Document content:\n${content.substring(0, 4000)}${content.length > 4000 ? '\n...[truncated]' : ''}`,
+                    '',
+                    'Provide a concise quality assessment:',
+                    '1. Overall quality score (1-10) with brief justification',
+                    '2. Top 2-3 strengths',
+                    '3. Top 2-3 improvements needed (specific and actionable)',
+                    '4. Completeness assessment — what important sections are missing?',
+                    '',
+                    'Keep the total response under 350 words.',
+                ].join('\n');
+                const messages = [vscode.LanguageModelChatMessage.User(llmPrompt)];
+                const tokenSource = new vscode.CancellationTokenSource();
+                const llmResponse = await context.model.sendRequest(messages, {}, tokenSource.token);
+                let llmAnalysis = '';
+                for await (const chunk of llmResponse.stream) {
+                    if (chunk instanceof vscode.LanguageModelTextPart) { llmAnalysis += chunk.value; }
+                }
+                tokenSource.dispose();
+                if (llmAnalysis.trim().length > 50) {
+                    results.summary += '\n\n---\n\n## 🤖 AI Analysis\n\n' + llmAnalysis;
+                }
+            } catch {
+                // LLM unavailable — static analysis only
+            }
+        }
 
         return results;
     }

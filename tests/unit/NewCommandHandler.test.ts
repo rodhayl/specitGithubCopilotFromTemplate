@@ -29,6 +29,9 @@ jest.mock('vscode', () => ({
     },
     window: {
         showTextDocument: jest.fn()
+    },
+    LanguageModelChatMessage: {
+        User: jest.fn((text: string) => ({ role: 'user', content: text }))
     }
 }));
 
@@ -502,6 +505,46 @@ describe('NewCommandHandler', () => {
                     type: 'error',
                     title: 'Document Creation Failed'
                 })
+            );
+        });
+
+        it('should use LLM-generated content when context.model is available', async () => {
+            const llmContent = '# Training For Forex Trading\n\nLLM-generated content here.';
+
+            // Each sendRequest call gets a fresh generator so all iterations work
+            const mockModel = {
+                sendRequest: jest.fn().mockImplementation(() =>
+                    Promise.resolve({
+                        text: (async function* () { yield llmContent; })()
+                    })
+                )
+            };
+
+            const contextWithModel: CommandContext = {
+                ...mockContext,
+                model: mockModel as any,
+                token: { isCancellationRequested: false } as any
+            };
+
+            const parsedCommand: ParsedCommand = {
+                command: 'new',
+                arguments: ['trainingForForexTrading'],
+                flags: {},
+                rawInput: '/new trainingForForexTrading'
+            };
+
+            const result = await handler.execute(parsedCommand, contextWithModel);
+
+            // Command must succeed — LLM content generation must not break the flow
+            expect(result.success).toBe(true);
+
+            // LLM must have been invoked (at minimum for content generation)
+            expect(mockModel.sendRequest).toHaveBeenCalled();
+
+            // Success output must reference the created document (proves createDocument ran)
+            expect(mockOutputCoordinator.registerPrimaryOutput).toHaveBeenCalledWith(
+                'new-command',
+                expect.objectContaining({ type: 'success' })
             );
         });
     });

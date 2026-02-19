@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { CommandDefinition, ParsedCommand, CommandContext, CommandResult } from './types';
 import { AgentManager } from '../agents/AgentManager';
 import { WorkflowStateManager } from '../state/WorkflowStateManager';
+import { ToolContext } from '../tools/types';
 
 // ─── Internal helper ─────────────────────────────────────────────────────────
 
@@ -29,6 +30,15 @@ async function activateAgentAndDelegate(
 
     // Build an agent context and dispatch the request
     const agentContext = agentManager.buildAgentContext(context.request);
+    const toolContext: ToolContext = {
+        workspaceRoot: context.workspaceRoot,
+        extensionContext: context.extensionContext,
+        cancellationToken: context.token,
+    };
+    if (context.toolManager) {
+        agentContext.toolManager = context.toolManager;
+        agentContext.toolContext = toolContext;
+    }
     const agent = agentManager.getCurrentAgent();
     if (!agent) {
         return { success: false, error: 'No active agent after switch' };
@@ -38,6 +48,12 @@ async function activateAgentAndDelegate(
         { prompt, command: 'workflow-shortcut', parameters: {}, originalRequest: context.request },
         agentContext
     );
+
+    if (context.toolManager && response.toolCalls && response.toolCalls.length > 0) {
+        for (const toolCall of response.toolCalls) {
+            await context.toolManager.executeTool(toolCall.tool, toolCall.parameters, toolContext);
+        }
+    }
 
     // Stream the response
     if (response.message) {
