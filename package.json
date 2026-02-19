@@ -465,12 +465,5 @@
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
-  },
-  "overrides": {
-    "diff": "^8.0.3",
-    "glob": "^13.0.5",
-    "minimatch": "^10.2.1",
-    "mocha": "^11.7.5",
-    "test-exclude": "^7.0.1"
   }
 }
