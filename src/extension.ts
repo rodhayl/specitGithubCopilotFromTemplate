@@ -387,7 +387,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		
 		// Enhanced error handling with specific guidance
 		let errorMessage = `Failed to register Docu chat participant: ${error.message}`;
-		let actions: string[] = ['Reload Window'];
+		const actions: string[] = ['Reload Window'];
 		
 		if (error.message.includes('agent mode') || error.message.includes('No activated agent')) {
 			errorMessage += '\n\nThis appears to be related to VS Code\'s new agent mode. Try disabling agent mode in VS Code settings.';
@@ -813,12 +813,13 @@ function registerCustomCommands(): void {
 	const newCommand: CommandDefinition = {
 		name: 'new',
 		description: 'Create a new document',
-		usage: '/new <title> [--template <template-id>] [--path <output-path>] [--with-placeholders]',
+		usage: '/new <title> [--template <template-id>] [--path <output-path>] [--with-placeholders] [--with-conversation] [--no-conversation]',
 		examples: [
 			'/new "My Product Requirements"',
 			'/new "API Design" --template basic',
 			'/new "User Guide" --template basic --path docs/user-guide.md',
-			'/new "PRD Document" --template prd --with-placeholders'
+			'/new "PRD Document" --template prd --with-placeholders',
+			'/new "PRD Document" --template prd --with-conversation'
 		],
 		flags: [
 			{
@@ -838,6 +839,20 @@ function registerCustomCommands(): void {
 				name: 'with-placeholders',
 				shortName: 'wp',
 				description: 'Create document with placeholder values for missing required variables',
+				type: 'boolean',
+				defaultValue: false
+			},
+			{
+				name: 'with-conversation',
+				shortName: 'wc',
+				description: 'Enable conversation immediately after document creation',
+				type: 'boolean',
+				defaultValue: false
+			},
+			{
+				name: 'no-conversation',
+				shortName: 'nc',
+				description: 'Disable automatic conversation follow-up',
 				type: 'boolean',
 				defaultValue: false
 			}
@@ -957,10 +972,11 @@ function registerCustomCommands(): void {
 	const updateCommand: CommandDefinition = {
 		name: 'update',
 		description: 'Update an existing document',
-		usage: '/update --file <path> --section <header> [--mode <mode>] <content>',
+		usage: '/update --file <path> --section <header> [--mode <mode>] <content> [--with-conversation] [--no-conversation]',
 		examples: [
 			'/update --file README.md --section "Installation" "Run npm install"',
-			'/update --file docs/api.md --section "Authentication" --mode append "New auth method"'
+			'/update --file docs/api.md --section "Authentication" --mode append "New auth method"',
+			'/update --file docs/api.md --section "Authentication" --mode append "New auth method" --with-conversation'
 		],
 		flags: [
 			{
@@ -983,6 +999,20 @@ function registerCustomCommands(): void {
 				description: 'Update mode: replace, append, or prepend',
 				type: 'string',
 				defaultValue: 'replace'
+			},
+			{
+				name: 'with-conversation',
+				shortName: 'wc',
+				description: 'Continue with a follow-up conversation after update',
+				type: 'boolean',
+				defaultValue: false
+			},
+			{
+				name: 'no-conversation',
+				shortName: 'nc',
+				description: 'Disable automatic conversation follow-up',
+				type: 'boolean',
+				defaultValue: false
 			}
 		],
 		handler: async (parsedCommand: ParsedCommand, context: CommandContext) => {
@@ -994,11 +1024,12 @@ function registerCustomCommands(): void {
 	const reviewCommand: CommandDefinition = {
 		name: 'review',
 		description: 'Review a document for quality and consistency',
-		usage: '/review --file <path> [--level <level>] [--fix]',
+		usage: '/review --file <path> [--level <level>] [--fix] [--with-conversation] [--no-conversation]',
 		examples: [
 			'/review --file README.md',
 			'/review --file docs/api.md --level strict',
-			'/review --file requirements.md --fix'
+			'/review --file requirements.md --fix',
+			'/review --file requirements.md --level normal --with-conversation'
 		],
 		flags: [
 			{
@@ -1019,6 +1050,20 @@ function registerCustomCommands(): void {
 				name: 'fix',
 				description: 'Automatically apply suggested fixes',
 				type: 'boolean'
+			},
+			{
+				name: 'with-conversation',
+				shortName: 'wc',
+				description: 'Continue with follow-up discussion after review',
+				type: 'boolean',
+				defaultValue: false
+			},
+			{
+				name: 'no-conversation',
+				shortName: 'nc',
+				description: 'Disable automatic conversation follow-up',
+				type: 'boolean',
+				defaultValue: false
 			}
 		],
 		handler: async (parsedCommand: ParsedCommand, context: CommandContext) => {
@@ -1418,19 +1463,42 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			const conversationManager = getConversationManager();
 			const shouldContinue = conversationManager ? (conversationManager as any).shouldContinueWithConversation('new', parsedCommand.flags, templateId) : false;
 			let conversationConfig = null;
+			let autoChatEnabled = false;
+			let activeAgentName: string | undefined;
 			
-			if (shouldContinue && conversationManager) {
-				conversationConfig = (conversationManager as any).getConversationConfig('new', templateId);
-				if (conversationConfig) {
-					// Fill in the specific values
-					conversationConfig.documentPath = outputPath;
-					conversationConfig.title = title;
-					conversationConfig.conversationContext.documentPath = outputPath;
-					conversationConfig.conversationContext.title = title;
-					conversationConfig.conversationContext.workspaceRoot = context.workspaceRoot;
-					conversationConfig.conversationContext.extensionContext = context.extensionContext;
+			if (shouldContinue) {
+				const autoChatManager = getConversationSessionRouter().getAutoChatManager();
+				const autoChatConfig = vscode.workspace.getConfiguration('docu.autoChat');
+				const enableAfterDocumentCreation = autoChatConfig.get('enableAfterDocumentCreation', true);
+				const recommendedAgent =
+					templateId === 'prd' ? 'prd-creator' :
+					templateId === 'requirements' ? 'requirements-gatherer' :
+					templateId === 'design' ? 'solution-architect' :
+					templateId === 'specification' ? 'specification-writer' :
+					'brainstormer';
+
+				if (autoChatManager && enableAfterDocumentCreation) {
+					autoChatManager.enableAutoChat(recommendedAgent, outputPath, {
+						templateId,
+						documentPath: outputPath
+					});
+					activeAgentName = recommendedAgent;
+					autoChatEnabled = true;
+					context.stream.markdown('\n💬 **Conversation enabled** - reply naturally and your document will be refined.\n');
+				} else if (conversationManager) {
+					conversationConfig = (conversationManager as any).getConversationConfig('new', templateId);
+					if (conversationConfig) {
+						// Fill in the specific values
+						conversationConfig.documentPath = outputPath;
+						conversationConfig.title = title;
+						conversationConfig.conversationContext.documentPath = outputPath;
+						conversationConfig.conversationContext.title = title;
+						conversationConfig.conversationContext.workspaceRoot = context.workspaceRoot;
+						conversationConfig.conversationContext.extensionContext = context.extensionContext;
+						activeAgentName = conversationConfig.agentName;
+					}
 				}
-		}
+			}
 			
 			// Show tips if not starting conversation automatically
 			if (!shouldContinue) {
@@ -1443,10 +1511,11 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			return { 
 				success: true, 
 				data: { path: outputPath, templateId },
-				shouldContinueConversation: shouldContinue,
-				conversationConfig: conversationConfig,
-				agentName: conversationConfig?.agentName,
-				documentPath: outputPath
+				shouldContinueConversation: autoChatEnabled ? false : shouldContinue,
+				conversationConfig: autoChatEnabled ? undefined : conversationConfig,
+				agentName: activeAgentName,
+				documentPath: outputPath,
+				autoChatEnabled: autoChatEnabled || undefined
 			};
 		} else {
 			const duration = performance.now() - startTime;

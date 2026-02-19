@@ -104,6 +104,46 @@ Run each command in chat and validate file creation:
 6. `@docu /status`
    - Expect workflow progress summary.
 
+### 4.3 Natural‑language (free‑text) document sessions
+
+Docu now supports starting a full document workflow using plain language (no slash command required). This creates a draft with the appropriate specialist agent, pins a session to that document, and iteratively updates the file as you reply.
+
+Steps & expectations:
+
+1. Select a language model in the Copilot Chat toolbar (required for LLM-backed sessions).
+
+2. Start with a single free‑form message (example):
+   - `@docu this will be a project that will train local models for Forex exchange trading using unsloth`
+   - Expect: Docu classifies the intent (e.g. `prd`), creates an initial draft file such as `docs/prd/forex-trading-trainer-with-unsloth.md`, opens it in the editor, and streams a short, focused follow‑up question. The session is bound to the specialist agent (e.g. `prd-creator`).
+
+3. Reply naturally in the same chat (no extra commands):
+   - Example reply: `Focus on EUR/USD and start with three model features: data ingestion, backtesting, and live inference.`
+   - Expect: The same file is updated on disk with the user's changes incorporated and the assistant asks the next focused question.
+   - Verify (PowerShell):
+     ```powershell
+     Select-String -Path "docs/prd/*forex*" -Pattern "EUR/USD" -SimpleMatch
+     ```
+
+4. Continue the conversation — each reply updates the document and returns one focused follow‑up question.
+
+5. Finish the session by typing a closing signal (`done`, `finish`, `that\'s it`, `/done`):
+   - Expect: The assistant confirms the session is closed and returns final guidance; subsequent messages are routed normally.
+
+Agent mapping examples (free‑text → agent):
+- PRD ideas → `prd-creator` → `docs/prd/`
+- Requirement details → `requirements-gatherer` → `docs/requirements/`
+- Architecture/design → `solution-architect` → `docs/design/`
+- Specs/implementation → `specification-writer` → `docs/spec/`
+- Ideation → `brainstormer` → `docs/ideas/`
+
+Manual verification checklist for free‑text sessions:
+- The initial free‑text message creates an appropriate file under the expected folder.
+- Subsequent chat replies update the same file (contents change on disk).
+- The assistant asks a single focused follow‑up question after each turn.
+- Typing `done` closes the session and unpins the document.
+
+(If no model is selected, Docu falls back to slash‑command workflows; natural‑language sessions require a selected model.)
+
 ## 5) Non-workflow manual commands
 
 1. `@docu /new "Manual Command Doc" --template basic --path docs/manual-command-doc.md`
@@ -169,9 +209,11 @@ PASS if all are true:
 
 - No command returns parser/validation errors for valid syntax above.
 - Workflow slash commands create expected files (`/prd`, `/requirements`, `/design`, `/spec`).
+- Natural‑language (free‑text) sessions: initial free‑text creates an appropriate file, subsequent replies update the same file, the assistant asks focused follow‑ups, and `done` properly ends the session.
+- The assigned specialist agent matches the document type (e.g. PRD → `prd-creator`).
 - `/review --file tasks.md --level normal` returns a report successfully.
 - `/catalog` and `/summarize` write output files.
 - `/test e2e` reports successful e2e scenarios and writes `.docu/test-e2e/*` files.
 - `.docu/test-results/` contains Markdown + JSON reports for each `/test` run.
 
-FAIL if any expected file is missing, any command errors unexpectedly, or e2e scenarios are skipped due to missing model.
+FAIL if any expected file is missing, any command or natural‑language session errors unexpectedly, or e2e scenarios are skipped due to missing model.

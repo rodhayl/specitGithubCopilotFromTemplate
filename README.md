@@ -30,7 +30,13 @@ A powerful VS Code extension that provides AI-powered documentation assistance t
    ```
    @docu /new "My Product Requirements" --template prd
    ```
+Or start with plain language (LLM required):
 
+```text
+@docu this will be a project that will train local models for Forex exchange trading using unsloth
+```
+
+Docu will classify the intent, create an initial draft with the appropriate specialist agent (e.g. `prd-creator`), open the file, and ask a focused follow‑up question so you can continue refining the document naturally.
 ## 🎯 Core Concepts
 
 ### AI Agents
@@ -62,6 +68,28 @@ Docu includes six specialized AI agents, each designed for specific phases of th
 ## 📖 Usage Guide
 
 ### Basic Commands
+
+### Natural‑language document sessions (free‑text)
+
+You may start an iterative document workflow using plain language (no slash command required). Requirements:
+
+- A language model must be selected in Copilot Chat.
+- Prefix your message with `@docu` (the assistant will accept plain text without a leading slash).
+
+Behavior:
+- Docu classifies your message to the correct document type and assigns the specialist agent (PRD, Requirements, Design, Spec, Brainstormer).
+- An initial draft is created on disk (e.g. `docs/prd/<title>.md`) and opened in the editor.
+- The assistant asks ONE focused follow‑up question after each turn; reply naturally to refine the file.
+- Type `done`, `finish`, or `/done` to close the session.
+
+Example:
+```text
+@docu this will be a project that will train local models for Forex exchange trading using unsloth
+```
+
+Files are written to the agent‑specific folders by default: `docs/prd/`, `docs/requirements/`, `docs/design/`, `docs/spec/`, `docs/ideas/`.
+
+Add this workflow to your manual testing (see `MANUAL_TEST.md`) to verify document creation, refinement, and session lifecycle.
 
 #### Create Documents
 ```bash

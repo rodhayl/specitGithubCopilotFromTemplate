@@ -101,30 +101,38 @@ export class ConversationSessionRouter {
                 autoChatActive: this.autoChatManager?.isAutoChatActive()
             });
 
-            // Check if auto-chat is active
+            // Continue an active natural-language doc session first.
+            if (this.activeDocSessionId && DocSessionManager.getInstance().hasSession(this.activeDocSessionId)) {
+                return await this.routeToDocSession(this.activeDocSessionId, input, context);
+            } else if (this.activeDocSessionId) {
+                // Session was cleared (e.g. user typed 'done').
+                this.activeDocSessionId = null;
+            }
+
+            // Check if auto-chat is active.
             const autoChatContext = this.autoChatManager?.getAutoChatContext();
+            if (this.shouldStartDocSessionFromAutoChat(input, context, autoChatContext)) {
+                this.logger.info('conversation-router', 'Switching auto-chat to doc session for kickoff input', {
+                    agentName: autoChatContext?.agentName,
+                    hasActiveConversationSession: this.hasActiveSession()
+                });
+                this.autoChatManager?.disableAutoChat();
+                this.clearActiveSession();
+                return await this.startDocSession(input, context);
+            }
             if (autoChatContext) {
                 return await this.routeUserInputWithAutoChat(input, context, autoChatContext);
             }
 
-            // ── DocSessionManager (natural-language document workflow) ──────────
-            // Priority 1: continue an active doc session
-            if (this.activeDocSessionId && DocSessionManager.getInstance().hasSession(this.activeDocSessionId)) {
-                return await this.routeToDocSession(this.activeDocSessionId, input, context);
-            } else if (this.activeDocSessionId) {
-                // session was cleared (e.g. user typed 'done')
-                this.activeDocSessionId = null;
-            }
-
-            // Check if there's an active conversation session
+            // Check if there's an active conversation session.
             if (this.hasActiveSession()) {
                 const sessionId = this.sessionState.activeSessionId!;
-                
-                // Verify the session is still active in the conversation manager
+
+                // Verify the session is still active in the conversation manager.
                 if (this.conversationManager.getSession(sessionId)) {
                     return await this.routeToConversation(sessionId, input, context);
                 } else {
-                    // Session no longer exists, clean up and fall back to agent
+                    // Session no longer exists, clean up and fall back to agent.
                     this.logger.warn('conversation-router', 'Active session no longer exists, cleaning up', {
                         sessionId
                     });
@@ -132,13 +140,12 @@ export class ConversationSessionRouter {
                 }
             }
 
-            // Priority 2: start a new doc session when a model is available
-            // (free-form user text with no active session → natural-language workflow)
+            // Start a new doc session when a model is available.
             if (context.model && input.trim().length > 0) {
                 return await this.startDocSession(input, context);
             }
 
-            // Fallback: route to currently-set agent (legacy path)
+            // Fallback: route to currently-set agent (legacy path).
             return await this.routeToAgent(input, context);
 
         } catch (error) {
@@ -167,26 +174,54 @@ export class ConversationSessionRouter {
             // Update auto-chat activity
             this.autoChatManager?.updateActivity();
 
-            // Check if there's an existing conversation session for this agent
-            let sessionId = autoChatContext.conversationSessionId;
-            
-            if (!sessionId || !this.conversationManager.getSession(sessionId)) {
-                // Start new conversation session
-                sessionId = await this.startConversationForAutoChat(autoChatContext, context);
-                this.autoChatManager?.setConversationSessionId(sessionId);
+            // Auto-chat from `/agent set` has no bound document. In that mode we should
+            // route directly to the active agent instead of legacy question-engine flow.
+            if (!autoChatContext.documentPath) {
+                const agentResult = await this.routeToAgent(input, context);
+                if (agentResult.routedTo === 'agent') {
+                    return {
+                        ...agentResult,
+                        shouldContinue: true
+                    };
+                }
+                return agentResult;
             }
 
-            // Route to conversation with document updates
-            if (autoChatContext.documentPath && this.documentUpdateEngine) {
-                return await this.handleConversationWithDocumentUpdates(
-                    sessionId,
-                    input,
-                    context,
-                    autoChatContext
-                );
-            } else {
-                return await this.routeToConversation(sessionId, input, context);
+            // Document-bound auto-chat should use DocSessionManager so the user gets
+            // full LLM refinement behavior instead of legacy question-engine prompts.
+            const docMgr = DocSessionManager.getInstance();
+            if (this.activeDocSessionId && docMgr.hasSession(this.activeDocSessionId)) {
+                return await this.routeToDocSession(this.activeDocSessionId, input, context);
             }
+
+            const docResult = await docMgr.startSessionFromExistingDocument(
+                autoChatContext.documentPath,
+                context,
+                {
+                    templateId: autoChatContext.templateId,
+                    agentName: autoChatContext.agentName,
+                    initialUserInput: input
+                }
+            );
+
+            if (!docResult.sessionId) {
+                // No model selected (or no session established) - keep auto-chat disabled
+                // so users are not trapped in a non-functional loop.
+                this.autoChatManager?.disableAutoChat();
+                return {
+                    routedTo: 'conversation',
+                    response: docResult.response,
+                    shouldContinue: false
+                };
+            }
+
+            this.activeDocSessionId = docResult.sessionId;
+            return {
+                routedTo: 'conversation',
+                sessionId: docResult.sessionId,
+                response: docResult.response,
+                shouldContinue: docResult.shouldContinue
+            };
 
         } catch (error) {
             this.logger.error('conversation-router', 'Failed to route with auto-chat', error instanceof Error ? error : new Error(String(error)));
@@ -366,6 +401,52 @@ export class ConversationSessionRouter {
      */
     getSessionByAgent(agentName: string): string | null {
         return this.sessionState.sessionsByAgent.get(agentName) || null;
+    }
+
+    /**
+     * Decide when natural-language kickoff should start a DocSession even if auto-chat
+     * is active from `/agent set`.
+     */
+    private shouldStartDocSessionFromAutoChat(
+        input: string,
+        context: CommandContext,
+        autoChatContext: AutoChatContext | null | undefined
+    ): boolean {
+        if (!autoChatContext || !context.model) {
+            return false;
+        }
+
+        // If auto-chat is tied to a concrete document, keep that workflow.
+        if (autoChatContext.documentPath) {
+            return false;
+        }
+
+        return this.looksLikeProjectKickoffInput(input);
+    }
+
+    /**
+     * Heuristic for free-form "start a project/document" requests.
+     */
+    private looksLikeProjectKickoffInput(input: string): boolean {
+        const normalized = input.trim().toLowerCase();
+        if (normalized.length < 24) {
+            return false;
+        }
+
+        // Prefer agent chat for short/direct Q&A style prompts.
+        if (/^(what|why|how|when|where|can you|could you|would you|please)\b/.test(normalized)) {
+            return false;
+        }
+
+        const kickoffPatterns = [
+            /\bthis will be (a|an)\b/,
+            /\bi want to (build|create|develop|design)\b/,
+            /\bwe (need|are building|are creating|are developing)\b/,
+            /\b(project|product|application|app|platform|system|mvp)\b/,
+            /\b(prd|requirements?|design doc|design document|spec|specification)\b/
+        ];
+
+        return kickoffPatterns.some(pattern => pattern.test(normalized));
     }
 
     /**
@@ -759,3 +840,4 @@ export class ConversationSessionRouter {
 
     // Duplicate functions removed - using the original implementations above
 }
+

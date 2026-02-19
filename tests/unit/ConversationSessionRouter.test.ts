@@ -2,8 +2,10 @@ import { ConversationSessionRouter, ConversationRoutingResult } from '../../src/
 import { ConversationManager } from '../../src/conversation/ConversationManager';
 import { AgentManager } from '../../src/agents/AgentManager';
 import { OfflineManager } from '../../src/offline/OfflineManager';
+import { DocSessionManager } from '../../src/conversation/DocSessionManager';
 import { CommandContext } from '../../src/commands/types';
 import { createMockChatRequest, createMockChatResponseStream } from '../testUtils';
+import * as vscode from 'vscode';
 
 // Mock dependencies
 jest.mock('../../src/conversation/ConversationManager');
@@ -12,6 +14,9 @@ jest.mock('../../src/offline/OfflineManager');
 jest.mock('../../src/logging');
 
 describe('ConversationSessionRouter', () => {
+    const makeLlmChunks = (...chunks: string[]) =>
+        (async function* () { for (const chunk of chunks) { yield chunk; } })();
+
     let router: ConversationSessionRouter;
     let mockConversationManager: jest.Mocked<ConversationManager>;
     let mockAgentManager: jest.Mocked<AgentManager>;
@@ -45,6 +50,7 @@ describe('ConversationSessionRouter', () => {
             undefined,
             mockOfflineManager
         );
+        DocSessionManager.getInstance().clearAll();
 
         // Create mock context
         mockContext = {
@@ -69,6 +75,7 @@ describe('ConversationSessionRouter', () => {
                 // Ignore cleanup errors
             }
         }
+        DocSessionManager.getInstance().clearAll();
     });
 
     describe('routeUserInput', () => {
@@ -186,6 +193,102 @@ describe('ConversationSessionRouter', () => {
             expect(result.error).toContain('Conversation error');
             expect(router.hasActiveSession()).toBe(false); // Session should be cleared
         });
+
+        it('should start doc session for kickoff input when auto-chat is active from agent set', async () => {
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+                get: jest.fn((_key: string, defaultValue: any) => defaultValue)
+            });
+
+            const autoChatManager = router.getAutoChatManager();
+            autoChatManager?.enableAutoChat('prd-creator');
+            expect(autoChatManager?.isAutoChatActive()).toBe(true);
+
+            const model = {
+                sendRequest: jest.fn()
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('{"docType":"prd","title":"Forex Trading Trainer"}')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('# Forex Trading Trainer\n\n## Overview\nInitial draft.')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('What exchange pairs should the model target initially?')
+                    }))
+            };
+            mockContext.model = model as any;
+
+            const result = await router.routeUserInput(
+                'this will be a project that will train local models for Forex exchange trading using unsloth',
+                mockContext
+            );
+
+            expect(result.routedTo).toBe('agent');
+            expect(result.shouldContinue).toBe(true);
+            expect(result.response).toContain('PRD Creator');
+            expect(model.sendRequest).toHaveBeenCalledTimes(3);
+            expect(autoChatManager?.isAutoChatActive()).toBe(false);
+        });
+
+        it('should route auto-chat messages without document context to active agent', async () => {
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+                get: jest.fn((_key: string, defaultValue: any) => defaultValue)
+            });
+
+            const mockAgent = {
+                name: 'prd-creator',
+                handleRequest: jest.fn().mockResolvedValue({
+                    content: 'Agent direct response'
+                })
+            };
+            mockAgentManager.getCurrentAgent.mockReturnValue(mockAgent as any);
+            mockAgentManager.buildAgentContext.mockReturnValue({} as any);
+
+            const autoChatManager = router.getAutoChatManager();
+            autoChatManager?.enableAutoChat('prd-creator');
+
+            mockContext.model = {} as any;
+            const result = await router.routeUserInput('hello there, help me think this through', mockContext);
+
+            expect(result.routedTo).toBe('agent');
+            expect(result.response).toBe('Agent direct response');
+            expect(result.shouldContinue).toBe(true);
+            expect(mockAgent.handleRequest).toHaveBeenCalledTimes(1);
+            expect(mockConversationManager.continueConversation).not.toHaveBeenCalled();
+        });
+
+        it('should route document-bound auto-chat through doc session manager', async () => {
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+                get: jest.fn((_key: string, defaultValue: any) => defaultValue)
+            });
+
+            (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
+                Buffer.from('# Existing Doc\n\nInitial content')
+            );
+            (vscode.workspace.fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+
+            const autoChatManager = router.getAutoChatManager();
+            autoChatManager?.enableAutoChat('prd-creator', '/test/workspace/docs/prd/existing-doc.md', {
+                templateId: 'prd'
+            });
+
+            const model = {
+                sendRequest: jest.fn().mockResolvedValue({
+                    text: makeLlmChunks('Which trading risk limits are mandatory for v1?')
+                })
+            };
+            mockContext.model = model as any;
+
+            const result = await router.routeUserInput(
+                'Add risk controls and leverage limits to the document.',
+                mockContext
+            );
+
+            expect(result.routedTo).toBe('conversation');
+            expect(result.shouldContinue).toBe(true);
+            expect(result.response).toContain('Which trading risk limits are mandatory for v1?');
+            expect(model.sendRequest).toHaveBeenCalledTimes(1);
+            expect(mockConversationManager.continueConversation).not.toHaveBeenCalled();
+        });
     });
 
     describe('session management', () => {
@@ -238,14 +341,11 @@ describe('ConversationSessionRouter', () => {
                 responseCount: 0
             });
 
-            // Wait a bit to ensure time difference
-            setTimeout(() => {
-                router.updateSessionActivity(sessionId);
-                
-                const metadata = router.getSessionMetadata(sessionId);
-                expect(metadata?.responseCount).toBe(1);
-                expect(metadata?.lastActivity.getTime()).toBeGreaterThan(startTime.getTime());
-            }, 10);
+            router.updateSessionActivity(sessionId);
+            
+            const metadata = router.getSessionMetadata(sessionId);
+            expect(metadata?.responseCount).toBe(1);
+            expect(metadata?.lastActivity.getTime()).toBeGreaterThanOrEqual(startTime.getTime());
         });
 
         it('should clean up inactive sessions', () => {

@@ -178,14 +178,14 @@ export abstract class BaseAgent implements Agent {
     /**
      * Determine if this request should use conversation mode
      */
-    protected shouldUseConversation(request: ChatRequest, context: AgentContext): boolean {
-        // Always use conversation mode for chat commands and when conversation manager is available
-        if (this.conversationManager && (request.command === 'chat' || !request.command)) {
+    protected shouldUseConversation(request: ChatRequest, _context: AgentContext): boolean {
+        const explicitMode = (request.parameters as Record<string, unknown> | undefined)?.conversationMode;
+        if (explicitMode === true || explicitMode === 'true') {
             return true;
         }
-        
-        // Use conversation mode for non-command requests
-        return !request.command || request.command === 'chat';
+
+        const command = (request.command || '').toLowerCase().trim();
+        return command === 'conversation' || command === 'continue-conversation';
     }
 
     /**
