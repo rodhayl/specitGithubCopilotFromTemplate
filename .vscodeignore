@@ -16,3 +16,6 @@ vsc-extension-quickstart.md
 test-fixtures/**
 .github/**
 test-workspace/**
+test-output-*.txt
+test-results-*.json
+*.vsix

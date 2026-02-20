@@ -129,6 +129,17 @@ Steps & expectations:
 5. Finish the session by typing a closing signal (`done`, `finish`, `that\'s it`, `/done`):
    - Expect: The assistant confirms the session is closed and returns final guidance; subsequent messages are routed normally.
 
+6. After completion, request a targeted revision of the same document:
+   - Example: `@docu fix the issues found in the document`
+   - Expect: Docu re-attaches to the just-finished file and continues refining that same file.
+   - Do **not** expect a brand-new document (for example, no unexpected new `docs/spec/*.md` file).
+
+7. Ask for a potentially disruptive switch (agent/file) and validate confirmation:
+   - Example: `@docu switch to a new spec document for deployment hardening`
+   - Expect: Docu asks for confirmation (`yes`/`no`) before creating a new document.
+   - Reply `no`: expect current context is kept.
+   - Reply `yes`: expect a new document session starts with the corresponding specialist agent.
+
 Agent mapping examples (free‑text → agent):
 - PRD ideas → `prd-creator` → `docs/prd/`
 - Requirement details → `requirements-gatherer` → `docs/requirements/`

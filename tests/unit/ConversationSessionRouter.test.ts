@@ -140,6 +140,26 @@ describe('ConversationSessionRouter', () => {
             expect(mockAgent.handleRequest).toHaveBeenCalled();
         });
 
+        it('should route non-kickoff prompts to active agent even when model is selected', async () => {
+            const mockAgent = {
+                name: 'test-agent',
+                handleRequest: jest.fn().mockResolvedValue({
+                    content: 'Agent response'
+                })
+            };
+
+            mockAgentManager.getCurrentAgent.mockReturnValue(mockAgent as any);
+            mockAgentManager.buildAgentContext.mockReturnValue({} as any);
+            mockContext.model = {} as any;
+
+            const result = await router.routeUserInput('how should I prioritize risk controls?', mockContext);
+
+            expect(result.routedTo).toBe('agent');
+            expect(result.agentName).toBe('test-agent');
+            expect(result.response).toBe('Agent response');
+            expect(mockAgent.handleRequest).toHaveBeenCalledTimes(1);
+        });
+
         it('should return error when no agent is available', async () => {
             // Setup
             mockAgentManager.getCurrentAgent.mockReturnValue(undefined);
@@ -288,6 +308,113 @@ describe('ConversationSessionRouter', () => {
             expect(result.response).toContain('Which trading risk limits are mandatory for v1?');
             expect(model.sendRequest).toHaveBeenCalledTimes(1);
             expect(mockConversationManager.continueConversation).not.toHaveBeenCalled();
+        });
+
+        it('should resume the last completed document for revision-style prompts instead of starting a new doc', async () => {
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+                get: jest.fn((_key: string, defaultValue: any) => defaultValue)
+            });
+
+            (vscode.workspace.fs.readFile as jest.Mock)
+                .mockResolvedValue(Buffer.from('# Local Forex Model Training Using Unsloth\n\nInitial content.'))
+                .mockResolvedValue(Buffer.from('# Local Forex Model Training Using Unsloth\n\nUpdated content.'));
+            (vscode.workspace.fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+
+            const model = {
+                sendRequest: jest.fn()
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('{"docType":"brainstorm","title":"Local Forex Model Training Using Unsloth"}')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('# Local Forex Model Training Using Unsloth\n\n## Overview\nInitial draft.')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('What is the most critical risk to address first?')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks(
+                            '---DOCUMENT---\n# Local Forex Model Training Using Unsloth\n\n## Overview\nImproved with fixes from review.\n---QUESTION---\nWhich remaining risk should we refine next?'
+                        )
+                    }))
+            };
+            mockContext.model = model as any;
+
+            const kickoff = await router.routeUserInput(
+                'this will be a project that will train local models for Forex exchange trading using unsloth',
+                mockContext
+            );
+            expect(kickoff.routedTo).toBe('agent');
+            expect(kickoff.shouldContinue).toBe(true);
+
+            const done = await router.routeUserInput('done', mockContext);
+            expect(done.routedTo).toBe('conversation');
+            expect(done.shouldContinue).toBe(false);
+            expect(done.response).toContain('Session complete');
+
+            const revision = await router.routeUserInput(
+                'fix the issues found in the document',
+                mockContext
+            );
+            expect(revision.routedTo).toBe('conversation');
+            expect(revision.shouldContinue).toBe(true);
+            expect(revision.response).toContain('Which remaining risk should we refine next?');
+
+            // 3 startup calls (classify + draft + first question) + 1 refinement call.
+            expect(model.sendRequest).toHaveBeenCalledTimes(4);
+        });
+
+        it('should require confirmation before switching to a new document when context is ambiguous', async () => {
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+                get: jest.fn((_key: string, defaultValue: any) => defaultValue)
+            });
+
+            (vscode.workspace.fs.readFile as jest.Mock)
+                .mockResolvedValue(Buffer.from('# Existing Doc\n\nInitial content'))
+                .mockResolvedValue(Buffer.from('# Existing Doc\n\nRefined content'));
+            (vscode.workspace.fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+
+            const model = {
+                sendRequest: jest.fn()
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('{"docType":"brainstorm","title":"Existing Doc"}')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('# Existing Doc\n\n## Overview\nInitial draft.')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('What should we refine first?')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks(
+                            '{"action":"start_new_doc","confidence":0.64,"reason":"User asked to switch documents.","requiresConfirmation":true,"targetDocType":"spec","targetAgent":"specification-writer"}'
+                        )
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('# Deployment Hardening Spec\n\n## Scope\nInitial spec draft.')
+                    }))
+                    .mockImplementationOnce(() => Promise.resolve({
+                        text: makeLlmChunks('Which security controls should be mandatory in phase one?')
+                    }))
+            };
+            mockContext.model = model as any;
+
+            const kickoff = await router.routeUserInput('this will be a project for algo trading docs', mockContext);
+            expect(kickoff.routedTo).toBe('agent');
+            expect(kickoff.shouldContinue).toBe(true);
+
+            await router.routeUserInput('done', mockContext);
+
+            const switchPrompt = await router.routeUserInput('switch to a new spec document for deployment hardening', mockContext);
+            expect(switchPrompt.routedTo).toBe('agent');
+            expect(switchPrompt.response).toContain('Reply `yes`');
+
+            const confirmation = await router.routeUserInput('yes', mockContext);
+            expect(confirmation.routedTo).toBe('agent');
+            expect(confirmation.response).toContain('Specification Writer');
+            expect(confirmation.shouldContinue).toBe(true);
+
+            // Kickoff (3 calls) + intent analysis (1 call) + forced spec startup (2 calls).
+            expect(model.sendRequest).toHaveBeenCalledTimes(6);
         });
     });
 

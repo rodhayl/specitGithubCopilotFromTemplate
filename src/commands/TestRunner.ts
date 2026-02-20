@@ -23,6 +23,9 @@ import { CommandRouter } from './CommandRouter';
 import { ScenarioResult } from './TestLogger';
 import { ToolManager } from '../tools/ToolManager';
 import { ToolContext } from '../tools/types';
+import { ConversationSessionRouter } from '../conversation/ConversationSessionRouter';
+import { ConversationManager } from '../conversation/ConversationManager';
+import { DocSessionManager } from '../conversation/DocSessionManager';
 
 // ─── Internal mock stream (captures markdown output for command tests) ─────────
 
@@ -143,7 +146,106 @@ async function executeResponseToolCalls(
 
 // ─── Scenario catalogue ────────────────────────────────────────────────────────
 
-const ALL_SCENARIOS: ScenarioDefinition[] = [
+type StubModelResolver = (prompt: string, callIndex: number) => string;
+
+interface StubModelHandle {
+    model: vscode.LanguageModelChat;
+    getCallCount(): number;
+}
+
+function createStubLanguageModel(resolver: StubModelResolver): StubModelHandle {
+    let callCount = 0;
+
+    const model = {
+        async sendRequest(messages: readonly vscode.LanguageModelChatMessage[]): Promise<{ text: AsyncIterable<string> }> {
+            const prompt = messages
+                .map((m) => {
+                    const record = m as unknown as Record<string, unknown>;
+                    if (typeof record.content === 'string') { return record.content; }
+                    if (Array.isArray(record.content)) {
+                        return record.content.map((c: any) => c.value || c.text || '').join('');
+                    }
+                    if (typeof record.text === 'string') { return record.text; }
+                    return '';
+                })
+                .join('\n');
+
+            const responseText = resolver(prompt, callCount++);
+            return {
+                text: (async function* () {
+                    yield responseText;
+                })()
+            };
+        }
+    } as unknown as vscode.LanguageModelChat;
+
+    return {
+        model,
+        getCallCount: () => callCount
+    };
+}
+
+async function buildConversationScenarioRoot(workspaceRoot: string, scenarioId: string): Promise<string> {
+    const scenarioRoot = path.join(workspaceRoot, '.docu', 'test-conversation', scenarioId.replace(/[:]/g, '-'));
+    const uri = vscode.Uri.file(scenarioRoot);
+    try {
+        await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: false });
+    } catch {
+        // Ignore when the folder does not exist.
+    }
+    await vscode.workspace.fs.createDirectory(uri);
+    return scenarioRoot;
+}
+
+function buildConversationTestContext(
+    base: CommandContext,
+    workspaceRoot: string,
+    model: vscode.LanguageModelChat
+): CommandContext {
+    return {
+        ...base,
+        workspaceRoot,
+        model
+    };
+}
+
+function buildConversationTestRouter(agentResponse = 'Agent response'): {
+    router: ConversationSessionRouter;
+    getAgentCallCount(): number;
+} {
+    let agentCallCount = 0;
+    const mockAgent = {
+        name: 'prd-creator',
+        async handleRequest(): Promise<{ content: string }> {
+            agentCallCount++;
+            return { content: agentResponse };
+        }
+    };
+
+    const mockAgentManager = {
+        getCurrentAgent: () => mockAgent,
+        buildAgentContext: () => ({})
+    } as unknown as AgentManager;
+
+    const mockConversationManager = {
+        getSession: () => null,
+        continueConversation: async () => ({
+            agentMessage: '',
+            followupQuestions: [],
+            documentUpdates: [],
+            workflowSuggestions: [],
+            progressUpdate: null,
+            conversationComplete: false
+        })
+    } as unknown as ConversationManager;
+
+    return {
+        router: new ConversationSessionRouter(mockConversationManager, mockAgentManager),
+        getAgentCallCount: () => agentCallCount
+    };
+}
+
+export const ALL_SCENARIOS: ScenarioDefinition[] = [
 
     // ══════════════════════════════════════════════════════════════════════════
     // SYSTEM — sanity checks, no LLM required
@@ -484,6 +586,281 @@ const ALL_SCENARIOS: ScenarioDefinition[] = [
     },
 
     // ══════════════════════════════════════════════════════════════════════════
+    // ============================================================
+    // CONVERSATION - natural-language routing and doc-session flow
+    // ============================================================
+
+    {
+        id: 'conversation:non-kickoff-routes-to-agent',
+        description: 'Natural non-kickoff input routes to active agent even when a model is present',
+        group: 'conversation',
+        requiresLLM: false,
+        async run(_deps, ctx) {
+            const docMgr = DocSessionManager.getInstance();
+            const scenarioRoot = await buildConversationScenarioRoot(ctx.workspaceRoot, 'conversation-non-kickoff-routes-to-agent');
+            const { router, getAgentCallCount } = buildConversationTestRouter('Agent direct response');
+            const stubModel = createStubLanguageModel(() => '{"action":"route_to_agent","confidence":0.9}');
+
+            docMgr.clearAll();
+            try {
+                const testCtx = buildConversationTestContext(ctx, scenarioRoot, stubModel.model);
+                const result = await router.routeUserInput('how should I prioritize risk controls?', testCtx);
+
+                if (result.routedTo !== 'agent') {
+                    return { status: 'failed', error: `Expected routedTo=agent, got ${result.routedTo}` };
+                }
+                if (result.response !== 'Agent direct response') {
+                    return { status: 'failed', error: `Unexpected agent response: ${result.response ?? '(empty)'}` };
+                }
+                if (getAgentCallCount() !== 1) {
+                    return { status: 'failed', error: `Expected 1 agent call, got ${getAgentCallCount()}` };
+                }
+                if (stubModel.getCallCount() !== 0) {
+                    return { status: 'failed', error: `Model should not be called for non-kickoff routing (calls=${stubModel.getCallCount()})` };
+                }
+
+                return { status: 'passed', details: 'Routed directly to active agent with zero model intent calls' };
+            } catch (e) {
+                return { status: 'error', error: e instanceof Error ? e.message : String(e) };
+            } finally {
+                docMgr.clearAll();
+            }
+        },
+    },
+
+    {
+        id: 'conversation:resume-after-done',
+        description: 'Revision prompts after "done" resume and update the same document',
+        group: 'conversation',
+        requiresLLM: false,
+        async run(_deps, ctx) {
+            const docMgr = DocSessionManager.getInstance();
+            const scenarioRoot = await buildConversationScenarioRoot(ctx.workspaceRoot, 'conversation-resume-after-done');
+            const { router } = buildConversationTestRouter('Agent direct response');
+            const stubModel = createStubLanguageModel((prompt) => {
+                if (prompt.includes('Classify the following user message')) {
+                    return '{"docType":"brainstorm","title":"Local Forex Model Training Using Unsloth"}';
+                }
+                if (prompt.includes('Generate a comprehensive initial draft in Markdown')) {
+                    return '# Local Forex Model Training Using Unsloth\n\n## Overview\nInitial idea draft.';
+                }
+                if (prompt.includes('Ask the single most important follow-up question')) {
+                    return 'What risk-management objective should be prioritized first?';
+                }
+                if (prompt.includes('Respond using EXACTLY this format')) {
+                    return [
+                        '---DOCUMENT---',
+                        '# Local Forex Model Training Using Unsloth',
+                        '',
+                        '## Overview',
+                        'Initial idea draft.',
+                        '',
+                        '## Issues Found and Fixes',
+                        '- Added clearer data-quality validation steps.',
+                        '- Added explicit model-evaluation checkpoints.',
+                        '---QUESTION---',
+                        'Which unresolved issue should we address next?'
+                    ].join('\n');
+                }
+                return 'What should we refine next?';
+            });
+
+            docMgr.clearAll();
+            try {
+                const testCtx = buildConversationTestContext(ctx, scenarioRoot, stubModel.model);
+
+                const kickoff = await router.routeUserInput(
+                    'this will be a project that will train local models for Forex exchange trading using unsloth',
+                    testCtx
+                );
+                if (kickoff.routedTo !== 'agent' || !kickoff.sessionId) {
+                    return { status: 'failed', error: `Kickoff did not create a doc session (routedTo=${kickoff.routedTo})` };
+                }
+
+                const kickoffSession = docMgr.getSession(kickoff.sessionId);
+                const originalPath = kickoffSession?.documentPath;
+                if (!originalPath) {
+                    return { status: 'failed', error: 'Kickoff session has no document path' };
+                }
+
+                const done = await router.routeUserInput('done', testCtx);
+                if (done.routedTo !== 'conversation' || done.shouldContinue !== false) {
+                    return { status: 'failed', error: 'Expected done to complete the current document session' };
+                }
+
+                const revision = await router.routeUserInput('fix the issues found in the document from the review', testCtx);
+                if (revision.routedTo !== 'conversation' || !revision.sessionId) {
+                    return { status: 'failed', error: 'Revision input did not resume document conversation' };
+                }
+
+                const resumedSession = docMgr.getSession(revision.sessionId);
+                if (!resumedSession?.documentPath) {
+                    return { status: 'failed', error: 'Resumed session has no document path' };
+                }
+                if (resumedSession.documentPath !== originalPath) {
+                    return {
+                        status: 'failed',
+                        error: `Expected resume to reuse same file. original=${originalPath}, resumed=${resumedSession.documentPath}`
+                    };
+                }
+                if (resumedSession.documentPath.replace(/\\/g, '/').includes('/docs/spec/')) {
+                    return { status: 'failed', error: 'Unexpected spec file creation while refining existing document' };
+                }
+
+                if (revision.shouldContinue !== true) {
+                    return { status: 'failed', error: 'Revision flow did not remain open for continued iteration' };
+                }
+
+                if (stubModel.getCallCount() < 4) {
+                    return { status: 'failed', error: `Expected at least 4 model calls, got ${stubModel.getCallCount()}` };
+                }
+
+                return {
+                    status: 'passed',
+                    details: `Resumed and updated ${path.relative(scenarioRoot, resumedSession.documentPath).replace(/\\/g, '/')} (model calls=${stubModel.getCallCount()})`
+                };
+            } catch (e) {
+                return { status: 'error', error: e instanceof Error ? e.message : String(e) };
+            } finally {
+                docMgr.clearAll();
+            }
+        },
+    },
+
+    {
+        id: 'conversation:switch-requires-confirmation',
+        description: 'Ambiguous switch requests ask for yes/no confirmation before creating a new document',
+        group: 'conversation',
+        requiresLLM: false,
+        async run(_deps, ctx) {
+            const docMgr = DocSessionManager.getInstance();
+            const scenarioRoot = await buildConversationScenarioRoot(ctx.workspaceRoot, 'conversation-switch-requires-confirmation');
+            const { router } = buildConversationTestRouter('Agent direct response');
+            const stubModel = createStubLanguageModel((prompt) => {
+                if (prompt.includes('Classify the following user message')) {
+                    return '{"docType":"brainstorm","title":"Existing Trading Doc"}';
+                }
+                if (prompt.includes('Generate a comprehensive initial draft in Markdown')) {
+                    return '# Existing Trading Doc\n\n## Overview\nInitial draft.';
+                }
+                if (prompt.includes('Ask the single most important follow-up question')) {
+                    return 'What should we refine first?';
+                }
+                if (prompt.includes('You are a router for a documentation assistant.')) {
+                    return '{"action":"start_new_doc","confidence":0.64,"reason":"Switch wording detected.","requiresConfirmation":true,"targetDocType":"spec","targetAgent":"specification-writer"}';
+                }
+                return '{"action":"route_to_agent","confidence":0.5,"reason":"default","requiresConfirmation":false}';
+            });
+
+            docMgr.clearAll();
+            try {
+                const testCtx = buildConversationTestContext(ctx, scenarioRoot, stubModel.model);
+                const kickoff = await router.routeUserInput('this will be a project for algo trading docs', testCtx);
+                if (kickoff.routedTo !== 'agent') {
+                    return { status: 'failed', error: 'Kickoff did not create a document session' };
+                }
+                await router.routeUserInput('done', testCtx);
+
+                const switchPrompt = await router.routeUserInput(
+                    'switch to a new spec document for deployment hardening',
+                    testCtx
+                );
+                if (switchPrompt.routedTo !== 'agent') {
+                    return { status: 'failed', error: `Expected switch prompt routedTo=agent, got ${switchPrompt.routedTo}` };
+                }
+                const response = (switchPrompt.response ?? '').toLowerCase();
+                console.log('SWITCH PROMPT DEBUG:', JSON.stringify(switchPrompt));
+                if (!(/\byes\b/.test(response) && /\bno\b/.test(response))) {
+                    return { status: 'failed', error: `Switch prompt did not request yes/no confirmation. Received: ${switchPrompt.response}` };
+                }
+
+                return { status: 'passed', details: `Confirmation gate triggered (model calls=${stubModel.getCallCount()})` };
+            } catch (e) {
+                return { status: 'error', error: e instanceof Error ? e.message : String(e) };
+            } finally {
+                docMgr.clearAll();
+            }
+        },
+    },
+
+    {
+        id: 'conversation:confirm-switch-creates-new-doc',
+        description: 'Replying yes after confirmation switches to a new document session',
+        group: 'conversation',
+        requiresLLM: false,
+        async run(_deps, ctx) {
+            const docMgr = DocSessionManager.getInstance();
+            const scenarioRoot = await buildConversationScenarioRoot(ctx.workspaceRoot, 'conversation-confirm-switch-creates-new-doc');
+            const { router } = buildConversationTestRouter('Agent direct response');
+            const stubModel = createStubLanguageModel((prompt) => {
+                if (prompt.includes('Classify the following user message')) {
+                    return '{"docType":"prd","title":"Existing Context Doc"}';
+                }
+                if (prompt.includes('You are a router for a documentation assistant.')) {
+                    return '{"action":"start_new_doc","confidence":0.62,"reason":"User asked for a different document.","requiresConfirmation":true,"targetDocType":"requirements","targetAgent":"requirements-gatherer"}';
+                }
+                if (prompt.includes('Generate a comprehensive initial draft in Markdown')) {
+                    if (prompt.includes('Requirements Document')) {
+                        return '# Trading Risk Requirements\n\n## Functional Requirements\n- Define mandatory risk controls.';
+                    }
+                    return '# Existing Context Doc\n\n## Overview\nInitial context draft.';
+                }
+                if (prompt.includes('Ask the single most important follow-up question')) {
+                    if (prompt.includes('Requirements Document')) {
+                        return 'Which requirement must be implemented first for v1?';
+                    }
+                    return 'What should we refine first in the current document?';
+                }
+                return 'What should we refine next?';
+            });
+
+            docMgr.clearAll();
+            try {
+                const testCtx = buildConversationTestContext(ctx, scenarioRoot, stubModel.model);
+
+                const kickoff = await router.routeUserInput('this will be a project for algo trading docs', testCtx);
+                if (!kickoff.sessionId) {
+                    return { status: 'failed', error: 'Kickoff session did not return a session id' };
+                }
+                const initialPath = docMgr.getSession(kickoff.sessionId)?.documentPath;
+                if (!initialPath) {
+                    return { status: 'failed', error: 'Kickoff session has no document path' };
+                }
+
+                await router.routeUserInput('done', testCtx);
+                await router.routeUserInput('switch to a new requirements document for risk controls', testCtx);
+                const confirmed = await router.routeUserInput('yes', testCtx);
+
+                if (confirmed.routedTo !== 'agent' || confirmed.shouldContinue !== true || !confirmed.sessionId) {
+                    return { status: 'failed', error: 'Yes confirmation did not start a new document session' };
+                }
+
+                const newPath = docMgr.getSession(confirmed.sessionId)?.documentPath;
+                if (!newPath) {
+                    return { status: 'failed', error: 'Confirmed session has no document path' };
+                }
+                if (newPath === initialPath) {
+                    return { status: 'failed', error: 'Expected a new document path after confirmation switch' };
+                }
+                const normalizedNewPath = newPath.replace(/\\/g, '/');
+                const normalizedResponse = (confirmed.response ?? '').toLowerCase();
+                const looksLikeRequirements = normalizedNewPath.includes('/docs/requirements/') || normalizedResponse.includes('requirements');
+                if (!looksLikeRequirements) {
+                    return { status: 'failed', error: `New session did not clearly switch to requirements flow (path=${newPath})` };
+                }
+
+                return {
+                    status: 'passed',
+                    details: `Switched from ${path.basename(initialPath)} to ${path.basename(newPath)} (model calls=${stubModel.getCallCount()})`
+                };
+            } catch (e) {
+                return { status: 'error', error: e instanceof Error ? e.message : String(e) };
+            } finally {
+                docMgr.clearAll();
+            }
+        },
+    },
+
     // AGENT — each agent called via LLM (requires model)
     //
     // IMPORTANT: prompts are carefully chosen to avoid triggering each agent's
@@ -899,17 +1276,19 @@ const ALL_SCENARIOS: ScenarioDefinition[] = [
 // ─── Group → scenario-group filter map ────────────────────────────────────────
 
 const GROUP_MAP: Record<string, string[]> = {
-    system:    ['system'],
-    template:  ['template'],
+    system: ['system'],
+    template: ['template'],
     templates: ['template'],
-    commands:  ['cmd'],
-    cmd:       ['cmd'],
-    agents:    ['agent'],
-    agent:     ['agent'],
-    workflow:  ['workflow'],
-    e2e:       ['e2e'],
-    quick:     ['system', 'template', 'cmd'],
-    full:      ['system', 'template', 'cmd', 'agent', 'workflow', 'e2e'],
+    commands: ['cmd'],
+    cmd: ['cmd'],
+    conversation: ['conversation'],
+    conversations: ['conversation'],
+    agents: ['agent'],
+    agent: ['agent'],
+    workflow: ['workflow'],
+    e2e: ['e2e'],
+    quick: ['system', 'template', 'cmd'],
+    full: ['system', 'template', 'cmd', 'conversation', 'agent', 'workflow', 'e2e'],
 };
 
 function selectScenarios(subCommand: string): ScenarioDefinition[] {
@@ -934,12 +1313,12 @@ export class TestRunner {
         private templateService: TemplateService,
         private workflowStateManager: WorkflowStateManager,
         private commandRouter: CommandRouter
-    ) {}
+    ) { }
 
     /**
      * Execute scenarios for the given sub-command.
      *
-     * @param subCommand  One of: quick, full, system, template, commands, agents, workflow, or a scenario ID
+     * @param subCommand  One of: quick, full, system, template, commands, conversation, agents, workflow, e2e, or a scenario ID
      * @param ctx         The VS Code chat command context (provides stream + model)
      * @param onProgress  Optional callback invoked after each scenario with a one-line status string
      * @returns           Array of ScenarioResult, one per executed (or skipped) scenario

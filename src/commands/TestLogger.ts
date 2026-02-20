@@ -67,18 +67,22 @@ export class TestLogger {
         try { await vscode.workspace.fs.createDirectory(dirUri); } catch { /* already exists */ }
 
         const jsonUri = vscode.Uri.joinPath(dirUri, `test-${ts}.json`);
-        const mdUri   = vscode.Uri.joinPath(dirUri, `test-${ts}.md`);
+        const mdUri = vscode.Uri.joinPath(dirUri, `test-${ts}.md`);
 
-        await vscode.workspace.fs.writeFile(
-            jsonUri,
-            Buffer.from(JSON.stringify(result, null, 2), 'utf8')
-        );
-        await vscode.workspace.fs.writeFile(
-            mdUri,
-            Buffer.from(TestLogger.toMarkdown(result), 'utf8')
-        );
-
-        return { jsonPath: jsonUri.fsPath, mdPath: mdUri.fsPath };
+        try {
+            await vscode.workspace.fs.writeFile(
+                jsonUri,
+                Buffer.from(JSON.stringify(result, null, 2), 'utf8')
+            );
+            await vscode.workspace.fs.writeFile(
+                mdUri,
+                Buffer.from(TestLogger.toMarkdown(result), 'utf8')
+            );
+            return { jsonPath: jsonUri.fsPath, mdPath: mdUri.fsPath };
+        } catch (e) {
+            console.error('Failed to save test results:', e);
+            return null;
+        }
     }
 
     // ─── Markdown report renderer ─────────────────────────────────────────────
@@ -132,7 +136,7 @@ export class TestLogger {
             lines.push(`## Failures & Errors`, '');
             for (const f of failures) {
                 lines.push(`### \`${f.id}\` — ${f.description}`, '');
-                if (f.error)   { lines.push(`**Error:** \`${f.error}\``, ''); }
+                if (f.error) { lines.push(`**Error:** \`${f.error}\``, ''); }
                 if (f.details) { lines.push(`**Details:** ${f.details}`, ''); }
             }
         }

@@ -40,10 +40,11 @@ export function createTestCommandDefinition(
     return {
         name: 'test',
         description: 'Run extension test scenarios — agents, commands, templates, workflow, and e2e file creation',
-        usage: '/test [quick|full|system|templates|commands|agents|workflow|e2e|list|<scenario-id>]',
+        usage: '/test [quick|full|system|templates|commands|conversation|agents|workflow|e2e|list|<scenario-id>]',
         examples: [
             '/test quick',
             '/test full',
+            '/test conversation',
             '/test agents',
             '/test commands',
             '/test templates',
@@ -112,13 +113,14 @@ function handleList(runner: TestRunner, context: CommandContext): CommandResult 
         '| Sub-command | Groups included |',
         '|-------------|-----------------|',
         '| `quick` | system, template, cmd |',
-            '| `full` | system, template, cmd, agent, workflow, e2e |',
+        '| `full` | system, template, cmd, conversation, agent, workflow, e2e |',
         '| `system` | system |',
         '| `templates` | template |',
         '| `commands` | cmd |',
+        '| `conversation` | conversation |',
         '| `agents` | agent |',
         '| `workflow` | workflow |',
-            '| `e2e` | e2e |',
+        '| `e2e` | e2e |',
         '| `<scenario-id>` | single scenario |',
     );
 
@@ -151,6 +153,7 @@ async function runScenarios(
         '---',
         '',
         '**Running scenarios…**',
+        '_Final summary appears at the end with a DOCU_TEST_REPORT copy/paste block._',
         '',
     ].join('\n'));
 
@@ -265,12 +268,31 @@ function renderSummaryMarkdown(
         );
     }
 
+    lines.push(
+        '### Copy/Paste Report',
+        '',
+        '```text',
+        'DOCU_TEST_REPORT',
+        `Run ID: ${r.runId}`,
+        `Command: /test ${r.subCommand}`,
+        `Totals: total=${r.summary.total}, passed=${r.summary.passed}, failed=${r.summary.failed}, errors=${r.summary.errors}, skipped=${r.summary.skipped}`,
+        `DurationMs: ${r.totalDurationMs}`,
+        `Inconsistencies: ${failures.length}`,
+        ...(failures.length > 0
+            ? failures.map((f) => `- ${f.id} [${f.status}] ${f.error ?? f.details ?? 'No details provided'}`)
+            : ['- none']),
+        `MarkdownReport: ${saved?.mdPath ?? 'n/a'}`,
+        `JsonReport: ${saved?.jsonPath ?? 'n/a'}`,
+        '```',
+        ''
+    );
+
     return lines.join('\n');
 }
 
 // ─── Help text ────────────────────────────────────────────────────────────────
 
-const HELP_TEXT = `## 🧪 Docu Test Suite — \`/test\`
+const HELP_TEXT = `## Docu Test Suite - \`/test\`
 
 Automatically runs all extension scenarios using the currently selected GitHub Copilot model.
 Results are streamed live to chat and saved to \`.docu/test-results/\` as JSON + Markdown.
@@ -279,28 +301,30 @@ Results are streamed live to chat and saved to \`.docu/test-results/\` as JSON +
 
 | Command | Scenarios | LLM |
 |---------|-----------|:---:|
-| \`/test quick\` | system + templates + commands (fast) | — |
-| \`/test system\` | Agents registered, state load/save, template count | — |
-| \`/test templates\` | Render all 5 built-in templates | — |
-| \`/test commands\` | All command-routing scenarios | — |
-| \`/test agents\` | All 6 agents respond via the selected LLM | 🤖 |
-| \`/test workflow\` | Phase tracking + /prd /requirements /design /spec /review | 🤖 |
-| \`/test e2e\` | **Full spec workflow** — creates real files in \`.docu/test-e2e/\` | 🤖 |
-| \`/test full\` | **Everything** — all groups including e2e | 🤖 |
-| \`/test list\` | List every scenario and its group | — |
+| \`/test quick\` | system + templates + commands (fast) | - |
+| \`/test system\` | Agents registered, state load/save, template count | - |
+| \`/test templates\` | Render all 5 built-in templates | - |
+| \`/test commands\` | All command-routing scenarios | - |
+| \`/test conversation\` | Natural-language routing + confirmation + resume behavior | - |
+| \`/test agents\` | All 6 agents respond via the selected LLM | yes |
+| \`/test workflow\` | Phase tracking + /prd /requirements /design /spec /review | yes |
+| \`/test e2e\` | **Full spec workflow** - creates real files in \`.docu/test-e2e/\` | yes |
+| \`/test full\` | **Everything** - system + template + cmd + conversation + agent + workflow + e2e | yes |
+| \`/test list\` | List every scenario and its group | - |
 | \`/test <id>\` | Run a single scenario, e.g. \`/test e2e:prd-creation\` | varies |
 
 ### Log files
 
 After every run, two files are written to \`.docu/test-results/\`:
-- \`test-<timestamp>.json\` — full machine-readable results
-- \`test-<timestamp>.md\`   — human-readable Markdown report
+- \`test-<timestamp>.json\` - full machine-readable results
+- \`test-<timestamp>.md\`   - human-readable Markdown report
 
 ### Examples
 
 \`\`\`
 /test quick
 /test full
+/test conversation
 /test e2e
 /test agents
 /test e2e:prd-creation
@@ -308,3 +332,4 @@ After every run, two files are written to \`.docu/test-results/\`:
 /test system:agent-registration
 \`\`\`
 `;
+

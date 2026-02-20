@@ -28,6 +28,11 @@ export interface ExistingDocSessionOptions {
     initialUserInput?: string;
 }
 
+export interface StartDocSessionOptions {
+    forcedDocType?: DocType;
+    forcedTitle?: string;
+}
+
 const DOC_TYPE_META: Record<DocType, {
     agentName: string;
     agentTitle: string;
@@ -127,20 +132,30 @@ export class DocSessionManager {
         return this.sessions.get(sessionId);
     }
 
+    closeSession(sessionId: string): void {
+        this.sessions.delete(sessionId);
+    }
+
     clearAll(): void {
         this.sessions.clear();
     }
 
     async startNewSession(
         input: string,
-        context: CommandContext
+        context: CommandContext,
+        options: StartDocSessionOptions = {}
     ): Promise<DocSessionResult> {
         const model = context.model;
         if (!model) {
             return this.noModelFallback();
         }
 
-        const classification = await this.classifyIntent(input, model, context.token);
+        const classification = options.forcedDocType
+            ? {
+                docType: options.forcedDocType,
+                title: options.forcedTitle?.trim() || this.getTitleFromInput(input)
+            }
+            : await this.classifyIntent(input, model, context.token);
         const meta = DOC_TYPE_META[classification.docType];
 
         const draftContent = await this.generateInitialDraft(
@@ -529,6 +544,17 @@ export class DocSessionManager {
             .filter(Boolean)
             .map(token => token.charAt(0).toUpperCase() + token.slice(1))
             .join(' ') || 'Document';
+    }
+
+    private getTitleFromInput(input: string): string {
+        const clean = input
+            .replace(/[`"'.,!?]/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 10)
+            .join(' ')
+            .trim();
+        return clean || 'New Document';
     }
 
     private buildFilePath(workspaceRoot: string, folder: string, title: string): string {
