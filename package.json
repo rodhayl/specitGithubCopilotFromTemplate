@@ -449,7 +449,8 @@
     "test:vscode": "vscode-test",
     "test:conversation-flow": "jest --testPathPatterns=\"(CommandConversationFlow|ConversationErrorHandling|OnlineOfflineConversation)\" --verbose",
     "package": "vsce package",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "postinstall": "node scripts/patch-vsce.js"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
@@ -465,5 +466,10 @@
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
+  },
+  "overrides": {
+    "minimatch": "^10.2.1",
+    "glob": "^10.4.5",
+    "diff": "^5.2.0"
   }
 }

@@ -50,7 +50,7 @@ describe('AutoChatStateManager', () => {
             autoChatManager.enableAutoChat(agentName, documentPath);
 
             expect(autoChatManager.isAutoChatActive()).toBe(true);
-            
+
             const context = autoChatManager.getAutoChatContext();
             expect(context).toBeTruthy();
             expect(context?.agentName).toBe(agentName);
@@ -82,6 +82,22 @@ describe('AutoChatStateManager', () => {
             expect(autoChatManager.isAutoChatActive()).toBe(false);
             expect(autoChatManager.getAutoChatContext()).toBeNull();
         });
+
+        it('should clear all session properties upon disable', () => {
+            autoChatManager.enableAutoChat('prd-creator', '/path.md');
+            autoChatManager.updateActivity();
+            autoChatManager.updateActivity(); // increments messageCount
+
+            autoChatManager.disableAutoChat();
+
+            const stats = autoChatManager.getSessionStats();
+            expect(stats.isActive).toBe(false);
+            expect(stats.messageCount).toBe(0);
+            expect(stats.agentName).toBeUndefined();
+            expect(stats.documentPath).toBeUndefined();
+            expect((autoChatManager as any).state.sessionStartTime).toBeNull();
+            expect((autoChatManager as any).state.lastUserInput).toBeNull();
+        });
     });
 
     describe('isAutoChatActive', () => {
@@ -97,7 +113,7 @@ describe('AutoChatStateManager', () => {
         it('should return false when session has timed out', () => {
             // Enable auto-chat
             autoChatManager.enableAutoChat('prd-creator');
-            
+
             // Mock a very old timestamp to simulate timeout
             const context = autoChatManager.getAutoChatContext();
             if (context) {
@@ -111,21 +127,21 @@ describe('AutoChatStateManager', () => {
     describe('updateActivity', () => {
         it('should update activity timestamp and message count', () => {
             autoChatManager.enableAutoChat('prd-creator');
-            
+
             const initialStats = autoChatManager.getSessionStats();
             expect(initialStats.messageCount).toBe(0);
 
             autoChatManager.updateActivity();
-            
+
             const updatedStats = autoChatManager.getSessionStats();
             expect(updatedStats.messageCount).toBe(1);
         });
 
         it('should not update when auto-chat is not active', () => {
             const initialStats = autoChatManager.getSessionStats();
-            
+
             autoChatManager.updateActivity();
-            
+
             const updatedStats = autoChatManager.getSessionStats();
             expect(updatedStats.messageCount).toBe(initialStats.messageCount);
         });
@@ -163,16 +179,16 @@ describe('AutoChatStateManager', () => {
         it('should return correct session statistics', async () => {
             const agentName = 'prd-creator';
             const documentPath = '/path/to/document.md';
-            
+
             autoChatManager.enableAutoChat(agentName, documentPath);
             autoChatManager.updateActivity();
             autoChatManager.updateActivity();
 
             // Wait a bit to ensure session duration is measurable
             await new Promise(resolve => setTimeout(resolve, 1100));
-            
+
             const stats = autoChatManager.getSessionStats();
-            
+
             expect(stats.isActive).toBe(true);
             expect(stats.agentName).toBe(agentName);
             expect(stats.documentPath).toBe(documentPath);
@@ -184,7 +200,7 @@ describe('AutoChatStateManager', () => {
     describe('setConversationSessionId', () => {
         it('should update conversation session ID in context', () => {
             const sessionId = 'conversation-123';
-            
+
             autoChatManager.enableAutoChat('prd-creator');
             autoChatManager.setConversationSessionId(sessionId);
 
@@ -194,7 +210,7 @@ describe('AutoChatStateManager', () => {
 
         it('should not update when no context exists', () => {
             const sessionId = 'conversation-123';
-            
+
             autoChatManager.setConversationSessionId(sessionId);
 
             const context = autoChatManager.getAutoChatContext();
@@ -205,7 +221,7 @@ describe('AutoChatStateManager', () => {
     describe('cleanupExpiredSessions', () => {
         it('should clean up expired sessions', () => {
             autoChatManager.enableAutoChat('prd-creator');
-            
+
             // Mock expired session
             const context = autoChatManager.getAutoChatContext();
             if (context) {
@@ -219,7 +235,7 @@ describe('AutoChatStateManager', () => {
 
         it('should not clean up active sessions', () => {
             autoChatManager.enableAutoChat('prd-creator');
-            
+
             autoChatManager.cleanupExpiredSessions();
 
             expect(autoChatManager.isAutoChatActive()).toBe(true);
@@ -230,7 +246,7 @@ describe('AutoChatStateManager', () => {
         it('should save state to extension context', async () => {
             const agentName = 'prd-creator';
             const documentPath = '/path/to/document.md';
-            
+
             autoChatManager.enableAutoChat(agentName, documentPath);
 
             // Verify that globalState.update was called

@@ -23,6 +23,8 @@ export interface ScenarioResult {
     durationMs: number;
     details?: string;
     error?: string;
+    /** Captured LLM response text (truncated). Populated for all LLM-using scenarios. */
+    rawResponse?: string;
 }
 
 export interface TestRunResult {
@@ -138,6 +140,12 @@ export class TestLogger {
                 lines.push(`### \`${f.id}\` — ${f.description}`, '');
                 if (f.error) { lines.push(`**Error:** \`${f.error}\``, ''); }
                 if (f.details) { lines.push(`**Details:** ${f.details}`, ''); }
+                if (f.rawResponse) {
+                    const snippet = f.rawResponse.length > 800
+                        ? f.rawResponse.slice(0, 800) + '\n…(truncated)'
+                        : f.rawResponse;
+                    lines.push('**LLM Response (raw):**', '```', snippet, '```', '');
+                }
             }
         }
 
@@ -149,6 +157,20 @@ export class TestLogger {
                 lines.push(`- **\`${p.id}\`** (${p.durationMs}ms): ${p.details}`);
             }
             lines.push('');
+        }
+
+        // ── Diagnostic snapshot (all scenarios with their LLM output) ──────────
+        const withRaw = r.scenarios.filter(s => s.rawResponse);
+        if (withRaw.length > 0) {
+            lines.push(`## Diagnostic Snapshot`, '');
+            lines.push('> Raw LLM responses captured during this run. Use these to diagnose unexpected behaviour.', '');
+            for (const s of withRaw) {
+                const snippet = (s.rawResponse ?? '').length > 400
+                    ? (s.rawResponse ?? '').slice(0, 400) + '\n…'
+                    : (s.rawResponse ?? '');
+                lines.push(`### ${icon(s.status)} \`${s.id}\``, '');
+                lines.push('```', snippet, '```', '');
+            }
         }
 
         return lines.join('\n');

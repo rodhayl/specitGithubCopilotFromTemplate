@@ -1,0 +1,91 @@
+﻿node.exe : FAIL tests/unit/ConversationSessionRouter.test.ts
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL tests/unit...nRouter.test.ts:St 
+   ring) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  ConversationSessionRouter
+    routeUserInput
+      ÔêÜ should route to conversation when active session exists (3 ms)
+      ÔêÜ should route to agent when no active session exists (1 ms)
+      ÔêÜ should route non-kickoff prompts to active agent even when model is 
+selected (1 ms)
+      ÔêÜ should return error when no agent is available
+      ÔêÜ should clean up invalid session and route to agent
+      ÔêÜ should handle conversation errors gracefully
+      ÔêÜ should start doc session for kickoff input when auto-chat is active 
+from agent set (1 ms)
+      ÔêÜ should route auto-chat messages without document context to active 
+agent (1 ms)
+      ÔêÜ should route document-bound auto-chat through doc session manager (1 ms)
+      ÔêÜ should resume the last completed document for revision-style prompts 
+instead of starting a new doc (2 ms)
+      ÔêÜ should require confirmation before switching to a new document when 
+context is ambiguous (1 ms)
+      ├ù should resume mid-flight document session when interrupted by an 
+external command (2 ms)
+      ├ù should recover gracefully when an active document file is deleted 
+mid-session (1 ms)
+    session management
+      ÔêÜ should set and get active session (1 ms)
+      ÔêÜ should clear active session
+      ÔêÜ should update session activity
+      ÔêÜ should clean up inactive sessions (1 ms)
+    session state
+      ÔêÜ should return current session state
+      ÔêÜ should handle empty session state (1 ms)
+
+  ÔùÅ ConversationSessionRouter ÔÇ║ routeUserInput ÔÇ║ should resume mid-flight 
+document session when interrupted by an external command
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "agent"
+    Received: "error"
+
+    [0m [90m 449 |[39m             [90m// 1. Kickoff primary[39m
+     [90m 450 |[39m             [36mconst[39m kickoff [33m=[39m 
+[36mawait[39m router[33m.[39mrouteUserInput([32m'this will be a project that 
+creates a brand new prd for us'[39m[33m,[39m mockContext)[33m;[39m
+    [31m[1m>[22m[39m[90m 451 |[39m             
+expect(kickoff[33m.[39mroutedTo)[33m.[39mtoBe([32m'agent'[39m)[33m;[39m
+     [90m     |[39m                                      [31m[1m^[22m[39m
+     [90m 452 |[39m             
+expect(kickoff[33m.[39mshouldContinue)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 453 |[39m             [36mconst[39m docSessionId [33m=[39m 
+kickoff[33m.[39msessionId[33m;[39m
+     [90m 454 |[39m[0m
+
+      at Object.<anonymous> (tests/unit/ConversationSessionRouter.test.ts:451:38)
+
+  ÔùÅ ConversationSessionRouter ÔÇ║ routeUserInput ÔÇ║ should recover gracefully 
+when an active document file is deleted mid-session
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "agent"
+    Received: "error"
+
+    [0m [90m 502 |[39m
+     [90m 503 |[39m             [36mconst[39m kickoff [33m=[39m 
+[36mawait[39m router[33m.[39mrouteUserInput([32m'start drafting a 
+prd'[39m[33m,[39m mockContext)[33m;[39m
+    [31m[1m>[22m[39m[90m 504 |[39m             
+expect(kickoff[33m.[39mroutedTo)[33m.[39mtoBe([32m'agent'[39m)[33m;[39m
+     [90m     |[39m                                      [31m[1m^[22m[39m
+     [90m 505 |[39m
+     [90m 506 |[39m             [90m// Now simulate the file being deleted by 
+making fs.stat fail for this active session when trying to continue[39m
+     [90m 507 |[39m             [90m// Actually continueConversation is what 
+fails. Let's mock a rejection in continueConversation.[39m[0m
+
+      at Object.<anonymous> (tests/unit/ConversationSessionRouter.test.ts:504:38)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 17 passed, 19 total
+Snapshots:   0 total
+Time:        0.269 s, estimated 1 s
+Ran all test suites matching tests/unit/ConversationSessionRouter.test.ts.
+

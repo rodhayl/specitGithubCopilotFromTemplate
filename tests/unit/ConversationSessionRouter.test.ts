@@ -12,6 +12,11 @@ jest.mock('../../src/conversation/ConversationManager');
 jest.mock('../../src/agents/AgentManager');
 jest.mock('../../src/offline/OfflineManager');
 jest.mock('../../src/logging');
+jest.mock('../../src/utils/FileUtils', () => ({
+    FileUtils: {
+        ensureDirectoryExists: jest.fn().mockResolvedValue(undefined)
+    }
+}));
 
 describe('ConversationSessionRouter', () => {
     const makeLlmChunks = (...chunks: string[]) =>
@@ -27,7 +32,7 @@ describe('ConversationSessionRouter', () => {
         // Clear all mocks and timers
         jest.clearAllMocks();
         jest.clearAllTimers();
-        
+
         // Create mocks
         mockConversationManager = {
             getSession: jest.fn(),
@@ -66,7 +71,7 @@ describe('ConversationSessionRouter', () => {
         // Clean up resources
         jest.clearAllMocks();
         jest.clearAllTimers();
-        
+
         // Clean up router state
         if (router) {
             try {
@@ -87,7 +92,7 @@ describe('ConversationSessionRouter', () => {
                 state: { isActive: true },
                 agentName: 'test-agent'
             };
-            
+
             router.setActiveSession(sessionId, {
                 agentName: 'test-agent',
                 startedAt: new Date(),
@@ -176,9 +181,9 @@ describe('ConversationSessionRouter', () => {
             // Setup
             const sessionId = 'invalid-session';
             router.setActiveSession(sessionId);
-            
+
             mockConversationManager.getSession.mockReturnValue(null); // Session doesn't exist
-            
+
             const mockAgent = {
                 name: 'test-agent',
                 handleRequest: jest.fn().mockResolvedValue({
@@ -200,7 +205,7 @@ describe('ConversationSessionRouter', () => {
             // Setup
             const sessionId = 'test-session';
             router.setActiveSession(sessionId);
-            
+
             const mockSession = { sessionId, state: { isActive: true } };
             mockConversationManager.getSession.mockReturnValue(mockSession as any);
             mockConversationManager.continueConversation.mockRejectedValue(new Error('Conversation failed'));
@@ -242,7 +247,7 @@ describe('ConversationSessionRouter', () => {
                 mockContext
             );
 
-            expect(result.routedTo).toBe('agent');
+            expect(result.routedTo).toBe('conversation');
             expect(result.shouldContinue).toBe(true);
             expect(result.response).toContain('PRD Creator');
             expect(model.sendRequest).toHaveBeenCalledTimes(3);
@@ -343,7 +348,7 @@ describe('ConversationSessionRouter', () => {
                 'this will be a project that will train local models for Forex exchange trading using unsloth',
                 mockContext
             );
-            expect(kickoff.routedTo).toBe('agent');
+            expect(kickoff.routedTo).toBe('conversation');
             expect(kickoff.shouldContinue).toBe(true);
 
             const done = await router.routeUserInput('done', mockContext);
@@ -399,7 +404,7 @@ describe('ConversationSessionRouter', () => {
             mockContext.model = model as any;
 
             const kickoff = await router.routeUserInput('this will be a project for algo trading docs', mockContext);
-            expect(kickoff.routedTo).toBe('agent');
+            expect(kickoff.routedTo).toBe('conversation');
             expect(kickoff.shouldContinue).toBe(true);
 
             await router.routeUserInput('done', mockContext);
@@ -409,13 +414,89 @@ describe('ConversationSessionRouter', () => {
             expect(switchPrompt.response).toContain('Reply `yes`');
 
             const confirmation = await router.routeUserInput('yes', mockContext);
-            expect(confirmation.routedTo).toBe('agent');
-            expect(confirmation.response).toContain('Specification Writer');
+            expect(confirmation.routedTo).toBe('conversation');
+            expect(confirmation.response).toContain('Which security controls');
             expect(confirmation.shouldContinue).toBe(true);
 
             // Kickoff (3 calls) + intent analysis (1 call) + forced spec startup (2 calls).
             expect(model.sendRequest).toHaveBeenCalledTimes(6);
         });
+
+        it('should resume the same doc session after the conversation-level session was cleared', async () => {
+            // Inject a DocSession directly — no LLM bootstrap chain
+            const docMgr = DocSessionManager.getInstance();
+            const injectedSessionId = 'test-midflight-session';
+            (docMgr as any).sessions.set(injectedSessionId, {
+                id: injectedSessionId,
+                docType: 'prd',
+                agentName: 'prd-creator',
+                documentPath: '/test/workspace/docs/prd/midflight.md',
+                turnCount: 2,
+                createdAt: new Date(),
+                lastActivity: new Date()
+            });
+
+            // Router knows about the active doc session
+            (router as any).activeDocSessionId = injectedSessionId;
+
+            // Mock file reads and writes
+            (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('# Mid Flight PRD\n\nDraft content.'));
+            (vscode.workspace.fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+
+            // The model will be called inside DocSessionManager.continueSession.refineDocument
+            const resumeModel = {
+                sendRequest: jest.fn().mockResolvedValue({
+                    text: (async function* () {
+                        yield '---DOCUMENT---\n# Mid Flight PRD\n\nUpdated content.\n---QUESTION---\nWhat risk controls should we add?';
+                    })()
+                })
+            };
+            mockContext.model = resumeModel as any;
+
+            const resume = await router.routeUserInput('please add more detail to the risk section', mockContext);
+
+            // Router should continue the active doc session
+            expect(resume.routedTo).toBe('conversation');
+            expect(resume.shouldContinue).toBe(true);
+            expect(resume.response).toContain('What risk controls should we add?');
+        });
+
+        it('should return a graceful fallback response when the LLM throws during an active doc session continuation', async () => {
+            // Inject DocSession state — no LLM bootstrap needed
+            const docMgr = DocSessionManager.getInstance();
+            const injectedSessionId = 'test-llm-failure-session';
+            (docMgr as any).sessions.set(injectedSessionId, {
+                id: injectedSessionId,
+                docType: 'prd',
+                agentName: 'prd-creator',
+                documentPath: '/test/workspace/docs/prd/my-doc.md',
+                turnCount: 1,
+                createdAt: new Date(),
+                lastActivity: new Date()
+            });
+
+            // Wire up router to the injected session
+            (router as any).activeDocSessionId = injectedSessionId;
+
+            // File read works fine, but the model call inside refineDocument throws
+            (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('# My Doc\n\nContent.'));
+            const throwingModel = {
+                sendRequest: jest.fn().mockRejectedValue(new Error('LLM service unavailable'))
+            };
+            mockContext.model = throwingModel as any;
+
+            const result = await router.routeUserInput('please add the risk section', mockContext);
+
+            // DocSessionManager swallows LLM errors and returns a soft fallback so the session stays alive
+            expect(result.routedTo).toBe('conversation');
+            expect(result.shouldContinue).toBe(true);
+            // The response should contain a fallback question
+            expect(result.response).toBeTruthy();
+
+            // Session is still active (graceful degradation — user can retry)
+            expect((router as any).activeDocSessionId).toBe(injectedSessionId);
+        });
+
     });
 
     describe('session management', () => {
@@ -459,7 +540,7 @@ describe('ConversationSessionRouter', () => {
         it('should update session activity', () => {
             const sessionId = 'test-session';
             const startTime = new Date();
-            
+
             router.setActiveSession(sessionId, {
                 agentName: 'test-agent',
                 startedAt: startTime,
@@ -469,7 +550,7 @@ describe('ConversationSessionRouter', () => {
             });
 
             router.updateSessionActivity(sessionId);
-            
+
             const metadata = router.getSessionMetadata(sessionId);
             expect(metadata?.responseCount).toBe(1);
             expect(metadata?.lastActivity.getTime()).toBeGreaterThanOrEqual(startTime.getTime());
@@ -478,7 +559,7 @@ describe('ConversationSessionRouter', () => {
         it('should clean up inactive sessions', () => {
             const oldTime = new Date(Date.now() - 35 * 60 * 1000); // 35 minutes ago
             const sessionId = 'old-session';
-            
+
             router.setActiveSession(sessionId, {
                 agentName: 'test-agent',
                 startedAt: oldTime,
@@ -510,7 +591,7 @@ describe('ConversationSessionRouter', () => {
             router.setActiveSession(sessionId, metadata);
 
             const state = router.getSessionState();
-            
+
             expect(state.activeSessionId).toBe(sessionId);
             expect(state.sessionsByAgent.get('test-agent')).toBe(sessionId);
             expect(state.sessionMetadata.get(sessionId)).toMatchObject({
@@ -522,7 +603,7 @@ describe('ConversationSessionRouter', () => {
 
         it('should handle empty session state', () => {
             const state = router.getSessionState();
-            
+
             expect(state.activeSessionId).toBeNull();
             expect(state.sessionsByAgent.size).toBe(0);
             expect(state.sessionMetadata.size).toBe(0);

@@ -98,18 +98,18 @@ export class ConversationSessionRouter {
             sessionsByAgent: new Map(),
             sessionMetadata: new Map()
         };
-        
+
         // Initialize error recovery if offline manager is available
         if (offlineManager) {
             this.errorRecovery = new ConversationErrorRecovery(offlineManager, agentManager);
         }
-        
+
         // Initialize auto-chat manager
         this.autoChatManager = new AutoChatStateManager(extensionContext);
-        
+
         // Initialize document update engine
         this.documentUpdateEngine = new DocumentUpdateEngine();
-        
+
         // Load persisted session state
         this.loadSessionState();
     }
@@ -267,10 +267,10 @@ export class ConversationSessionRouter {
 
         } catch (error) {
             this.logger.error('conversation-router', 'Failed to route with auto-chat', error instanceof Error ? error : new Error(String(error)));
-            
+
             // Disable auto-chat on error and fall back
             this.autoChatManager?.disableAutoChat();
-            
+
             return {
                 routedTo: 'error',
                 error: `Auto-chat error: ${error instanceof Error ? error.message : String(error)}`
@@ -300,9 +300,9 @@ export class ConversationSessionRouter {
      */
     setActiveSession(sessionId: string, metadata?: Partial<SessionMetadata>): void {
         this.logger.info('conversation-router', 'Setting active session', { sessionId });
-        
+
         this.sessionState.activeSessionId = sessionId;
-        
+
         // Update session metadata if provided
         if (metadata) {
             const existingMetadata = this.sessionState.sessionMetadata.get(sessionId);
@@ -310,20 +310,20 @@ export class ConversationSessionRouter {
                 agentName: metadata.agentName || existingMetadata?.agentName || 'unknown',
                 documentPath: metadata.documentPath || existingMetadata?.documentPath,
                 templateId: metadata.templateId || existingMetadata?.templateId,
-                startedAt: existingMetadata?.startedAt || new Date(),
+                startedAt: metadata.startedAt || existingMetadata?.startedAt || new Date(),
                 lastActivity: metadata.lastActivity || new Date(),
                 questionCount: metadata.questionCount ?? existingMetadata?.questionCount ?? 0,
                 responseCount: metadata.responseCount ?? existingMetadata?.responseCount ?? 0
             };
-            
+
             this.sessionState.sessionMetadata.set(sessionId, updatedMetadata);
-            
+
             // Track session by agent
             if (updatedMetadata.agentName) {
                 this.sessionState.sessionsByAgent.set(updatedMetadata.agentName, sessionId);
             }
         }
-        
+
         // Persist the state change
         this.saveSessionState();
     }
@@ -336,15 +336,15 @@ export class ConversationSessionRouter {
             this.logger.info('conversation-router', 'Clearing active session', {
                 sessionId: this.sessionState.activeSessionId
             });
-            
+
             const metadata = this.sessionState.sessionMetadata.get(this.sessionState.activeSessionId);
             if (metadata?.agentName) {
                 this.sessionState.sessionsByAgent.delete(metadata.agentName);
             }
-            
+
             this.sessionState.sessionMetadata.delete(this.sessionState.activeSessionId);
             this.sessionState.activeSessionId = null;
-            
+
             // Persist the state change
             this.saveSessionState();
         }
@@ -865,32 +865,32 @@ export class ConversationSessionRouter {
     ): Promise<ConversationRoutingResult> {
         try {
             this.logger.info('conversation-router', 'Routing to conversation', { sessionId });
-            
+
             // Update session activity
             this.updateSessionActivity(sessionId);
-            
+
             // Continue the conversation
             const response = await this.conversationManager.continueConversation(sessionId, input);
-            
+
             // Check if conversation is complete
             const session = this.conversationManager.getSession(sessionId);
             const isComplete = !session?.state.isActive || response.conversationComplete;
-            
+
             if (isComplete) {
                 this.logger.info('conversation-router', 'Conversation completed, clearing session', { sessionId });
                 this.clearActiveSession();
             }
-            
+
             return {
                 routedTo: 'conversation',
                 sessionId,
                 response: response.agentMessage,
                 shouldContinue: !isComplete
             };
-            
+
         } catch (error) {
             this.logger.error('conversation-router', 'Failed to route to conversation', error instanceof Error ? error : new Error(String(error)));
-            
+
             // Try to recover from the error
             if (this.errorRecovery && error instanceof ConversationError) {
                 try {
@@ -899,10 +899,10 @@ export class ConversationSessionRouter {
                     this.logger.error('conversation-router', 'Error recovery failed', recoveryError instanceof Error ? recoveryError : new Error(String(recoveryError)));
                 }
             }
-            
+
             // Clear the problematic session
             this.clearActiveSession();
-            
+
             return {
                 routedTo: 'error',
                 error: `Conversation error: ${error instanceof Error ? error.message : String(error)}`
@@ -935,7 +935,7 @@ export class ConversationSessionRouter {
             }
 
             return {
-                routedTo: 'agent',
+                routedTo: 'conversation',
                 agentName: createdSession?.agentName,
                 sessionId: result.sessionId,
                 response: result.response,
@@ -993,19 +993,19 @@ export class ConversationSessionRouter {
     ): Promise<ConversationRoutingResult> {
         try {
             const currentAgent = this.agentManager.getCurrentAgent();
-            
+
             if (!currentAgent) {
                 return {
                     routedTo: 'error',
                     error: 'No active agent available'
                 };
             }
-            
+
             this.logger.info('conversation-router', 'Routing to agent', { agentName: currentAgent.name });
-            
+
             // Build agent context
             const agentContext = this.agentManager.buildAgentContext(context.request);
-            
+
             // Create agent request
             const agentRequest: import('../agents/types').ChatRequest = {
                 command: context.request.command,
@@ -1013,20 +1013,20 @@ export class ConversationSessionRouter {
                 parameters: {},
                 originalRequest: context.request
             };
-            
+
             // Handle request with agent
             const agentResponse = await currentAgent.handleRequest(agentRequest, agentContext);
-            
+
             return {
                 routedTo: 'agent',
                 agentName: currentAgent.name,
                 response: agentResponse.content || '',
                 shouldContinue: false
             };
-            
+
         } catch (error) {
             this.logger.error('conversation-router', 'Failed to route to agent', error instanceof Error ? error : new Error(String(error)));
-            
+
             return {
                 routedTo: 'error',
                 error: `Agent error: ${error instanceof Error ? error.message : String(error)}`
@@ -1135,22 +1135,22 @@ export class ConversationSessionRouter {
     cleanupInactiveSessions(): void {
         const now = new Date();
         const maxInactiveTime = 30 * 60 * 1000; // 30 minutes
-        
+
         for (const [sessionId, metadata] of this.sessionState.sessionMetadata.entries()) {
             const inactiveTime = now.getTime() - metadata.lastActivity.getTime();
-            
+
             if (inactiveTime > maxInactiveTime) {
                 this.logger.info('conversation-router', 'Cleaning up inactive session', {
                     sessionId,
                     inactiveTime: Math.round(inactiveTime / 1000)
                 });
-                
+
                 // Remove from our tracking
                 this.sessionState.sessionMetadata.delete(sessionId);
                 if (metadata.agentName) {
                     this.sessionState.sessionsByAgent.delete(metadata.agentName);
                 }
-                
+
                 // Clear active session if it's this one
                 if (this.sessionState.activeSessionId === sessionId) {
                     this.sessionState.activeSessionId = null;
@@ -1194,15 +1194,15 @@ export class ConversationSessionRouter {
 
         try {
             const persistedState = this.extensionContext.globalState.get<any>('conversationSessionState');
-            
+
             if (persistedState) {
                 this.sessionState.activeSessionId = persistedState.activeSessionId || null;
-                
+
                 // Restore maps from serialized data
                 if (persistedState.sessionsByAgent) {
                     this.sessionState.sessionsByAgent = new Map(Object.entries(persistedState.sessionsByAgent));
                 }
-                
+
                 if (persistedState.sessionMetadata) {
                     const metadataEntries: [string, SessionMetadata][] = Object.entries(persistedState.sessionMetadata).map(([key, value]: [string, any]) => [
                         key,
@@ -1214,7 +1214,7 @@ export class ConversationSessionRouter {
                     ]);
                     this.sessionState.sessionMetadata = new Map(metadataEntries);
                 }
-                
+
                 this.logger.info('conversation-router', 'Session state loaded from persistence', {
                     activeSessionId: this.sessionState.activeSessionId,
                     sessionCount: this.sessionState.sessionMetadata.size
@@ -1249,9 +1249,9 @@ export class ConversationSessionRouter {
                     ])
                 )
             };
-            
+
             await this.extensionContext.globalState.update('conversationSessionState', serializableState);
-            
+
             this.logger.debug('conversation-router', 'Session state saved to persistence');
         } catch (error) {
             this.logger.warn('conversation-router', 'Failed to save session state', error instanceof Error ? error : new Error(String(error)));
