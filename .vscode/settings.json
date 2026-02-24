@@ -11,5 +11,8 @@
     "docu.offline.skipStartupCheck": true,
     "docu.offline.forceMode": "auto",
     "docu.offline.checkInterval": 30,
-    "docu.offline.maxRetries": 2
+    "docu.offline.maxRetries": 2,
+    "docu.debug.autoStart": true,
+    "docu.debug.port": 19229,
+    "docu.enableDebugLogging": true
 }

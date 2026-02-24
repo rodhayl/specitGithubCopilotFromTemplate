@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AgentManager } from '../agents/AgentManager';
 import { LLMService } from '../llm/LLMService';
 import { AgentConfiguration } from '../agents/types';
+import { DebugServer, DebugServerStatus } from '../debugging/DebugServer';
 
 export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'docu.settingsView';
@@ -10,7 +11,8 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly agentManager: AgentManager,
-        private readonly llmService: LLMService
+        private readonly llmService: LLMService,
+        private debugServer?: DebugServer
     ) {}
 
     public resolveWebviewView(
@@ -48,12 +50,35 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
                 case 'saveSettings':
                     await this.saveSettings(data.settings);
                     break;
+                case 'getDebugStatus':
+                    await this.sendDebugStatus();
+                    break;
+                case 'startDebugServer':
+                    await vscode.commands.executeCommand('docu.startDebugServer');
+                    await this.sendDebugStatus();
+                    break;
+                case 'stopDebugServer':
+                    await vscode.commands.executeCommand('docu.stopDebugServer');
+                    await this.sendDebugStatus();
+                    break;
+                case 'executeDebugCommand':
+                    await this.executeDebugCommand(data.command);
+                    break;
             }
         });
 
         // Send initial data
         this.sendAgentData();
         this.sendModelData();
+        this.sendDebugStatus();
+    }
+
+    /**
+     * Set the debug server reference
+     */
+    setDebugServer(server: DebugServer): void {
+        this.debugServer = server;
+        this.sendDebugStatus();
     }
 
     private async sendAgentData() {
@@ -230,6 +255,47 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage('Settings saved successfully');
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to save settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    private async sendDebugStatus() {
+        if (!this._view) {
+            return;
+        }
+
+        const status: DebugServerStatus = this.debugServer 
+            ? this.debugServer.getStatus()
+            : { running: false, port: 19229, token: '', url: '', requestCount: 0 };
+
+        this._view.webview.postMessage({
+            type: 'debugStatus',
+            status
+        });
+    }
+
+    private async executeDebugCommand(command: string) {
+        if (!this._view) {
+            return;
+        }
+
+        try {
+            const result = await vscode.commands.executeCommand<{ success: boolean; output: string; error?: string }>(
+                'docu.debugExecuteCommand', command
+            );
+            
+            this._view.webview.postMessage({
+                type: 'debugCommandResult',
+                result: result || { success: false, output: '', error: 'No response from command executor' }
+            });
+        } catch (error) {
+            this._view.webview.postMessage({
+                type: 'debugCommandResult',
+                result: {
+                    success: false,
+                    output: '',
+                    error: error instanceof Error ? error.message : String(error)
+                }
+            });
         }
     }
 
@@ -426,6 +492,70 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
             border-radius: 4px;
             margin-bottom: 12px;
         }
+        
+        .debug-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 8px;
+            background-color: var(--vscode-textBlockQuote-background);
+            border-radius: 4px;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-indicator.online {
+            background-color: #4caf50;
+        }
+        
+        .status-indicator.offline {
+            background-color: #f44336;
+        }
+        
+        .quick-commands {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        
+        .quick-cmd {
+            padding: 3px 8px !important;
+            font-size: 11px !important;
+        }
+        
+        .debug-output {
+            margin-top: 12px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .debug-output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+        }
+        
+        .debug-output pre {
+            padding: 8px;
+            margin: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: var(--vscode-editor-background);
+        }
     </style>
 </head>
 <body>
@@ -442,6 +572,55 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
             <div class="loading">Loading agent configurations...</div>
         </div>
     </div>
+    
+    <div class="section">
+        <div class="section-title">🔧 Debug Console</div>
+        <div id="debugSection">
+            <div id="debugServerStatus" class="debug-status">
+                <span class="status-indicator offline"></span>
+                <span>Debug Server: <strong>Stopped</strong></span>
+            </div>
+            <div class="button-group" style="margin-bottom:12px">
+                <button class="button" id="startDebugBtn" onclick="startDebugServer()">Start Server</button>
+                <button class="button secondary" id="stopDebugBtn" onclick="stopDebugServer()" disabled>Stop Server</button>
+            </div>
+            <div id="debugTokenInfo" style="display:none" class="model-info">
+                <strong>URL:</strong> <span id="debugUrl"></span><br>
+                <strong>Token:</strong> <code id="debugToken"></code><br>
+                <strong>Requests:</strong> <span id="debugRequests">0</span>
+            </div>
+            <div class="prompt-container" style="margin-top:12px">
+                <label class="prompt-label" for="debugCommandInput">Execute Command:</label>
+                <div style="display:flex;gap:8px">
+                    <input type="text" id="debugCommandInput" class="model-select" placeholder="/help" style="flex:1" />
+                    <button class="button" onclick="executeDebugCommand()">Run</button>
+                </div>
+            </div>
+            <div class="prompt-container">
+                <label class="prompt-label">Quick Commands:</label>
+                <div class="quick-commands">
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/help')">help</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/agent list')">agent list</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/agent current')">agent current</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/templates list')">templates</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/status')">status</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/prd')">prd</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/requirements')">requirements</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/design')">design</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/spec')">spec</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/context')">context</button>
+                    <button class="button secondary quick-cmd" onclick="runQuickCmd('/diagnostic --all')">diagnostic</button>
+                </div>
+            </div>
+            <div id="debugOutput" class="debug-output" style="display:none">
+                <div class="debug-output-header">
+                    <strong>Output</strong>
+                    <button class="button secondary" onclick="clearDebugOutput()" style="padding:2px 8px;font-size:11px">Clear</button>
+                </div>
+                <pre id="debugOutputContent"></pre>
+            </div>
+        </div>
+    </div>
 
     <script>
         const vscode = acquireVsCodeApi();
@@ -454,6 +633,7 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
         // Request initial data
         vscode.postMessage({ type: 'getAgents' });
         vscode.postMessage({ type: 'getModels' });
+        vscode.postMessage({ type: 'getDebugStatus' });
         
         // Handle messages from extension
         window.addEventListener('message', event => {
@@ -469,6 +649,12 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
                     models = message.models;
                     selectedModel = message.selectedModel;
                     renderModels();
+                    break;
+                case 'debugStatus':
+                    renderDebugStatus(message.status);
+                    break;
+                case 'debugCommandResult':
+                    renderDebugResult(message.result);
                     break;
             }
         });
@@ -570,6 +756,91 @@ export class SettingsWebviewProvider implements vscode.WebviewViewProvider {
                 agentName: agentName
             });
         }
+        
+        function renderDebugStatus(status) {
+            const indicator = document.querySelector('.status-indicator');
+            const statusText = document.querySelector('#debugServerStatus strong');
+            const startBtn = document.getElementById('startDebugBtn');
+            const stopBtn = document.getElementById('stopDebugBtn');
+            const tokenInfo = document.getElementById('debugTokenInfo');
+            
+            if (status.running) {
+                indicator.className = 'status-indicator online';
+                statusText.textContent = 'Running';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                tokenInfo.style.display = 'block';
+                document.getElementById('debugUrl').textContent = status.url;
+                document.getElementById('debugToken').textContent = status.token;
+                document.getElementById('debugRequests').textContent = status.requestCount;
+            } else {
+                indicator.className = 'status-indicator offline';
+                statusText.textContent = 'Stopped';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                tokenInfo.style.display = 'none';
+            }
+        }
+        
+        function startDebugServer() {
+            vscode.postMessage({ type: 'startDebugServer' });
+        }
+        
+        function stopDebugServer() {
+            vscode.postMessage({ type: 'stopDebugServer' });
+        }
+        
+        function executeDebugCommand() {
+            const input = document.getElementById('debugCommandInput');
+            const cmd = input.value.trim();
+            if (!cmd) return;
+            
+            appendDebugOutput('> ' + cmd + '\\n');
+            vscode.postMessage({ type: 'executeDebugCommand', command: cmd });
+        }
+        
+        function runQuickCmd(cmd) {
+            document.getElementById('debugCommandInput').value = cmd;
+            appendDebugOutput('> ' + cmd + '\\n');
+            vscode.postMessage({ type: 'executeDebugCommand', command: cmd });
+        }
+        
+        function renderDebugResult(result) {
+            const outputDiv = document.getElementById('debugOutput');
+            outputDiv.style.display = 'block';
+            
+            const status = result.success ? '[OK]' : '[ERROR]';
+            let text = status + ' ';
+            if (result.output) {
+                text += result.output;
+            }
+            if (result.error) {
+                text += '\\nError: ' + result.error;
+            }
+            text += '\\n';
+            
+            appendDebugOutput(text);
+        }
+        
+        function appendDebugOutput(text) {
+            const outputDiv = document.getElementById('debugOutput');
+            const content = document.getElementById('debugOutputContent');
+            outputDiv.style.display = 'block';
+            content.textContent += text;
+            content.scrollTop = content.scrollHeight;
+        }
+        
+        function clearDebugOutput() {
+            const content = document.getElementById('debugOutputContent');
+            content.textContent = '';
+        }
+        
+        // Handle Enter key in command input
+        document.getElementById('debugCommandInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                executeDebugCommand();
+            }
+        });
     </script>
 </body>
 </html>`;

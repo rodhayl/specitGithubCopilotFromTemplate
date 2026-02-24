@@ -151,6 +151,26 @@
         "command": "docu.toggleOfflineMode",
         "title": "Toggle Offline Mode",
         "category": "Docu"
+      },
+      {
+        "command": "docu.startDebugServer",
+        "title": "Start Debug Server",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.stopDebugServer",
+        "title": "Stop Debug Server",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.debugExecuteCommand",
+        "title": "Execute Debug Command",
+        "category": "Docu"
+      },
+      {
+        "command": "docu.debugServerStatus",
+        "title": "Debug Server Status",
+        "category": "Docu"
       }
     ],
     "views": {
@@ -299,6 +319,20 @@
           "type": "boolean",
           "default": false,
           "description": "Skip model availability check during extension startup (models will be checked on first use)",
+          "scope": "workspace"
+        },
+        "docu.debug.port": {
+          "type": "number",
+          "default": 19229,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Port for the debug HTTP server (localhost only). Used for remote command execution.",
+          "scope": "workspace"
+        },
+        "docu.debug.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start the debug server when the extension activates",
           "scope": "workspace"
         },
         "docu.autoChat.enabled": {

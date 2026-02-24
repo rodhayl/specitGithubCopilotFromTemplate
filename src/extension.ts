@@ -15,6 +15,7 @@ import { SecurityManager } from './security';
 import { Logger } from './logging';
 import { TelemetryManager } from './telemetry';
 import { DebugManager } from './debugging';
+import { DebugServer } from './debugging/DebugServer';
 import { 
     ConversationManager, 
     QuestionEngine, 
@@ -53,6 +54,7 @@ const getConversationSessionRouter = () => stateManager.getComponent<Conversatio
 const getLLMService = () => stateManager.getComponent<LLMService>('llmService')!;
 const getSettingsProvider = () => stateManager.getComponent<SettingsWebviewProvider>('settingsProvider')!;
 const getOutputCoordinator = () => stateManager.getComponent<OutputCoordinator>('outputCoordinator')!;
+const getDebugServer = () => stateManager.getComponent<DebugServer>('debugServer');
 
 export async function activate(context: vscode.ExtensionContext) {
 	const startTime = Date.now();
@@ -220,6 +222,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(SettingsWebviewProvider.viewType, settingsProvider)
 	);
+
+	// Initialize debug server
+	const debugPort = vscode.workspace.getConfiguration('docu.debug').get<number>('port', 19229);
+	const debugServer = new DebugServer(debugPort);
+	stateManager.registerComponent('debugServer', debugServer);
+	settingsProvider.setDebugServer(debugServer);
+	context.subscriptions.push({ dispose: () => debugServer.dispose() });
 
 	// Set conversation manager for all agents
 	const agents = agentManager.listAgents();
@@ -3474,6 +3483,78 @@ function generateFileIconLink(filePath: string, workspaceRoot: string): string {
 
  * Register debug and diagnostic commands
  */
+/**
+ * Execute a command internally through the CommandRouter,
+ * capturing markdown output as plain text.
+ */
+async function executeCommandInternally(command: string): Promise<{ success: boolean; output: string; error?: string }> {
+	const outputParts: string[] = [];
+	
+	// Create a mock stream that captures markdown output
+	const mockStream: Partial<vscode.ChatResponseStream> = {
+		markdown(value: string | vscode.MarkdownString) {
+			const text = typeof value === 'string' ? value : value.value;
+			outputParts.push(text);
+		},
+		anchor(value: vscode.Uri | vscode.Location, title?: string) {
+			outputParts.push(title || value.toString());
+		},
+		progress(value: string) {
+			outputParts.push(`[progress] ${value}`);
+		}
+	};
+
+	// Create a cancellation token
+	const tokenSource = new vscode.CancellationTokenSource();
+	
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+
+	try {
+		const commandRouter = getCommandRouter();
+		
+		if (commandRouter.isCommand(command)) {
+			const commandContext: CommandContext = {
+				request: {
+					prompt: command,
+					command: undefined,
+					references: [],
+					toolReferences: [],
+					model: {} as any
+				} as any,
+				stream: mockStream as vscode.ChatResponseStream,
+				token: tokenSource.token,
+				workspaceRoot,
+				extensionContext: globalExtensionContext as any,
+				model: undefined,
+				toolManager: getToolManager()
+			};
+
+			const result = await commandRouter.routeCommand(command, commandContext);
+			
+			return {
+				success: result.success,
+				output: outputParts.join(''),
+				error: result.error
+			};
+		} else {
+			// Not a recognized command
+			return {
+				success: false,
+				output: '',
+				error: `Not a recognized command: "${command}". Commands must start with /`
+			};
+		}
+	} catch (error) {
+		return {
+			success: false,
+			output: outputParts.join(''),
+			error: error instanceof Error ? error.message : String(error)
+		};
+	} finally {
+		tokenSource.dispose();
+	}
+}
+
 function registerDebugCommands(context: vscode.ExtensionContext): void {
 	// Show diagnostics panel
 	const showDiagnosticsCommand = vscode.commands.registerCommand('docu.showDiagnostics', async () => {
@@ -3552,6 +3633,101 @@ ${result.retryAfter ? `Retry After: ${result.retryAfter}ms` : ''}`;
 		vscode.window.showInformationMessage(`Docu offline mode ${newMode ? 'enabled' : 'disabled'}`);
 	});
 
+	// Start debug server
+	const startDebugServerCommand = vscode.commands.registerCommand('docu.startDebugServer', async () => {
+		const debugServer = getDebugServer();
+		if (!debugServer) {
+			vscode.window.showErrorMessage('Debug server not initialized');
+			return;
+		}
+
+		// Wire up command executor
+		debugServer.setCommandExecutor(async (command: string) => {
+			return await executeCommandInternally(command);
+		});
+		debugServer.setCommandLister(() => {
+			return [
+				'/help', '/new', '/agent list', '/agent set <name>', '/agent current',
+				'/templates list', '/templates show <id>', '/templates create <id>',
+				'/templates open <id>', '/templates validate <id>',
+				'/update --file <path> --section <header>', '/review --file <path>',
+				'/summarize --glob <pattern>', '/catalog', '/chat <message>',
+				'/diagnostic --all', '/prd', '/requirements', '/design', '/spec',
+				'/status', '/context', '/test'
+			];
+		});
+
+		try {
+			const status = await debugServer.start();
+			getLogger().extension.info(`Debug server started`, status);
+			vscode.window.showInformationMessage(
+				`Debug server running at ${status.url}\nToken: ${status.token}`,
+				'Copy Token'
+			).then(selection => {
+				if (selection === 'Copy Token') {
+					vscode.env.clipboard.writeText(status.token);
+				}
+			}, () => { /* dismissed */ });
+		} catch (error) {
+			vscode.window.showErrorMessage(`Failed to start debug server: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	});
+
+	// Stop debug server
+	const stopDebugServerCommand = vscode.commands.registerCommand('docu.stopDebugServer', async () => {
+		const debugServer = getDebugServer();
+		if (!debugServer) {
+			return;
+		}
+		await debugServer.stop();
+		vscode.window.showInformationMessage('Debug server stopped');
+	});
+
+	// Debug server status
+	const debugServerStatusCommand = vscode.commands.registerCommand('docu.debugServerStatus', () => {
+		const debugServer = getDebugServer();
+		if (!debugServer) {
+			vscode.window.showInformationMessage('Debug server not initialized');
+			return;
+		}
+		const status = debugServer.getStatus();
+		vscode.window.showInformationMessage(
+			`Debug Server: ${status.running ? 'Running' : 'Stopped'}\n` +
+			(status.running ? `URL: ${status.url}\nToken: ${status.token}\nRequests: ${status.requestCount}` : ''),
+			{ modal: true }
+		);
+	});
+
+	// Execute command through the extension programmatically
+	const debugExecuteCommand = vscode.commands.registerCommand('docu.debugExecuteCommand', async (commandStr?: string) => {
+		if (!commandStr) {
+			commandStr = await vscode.window.showInputBox({
+				prompt: 'Enter a Docu command to execute',
+				placeHolder: '/help',
+				validateInput: (value) => {
+					if (!value.trim()) return 'Please enter a command';
+					return null;
+				}
+			});
+		}
+		if (!commandStr) return;
+
+		const result = await executeCommandInternally(commandStr);
+		
+		// Show output in the output channel
+		const logger = getLogger();
+		logger.extension.info(`Debug execute result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+		if (result.output) {
+			logger.extension.info(`Output: ${result.output.substring(0, 500)}`);
+		}
+		if (result.error) {
+			logger.extension.error(`Error: ${result.error}`);
+		}
+		
+		// Return the result for programmatic access
+		return result;
+	});
+
 	context.subscriptions.push(
 		showDiagnosticsCommand,
 		exportDiagnosticsCommand,
@@ -3560,8 +3736,18 @@ ${result.retryAfter ? `Retry After: ${result.retryAfter}ms` : ''}`;
 		toggleDebugCommand,
 		checkOfflineStatusCommand,
 		forceOfflineCheckCommand,
-		toggleOfflineModeCommand
+		toggleOfflineModeCommand,
+		startDebugServerCommand,
+		stopDebugServerCommand,
+		debugServerStatusCommand,
+		debugExecuteCommand
 	);
+
+	// Auto-start debug server if configured
+	const autoStart = vscode.workspace.getConfiguration('docu.debug').get<boolean>('autoStart', false);
+	if (autoStart) {
+		vscode.commands.executeCommand('docu.startDebugServer');
+	}
 
 	getLogger().extension.debug('Debug commands registered');
 }
