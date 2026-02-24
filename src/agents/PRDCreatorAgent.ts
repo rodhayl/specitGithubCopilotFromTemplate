@@ -49,6 +49,13 @@ When creating PRD documents:
                 return await this.createNewPRD(params.title, request.prompt, context);
             }
 
+            // Handle workflow-shortcut: /prd command delegates here with prompt "create PRD: <title>"
+            if (request.command === 'workflow-shortcut' || request.prompt.toLowerCase().startsWith('create prd')) {
+                const titleMatch = request.prompt.match(/create\s+PRD[:\s]+(.+)/i);
+                const title = titleMatch ? titleMatch[1].trim().replace(/^["']|["']$/g, '') : 'Product Requirements Document';
+                return await this.createNewPRD(title, request.prompt, context);
+            }
+
             // Handle conversational PRD development - use base class conversation system
             // This will automatically use the conversation manager if available
             return this.createResponse(
@@ -123,7 +130,8 @@ When creating PRD documents:
                 parameters: {
                     path: filePath,
                     content: prdContent,
-                    createIfMissing: true
+                    createIfMissing: true,
+                    overwrite: true
                 }
             },
             {

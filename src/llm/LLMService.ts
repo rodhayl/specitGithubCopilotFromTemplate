@@ -22,13 +22,13 @@ export class LLMService {
      */
     async initialize(): Promise<void> {
         try {
-            // Get available Copilot models - prefer gpt-4o family per VS Code API recommendations
+            // Get available Copilot models - prefer gpt-5-mini family
             this.availableModels = await vscode.lm.selectChatModels({
                 vendor: 'copilot',
-                family: 'gpt-4o'
+                family: 'gpt-5-mini'
             });
 
-            // Fallback: if no gpt-4o models, accept any Copilot model
+            // Fallback: if no gpt-5-mini models, accept any Copilot model
             if (this.availableModels.length === 0) {
                 this.availableModels = await vscode.lm.selectChatModels({ vendor: 'copilot' });
             }

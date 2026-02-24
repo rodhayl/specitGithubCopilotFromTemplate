@@ -331,7 +331,7 @@
         },
         "docu.debug.autoStart": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Automatically start the debug server when the extension activates",
           "scope": "workspace"
         },

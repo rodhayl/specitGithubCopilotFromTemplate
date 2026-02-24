@@ -98,6 +98,7 @@ export class NewCommandHandler {
 
             // Generate document content via local LLM when available
             let llmGeneratedContent: string | undefined;
+            console.log(`DOCU DEBUG NewCommandHandler: context.model = ${context.model ? 'truthy (' + (context.model as any).id + ')' : 'falsy'}`);
             if (context.model) {
                 try {
                     const typeLabel =
@@ -116,15 +117,19 @@ export class NewCommandHandler {
                             `everything else.`
                         )
                     ];
+                    console.log('DOCU DEBUG NewCommandHandler: calling sendRequest...');
                     const llmResponse = await context.model.sendRequest(llmMessages, {}, context.token);
+                    console.log('DOCU DEBUG NewCommandHandler: sendRequest returned, reading stream...');
                     let generated = '';
                     for await (const chunk of llmResponse.text) {
                         generated += chunk;
                     }
+                    console.log(`DOCU DEBUG NewCommandHandler: generated ${generated.length} chars`);
                     if (generated.trim()) {
                         llmGeneratedContent = generated;
                     }
                 } catch (llmError) {
+                    console.error('DOCU DEBUG NewCommandHandler: LLM ERROR:', llmError);
                     this.logger.warn('command', 'LLM content generation failed, falling back to template',
                         llmError instanceof Error ? llmError : new Error(String(llmError)));
                 }

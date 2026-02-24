@@ -58,14 +58,28 @@ const getDebugServer = () => stateManager.getComponent<DebugServer>('debugServer
 
 export async function activate(context: vscode.ExtensionContext) {
 	const startTime = Date.now();
-	
+	console.log('DOCU EXTENSION: activate() called');
+
+	// Register debug commands EARLY (before main init) so they survive partial activation failures
 	try {
-		// Store global extension context
 		globalExtensionContext = context;
-		
-		// Initialize StateManager first for centralized state coordination with context
 		stateManager = StateManager.getInstance(context);
 		await stateManager.initialize();
+		registerDebugCommands(context);
+		console.log('DOCU EXTENSION: debug commands registered early');
+	} catch (earlyError) {
+		console.error('DOCU EXTENSION: early init failed:', earlyError);
+	}
+
+	try {
+		// Store global extension context
+		if (!globalExtensionContext) { globalExtensionContext = context; }
+		
+		// Initialize StateManager (may already be initialized in early phase)
+		if (!stateManager) {
+			stateManager = StateManager.getInstance(context);
+			await stateManager.initialize();
+		}
 	
 	// Initialize logging system first
 	const logger = Logger.initialize(context);
@@ -434,8 +448,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	getDebugManager().addDebugInfo('extension', 'info', 'Extension activation completed', { duration: activationDuration });
 	getTelemetryManager().trackEvent('extension.activated', { success: true }, { duration: activationDuration || 0 });
 
-	// Register debug commands
-	registerDebugCommands(context);
+	// Debug commands already registered in early phase above
+
+	// Auto-start debug server if configured (now that DebugServer is initialized)
+	const autoStartDebug = vscode.workspace.getConfiguration('docu.debug').get<boolean>('autoStart', true);
+	if (autoStartDebug) {
+		vscode.commands.executeCommand('docu.startDebugServer');
+	}
 
 	// Register settings command
 	// const settingsProvider = stateManager.getComponent('settingsProvider'); // Already declared above
@@ -470,8 +489,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			console.error('DOCU EXTENSION: Failed to display error message:', displayError);
 		}
 		
-		// Re-throw to ensure VS Code knows activation failed
-		throw error;
+		// Log but do NOT re-throw — partial activation is better than no activation
+		// Debug commands are already registered in the early phase above
+		console.error('DOCU EXTENSION: Activation error (non-fatal):', error);
 	}
 }
 
@@ -1420,13 +1440,58 @@ async function handleNewCommand(parsedCommand: ParsedCommand, context: CommandCo
 			cancellationToken: context.token
 		};
 
-		getLogger().command.info('Executing applyTemplate tool', { templateId, outputPath, variables });
-		
-		const result = await getToolManager().executeTool('applyTemplate', {
-			templateId: templateId,
-			variables: JSON.stringify(variables),
-			outputPath: outputPath
-		}, toolContext);
+		// Try LLM content generation first (when model available)
+		let llmContent: string | undefined;
+		if (context.model) {
+			try {
+				const typeLabel =
+					templateId === 'prd' ? 'Product Requirements Document (PRD)' :
+					templateId === 'requirements' ? 'Requirements Document' :
+					templateId === 'design' ? 'Design Document' :
+					templateId === 'spec' ? 'Technical Specification' :
+					'Document';
+				const llmMessages = [
+					vscode.LanguageModelChatMessage.User(
+						`Create a comprehensive ${typeLabel} titled "${title}".\n\n` +
+						`Format the entire document in Markdown with proper headings (##, ###).\n` +
+						`Include an introduction/executive summary and 4-6 well-structured sections ` +
+						`relevant to the topic. Write concrete, useful content. Use placeholder text ` +
+						`"[TBD]" only where the user must fill in specific details.`
+					)
+				];
+				context.stream.progress('Generating content with AI...');
+				const llmResponse = await context.model.sendRequest(llmMessages, {}, context.token);
+				let generated = '';
+				for await (const chunk of llmResponse.text) {
+					generated += chunk;
+				}
+				if (generated.trim().length > 200) {
+					llmContent = generated;
+				}
+			} catch (llmError) {
+				getLogger().command.warn('LLM content generation failed, using template', llmError instanceof Error ? llmError : new Error(String(llmError)));
+			}
+		}
+
+		let result: any;
+		if (llmContent) {
+			// Write LLM-generated content directly
+			const fs = vscode.workspace.fs;
+			const dir = path.dirname(outputPath);
+			try { await fs.createDirectory(vscode.Uri.file(dir)); } catch { /* exists */ }
+			await fs.writeFile(vscode.Uri.file(outputPath), Buffer.from(llmContent, 'utf8'));
+			const stat = await fs.stat(vscode.Uri.file(outputPath));
+			result = { success: true, data: { templateId: 'llm-generated', bytesWritten: stat.size } };
+			// Open in editor
+			await getToolManager().executeTool('openInEditor', { path: path.relative(context.workspaceRoot, outputPath), preview: false, viewColumn: 1 }, toolContext);
+		} else {
+			getLogger().command.info('Executing applyTemplate tool', { templateId, outputPath, variables });
+			result = await getToolManager().executeTool('applyTemplate', {
+				templateId: templateId,
+				variables: JSON.stringify(variables),
+				outputPath: outputPath
+			}, toolContext);
+		}
 		
 		getLogger().command.info('ApplyTemplate tool result', { success: result.success, error: result.error });
 
@@ -2162,6 +2227,7 @@ async function handleReviewCommand(parsedCommand: ParsedCommand, context: Comman
 				history: []
 			},
 			extensionContext: context.extensionContext,
+			model: context.model,
 			toolManager: getToolManager(),
 			toolContext: {
 				workspaceRoot: context.workspaceRoot,
@@ -3509,6 +3575,28 @@ async function executeCommandInternally(command: string): Promise<{ success: boo
 	
 	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
+	// Obtain the user's selected Copilot model so agents can generate content via LLM
+	let chatModel: vscode.LanguageModelChat | undefined;
+	try {
+		const models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-5-mini' });
+		console.log(`DOCU DEBUG: selectChatModels(gpt-5-mini) returned ${models.length} models`);
+		if (models.length === 0) {
+			const fallbackModels = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+			console.log(`DOCU DEBUG: selectChatModels(copilot) returned ${fallbackModels.length} models`);
+			chatModel = fallbackModels[0];
+		} else {
+			chatModel = models[0];
+		}
+		if (chatModel) {
+			console.log(`DOCU DEBUG: Using model: ${chatModel.name || chatModel.id || 'unknown'}`);
+		} else {
+			console.log('DOCU DEBUG: No chat model available');
+		}
+	} catch (modelError) {
+		console.error('DOCU DEBUG: selectChatModels threw:', modelError);
+		// LLM not available — agents will fall back to static templates
+	}
+
 	try {
 		const commandRouter = getCommandRouter();
 		
@@ -3519,13 +3607,13 @@ async function executeCommandInternally(command: string): Promise<{ success: boo
 					command: undefined,
 					references: [],
 					toolReferences: [],
-					model: {} as any
+					model: chatModel ?? {} as any
 				} as any,
 				stream: mockStream as vscode.ChatResponseStream,
 				token: tokenSource.token,
 				workspaceRoot,
 				extensionContext: globalExtensionContext as any,
-				model: undefined,
+				model: chatModel,
 				toolManager: getToolManager()
 			};
 
@@ -3743,12 +3831,8 @@ ${result.retryAfter ? `Retry After: ${result.retryAfter}ms` : ''}`;
 		debugExecuteCommand
 	);
 
-	// Auto-start debug server if configured
-	const autoStart = vscode.workspace.getConfiguration('docu.debug').get<boolean>('autoStart', false);
-	if (autoStart) {
-		vscode.commands.executeCommand('docu.startDebugServer');
-	}
+	// Auto-start is handled after full initialization in activate()
 
-	getLogger().extension.debug('Debug commands registered');
+	try { getLogger().extension.debug('Debug commands registered'); } catch { /* logger may not be ready yet */ }
 }
 

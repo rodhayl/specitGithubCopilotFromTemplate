@@ -129,7 +129,8 @@ Focus on creating comprehensive tasks.md documents that enable efficient, high-q
             const result = await context.toolManager.executeTool('writeFile', {
                 path: 'tasks.md',
                 content: implementationContent,
-                createIfMissing: true
+                createIfMissing: true,
+                overwrite: true
             }, context.toolContext);
 
             if (result.success) {

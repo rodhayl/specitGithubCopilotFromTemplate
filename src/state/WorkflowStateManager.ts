@@ -140,19 +140,39 @@ export class WorkflowStateManager {
             `### Documents`
         ];
 
+        // Map from phase name to document key (implementation → tasks)
+        const docKey: Record<string, keyof WorkflowState['documents']> = {
+            prd: 'prd',
+            requirements: 'requirements',
+            design: 'design',
+            implementation: 'tasks'
+        };
+
         for (const phase of phaseOrder) {
-            const filePath = state.documents[phase as keyof WorkflowState['documents']];
-            const done = completed.includes(phase);
+            const filePath = state.documents[docKey[phase]];
+            const done = completed.includes(docKey[phase]);
             const icon = done ? '✅' : '⬜';
             const label = phaseLabel[phase];
             lines.push(filePath ? `${icon} **${label}** — \`${filePath}\`` : `${icon} **${label}** — not started`);
         }
 
-        const nextPhase = phaseOrder.find(p => !completed.includes(p));
+        const nextPhase = phaseOrder.find(p => !completed.includes(docKey[p]));
         if (nextPhase) {
             lines.push('', `### Next Step`, `Run \`/${nextPhase}\` to start the **${phaseLabel[nextPhase]}** phase.`);
         } else {
             lines.push('', '🎉 All phases complete! Run `/review --file <doc>` to do a final quality check.');
+        }
+
+        // Show re-iteration guidance when at least one phase is complete
+        if (completed.length > 0) {
+            lines.push('', '### Re-iterate Any Phase');
+            lines.push('You can re-run any phase at any time to regenerate its document:');
+            for (const phase of phaseOrder) {
+                const label = phaseLabel[phase];
+                const done = completed.includes(docKey[phase]);
+                const hint = done ? ' *(will overwrite existing document)*' : '';
+                lines.push(`- \`/${phase}\` — ${label}${hint}`);
+            }
         }
 
         return lines.join('\n');

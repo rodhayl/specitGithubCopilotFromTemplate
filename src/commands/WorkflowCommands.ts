@@ -87,7 +87,13 @@ export function createWorkflowCommandDefinitions(
                 const title = parsedCommand.arguments.join(' ').trim();
                 const prompt = title ? `create PRD: ${title}` : 'create PRD';
                 await workflowStateManager.setPhase('prd', 'prd-creator');
-                return activateAgentAndDelegate('prd-creator', prompt, agentManager, context);
+                const result = await activateAgentAndDelegate('prd-creator', prompt, agentManager, context);
+                if (result.success) {
+                    // Record doc path from agent state or fallback
+                    const doc = agentManager.getWorkflowState().documents?.prd;
+                    if (doc) { await workflowStateManager.setDocument('prd', doc); }
+                }
+                return result;
             }
         },
 
@@ -99,7 +105,9 @@ export function createWorkflowCommandDefinitions(
             examples: ['/requirements'],
             handler: async (_parsedCommand: ParsedCommand, context: CommandContext): Promise<CommandResult> => {
                 await workflowStateManager.setPhase('requirements', 'requirements-gatherer');
-                return activateAgentAndDelegate('requirements-gatherer', 'gather requirements', agentManager, context);
+                const result = await activateAgentAndDelegate('requirements-gatherer', 'gather requirements', agentManager, context);
+                if (result.success) { await workflowStateManager.setDocument('requirements', 'requirements.md'); }
+                return result;
             }
         },
 
@@ -111,7 +119,9 @@ export function createWorkflowCommandDefinitions(
             examples: ['/design'],
             handler: async (_parsedCommand: ParsedCommand, context: CommandContext): Promise<CommandResult> => {
                 await workflowStateManager.setPhase('design', 'solution-architect');
-                return activateAgentAndDelegate('solution-architect', 'create design document based on requirements', agentManager, context);
+                const result = await activateAgentAndDelegate('solution-architect', 'create design document based on requirements', agentManager, context);
+                if (result.success) { await workflowStateManager.setDocument('design', 'design.md'); }
+                return result;
             }
         },
 
@@ -123,7 +133,9 @@ export function createWorkflowCommandDefinitions(
             examples: ['/spec'],
             handler: async (_parsedCommand: ParsedCommand, context: CommandContext): Promise<CommandResult> => {
                 await workflowStateManager.setPhase('implementation', 'specification-writer');
-                return activateAgentAndDelegate('specification-writer', 'create implementation plan from design', agentManager, context);
+                const result = await activateAgentAndDelegate('specification-writer', 'create implementation plan from design', agentManager, context);
+                if (result.success) { await workflowStateManager.setDocument('tasks', 'tasks.md'); }
+                return result;
             }
         },
 

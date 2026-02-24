@@ -114,7 +114,8 @@ Focus on creating comprehensive design.md documents that bridge the gap between 
             const result = await context.toolManager.executeTool('writeFile', {
                 path: 'design.md',
                 content: designContent,
-                createIfMissing: true
+                createIfMissing: true,
+                overwrite: true
             }, context.toolContext);
 
             if (result.success) {

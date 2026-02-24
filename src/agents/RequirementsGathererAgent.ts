@@ -106,7 +106,8 @@ Focus on creating comprehensive, well-structured requirements.md documents that 
             const result = await context.toolManager.executeTool('writeFile', {
                 path: 'requirements.md',
                 content: requirementsContent,
-                createIfMissing: true
+                createIfMissing: true,
+                overwrite: true
             }, context.toolContext);
 
             if (result.success) {
